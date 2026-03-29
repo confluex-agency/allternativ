@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+}
+
+model AdminUser {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  name                String
+  role                AdminRole @default(ADMIN)
+  mustChangePassword  Boolean   @default(true) @map("must_change_password")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+enum ProductType {
+  OPTICAL
+  SUNGLASSES
+  BLUE_LIGHT
+  READING
+}
+
+enum FrameShape {
+  ROUND
+  SQUARE
+  AVIATOR
+  CAT_EYE
+  RECTANGLE
+  OVAL
+  BROWLINE
+  GEOMETRIC
+}
+
+enum FrameMaterial {
+  ACETATE
+  METAL
+  TITANIUM
+  TR90
+  WOOD
+  MIXED
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  UNISEX
+}
+
+model Product {
+  id                    String         @id @default(cuid())
+  name                  String
+  slug                  String         @unique
+  description           String?
+  priceCents            Int            @map("price_cents")
+  compareAtPriceCents   Int?           @map("compare_at_price_cents")
+  stockQuantity         Int            @default(0) @map("stock_quantity")
+  isActive              Boolean        @default(true) @map("is_active")
+  isFeatured            Boolean        @default(false) @map("is_featured")
+  type                  ProductType
+  frameShape            FrameShape?    @map("frame_shape")
+  frameMaterial         FrameMaterial? @map("frame_material")
+  lensType              String?        @map("lens_type")
+  frameColor            String?        @map("frame_color")
+  gender                Gender         @default(UNISEX)
+  metaTitle             String?        @map("meta_title")
+  metaDescription       String?        @map("meta_description")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  images     ProductImage[]
+  categories CategoriesOnProducts[]
+  orderItems OrderItem[]
+  wishlistItems WishlistItem[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  url       String
+  altText   String? @map("alt_text")
+  position  Int     @default(0)
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  products CategoriesOnProducts[]
+
+  @@map("categories")
+}
+
+model CategoriesOnProducts {
+  productId  String @map("product_id")
+  categoryId String @map("category_id")
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
+  @@map("categories_on_products")
+}
+
+// ─── Customers & Orders ─────────────────────────────────────────────────────
+
+model Customer {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String?
+  phone             String?
+  country           String?
+  city              String?
+  stripeCustomerId  String?  @unique @map("stripe_customer_id")
+  totalSpentCents   Int      @default(0) @map("total_spent_cents")
+  orderCount        Int      @default(0) @map("order_count")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  orders        Order[]
+  wishlistItems WishlistItem[]
+  sessions      Session[]
+
+  @@map("customers")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique @map("order_number")
+  customerId        String      @map("customer_id")
+  status            OrderStatus @default(PENDING)
+  subtotalCents     Int         @map("subtotal_cents")
+  shippingCents     Int         @default(0) @map("shipping_cents")
+  taxCents          Int         @default(0) @map("tax_cents")
+  totalCents        Int         @map("total_cents")
+  currency          String      @default("USD")
+  stripeSessionId   String?     @unique @map("stripe_session_id")
+  shippingName      String?     @map("shipping_name")
+  shippingAddress   String?     @map("shipping_address")
+  shippingCity      String?     @map("shipping_city")
+  shippingCountry   String?     @map("shipping_country")
+  shippingZip       String?     @map("shipping_zip")
+  utmSource         String?     @map("utm_source")
+  utmMedium         String?     @map("utm_medium")
+  utmCampaign       String?     @map("utm_campaign")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  customer Customer    @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  orderId        String @map("order_id")
+  productId      String @map("product_id")
+  quantity       Int
+  unitPriceCents Int    @map("unit_price_cents")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model WishlistItem {
+  id         String   @id @default(cuid())
+  customerId String   @map("customer_id")
+  productId  String   @map("product_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId])
+  @@map("wishlist_items")
+}
+
+// ─── Analytics & Tracking ───────────────────────────────────────────────────
+
+model Session {
+  id              String    @id @default(cuid())
+  visitorId       String    @map("visitor_id")
+  customerId      String?   @map("customer_id")
+  referrer        String?
+  utmSource       String?   @map("utm_source")
+  utmMedium       String?   @map("utm_medium")
+  utmCampaign     String?   @map("utm_campaign")
+  userAgent       String?   @map("user_agent")
+  deviceType      String?   @map("device_type")
+  browser         String?
+  os              String?
+  country         String?
+  city            String?
+  ipHash          String?   @map("ip_hash")
+  pageCount       Int       @default(0) @map("page_count")
+  durationSeconds Int       @default(0) @map("duration_seconds")
+  landedAt        DateTime  @default(now()) @map("landed_at")
+
+  customer Customer?       @relation(fields: [customerId], references: [id])
+  events   TrackingEvent[]
+
+  @@index([visitorId])
+  @@index([landedAt])
+  @@map("sessions")
+}
+
+model TrackingEvent {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  eventType String   @map("event_type")
+  pagePath  String?  @map("page_path")
+  timestamp DateTime @default(now())
+  metadata  Json?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([eventType])
+  @@index([timestamp])
+  @@index([sessionId])
+  @@map("tracking_events")
+}
+
+model DailyAnalytics {
+  id                  String   @id @default(cuid())
+  date                DateTime @unique @db.Date
+  totalSessions       Int      @default(0) @map("total_sessions")
+  uniqueVisitors      Int      @default(0) @map("unique_visitors")
+  pageViews           Int      @default(0) @map("page_views")
+  avgSessionDuration  Float    @default(0) @map("avg_session_duration")
+  bounceRate          Float    @default(0) @map("bounce_rate")
+  totalOrders         Int      @default(0) @map("total_orders")
+  totalRevenueCents   Int      @default(0) @map("total_revenue_cents")
+  conversionRate      Float    @default(0) @map("conversion_rate")
+  topSources          Json?    @map("top_sources")
+  topCountries        Json?    @map("top_countries")
+  topProductsViewed   Json?    @map("top_products_viewed")
+  topSearchTerms      Json?    @map("top_search_terms")
+
+  @@map("daily_analytics")
+}

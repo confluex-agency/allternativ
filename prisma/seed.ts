@@ -7,13 +7,15 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // Create admin user
-  const passwordHash = await hash("admin123", 12);
+  // Create admin user. Initial password forces immediate change.
+  const initialPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe!Now-2026";
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@allternativ.com";
+  const passwordHash = await hash(initialPassword, 12);
   const admin = await prisma.adminUser.upsert({
-    where: { email: "admin@allternativ.com" },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: "admin@allternativ.com",
+      email: adminEmail,
       passwordHash,
       name: "Admin",
       role: "SUPER_ADMIN",
@@ -21,6 +23,11 @@ async function main() {
     },
   });
   console.log("Created admin user:", admin.email);
+  if (!process.env.SEED_ADMIN_PASSWORD) {
+    console.warn(
+      "⚠️  Using default initial password. Login and change immediately.",
+    );
+  }
 
   // Create categories
   const categories = await Promise.all(

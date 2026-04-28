@@ -42,3 +42,15 @@ jobs:
           NEXT_PUBLIC_APP_URL: "http://localhost:3000"
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           SUPABASE_SERVICE_ROLE_KEY: "placeholder"
+
+      # Defense in depth: also run a quick secret grep on the diff so PRs
+      # cannot land an .env or hardcoded key even if gitleaks job is skipped
+      - name: Quick secret grep (diff only)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD)
+          if echo "$DIFF" | grep -iE "(api[_-]?key|secret|password|bearer)\s*[:=]\s*['\"][^'\"]{16,}" ; then
+            echo "Possible secret in diff. Review the matches above."
+            exit 1
+          fi

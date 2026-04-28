@@ -1,27 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { stripe, SUPPORTED_CURRENCIES, type SupportedCurrency } from "@/lib/stripe";
+import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
+import { env } from "@/lib/env";
+
+const CheckoutSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1).max(64),
+        quantity: z.number().int().min(1).max(100),
+      }),
+    )
+    .min(1)
+    .max(50),
+  currency: z.enum(SUPPORTED_CURRENCIES).default("usd"),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { items, currency = "usd" } = await request.json();
-
-    if (!SUPPORTED_CURRENCIES.includes(currency as SupportedCurrency)) {
+    const parsed = CheckoutSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Unsupported currency" },
-        { status: 400 }
+        { error: "Invalid checkout payload" },
+        { status: 400 },
       );
     }
+    const { items, currency } = parsed.data;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: "Items are required" },
-        { status: 400 }
-      );
-    }
-
-    // Fetch products from DB to get real prices
-    const productIds = items.map((i: { productId: string }) => i.productId);
+    const productIds = items.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true },
     });
@@ -29,51 +36,41 @@ export async function POST(request: NextRequest) {
     if (products.length !== productIds.length) {
       return NextResponse.json(
         { error: "Some products are unavailable" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const lineItems = items.map(
-      (item: { productId: string; quantity: number }) => {
-        const product = products.find((p) => p.id === item.productId)!;
-        return {
-          price_data: {
-            currency,
-            product_data: {
-              name: product.name,
-              description: product.description || undefined,
-            },
-            unit_amount: product.priceCents,
+    const lineItems = items.map((item) => {
+      const product = products.find((p) => p.id === item.productId)!;
+      return {
+        price_data: {
+          currency,
+          product_data: {
+            name: product.name,
+            description: product.description || undefined,
           },
-          quantity: item.quantity,
-        };
-      }
-    );
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          unit_amount: product.priceCents,
+        },
+        quantity: item.quantity,
+      };
+    });
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
       mode: "payment",
-      success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/cart`,
+      success_url: `${env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${env.NEXT_PUBLIC_APP_URL}/cart`,
       metadata: {
-        items: JSON.stringify(
-          items.map((i: { productId: string; quantity: number }) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-          }))
-        ),
+        items: JSON.stringify(items),
       },
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (error) {
-    console.error("Checkout error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to create checkout session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

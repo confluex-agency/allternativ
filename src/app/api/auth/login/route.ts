@@ -1,16 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compare } from "bcryptjs";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { signToken, setAuthCookie } from "@/lib/auth";
+import { loginLimiter, getClientIp } from "@/lib/rate-limit";
+
+const LoginSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(1).max(200),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const ip = getClientIp(request.headers);
+    const parsed = LoginSchema.safeParse(await request.json());
 
-    if (!email || !password) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 }
+        { error: "Invalid credentials" },
+        { status: 400 },
+      );
+    }
+
+    const { email, password } = parsed.data;
+
+    const { success } = await loginLimiter.limit(`${ip}:${email}`);
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again in 15 minutes." },
+        { status: 429 },
       );
     }
 
@@ -19,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!user || !(await compare(password, user.passwordHash))) {
       return NextResponse.json(
         { error: "Invalid credentials" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -44,7 +62,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,28 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { trackingLimiter, getClientIp } from "@/lib/rate-limit";
+
+const EventSchema = z.object({
+  eventType: z.string().min(1).max(64),
+  pagePath: z.string().max(500).optional(),
+  timestamp: z.string().datetime().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+const PayloadSchema = z.object({
+  visitorId: z.string().min(1).max(64),
+  sessionId: z.string().min(1).max(64),
+  events: z.array(EventSchema).max(50),
+  utm: z
+    .object({
+      utm_source: z.string().max(200).optional(),
+      utm_medium: z.string().max(200).optional(),
+      utm_campaign: z.string().max(200).optional(),
+    })
+    .optional(),
+  referrer: z.string().max(500).optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { visitorId, sessionId, events, utm, referrer } = body;
-
-    if (!visitorId || !sessionId || !Array.isArray(events)) {
-      return new NextResponse(null, { status: 400 });
-    }
-
-    if (events.length > 50) {
-      return new NextResponse(null, { status: 400 });
-    }
-
-    // Hash IP for privacy
-    const forwarded = request.headers.get("x-forwarded-for");
-    const ip = forwarded?.split(",")[0]?.trim() || "unknown";
+    const ip = getClientIp(request.headers);
     const ipHash = createHash("sha256").update(ip).digest("hex").slice(0, 16);
 
-    const userAgentStr = request.headers.get("user-agent") || "";
+    const { success } = await trackingLimiter.limit(ipHash);
+    if (!success) {
+      return new NextResponse(null, { status: 429 });
+    }
 
-    // Upsert session
+    const parsed = PayloadSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return new NextResponse(null, { status: 400 });
+    }
+    const { visitorId, sessionId, events, utm, referrer } = parsed.data;
+    void sessionId;
+
+    const userAgentStr = (request.headers.get("user-agent") || "").slice(0, 500);
+
     let session = await prisma.session.findFirst({
       where: {
         visitorId,
@@ -32,7 +53,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (!session) {
-      // Parse UA simply (full ua-parser-js can be added later)
       const isMobile = /mobile|android|iphone/i.test(userAgentStr);
       const isTablet = /tablet|ipad/i.test(userAgentStr);
       const deviceType = isTablet ? "tablet" : isMobile ? "mobile" : "desktop";
@@ -51,29 +71,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Insert events
     if (events.length > 0) {
       await prisma.trackingEvent.createMany({
-        data: events.map(
-          (e: {
-            eventType: string;
-            pagePath?: string;
-            timestamp?: string;
-            metadata?: Record<string, unknown>;
-          }) => ({
-            sessionId: session.id,
-            eventType: e.eventType,
-            pagePath: e.pagePath || null,
-            timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
-            metadata: (e.metadata as never) || undefined,
-          })
-        ),
+        data: events.map((e) => ({
+          sessionId: session.id,
+          eventType: e.eventType,
+          pagePath: e.pagePath || null,
+          timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
+          metadata: (e.metadata as never) || undefined,
+        })),
       });
 
-      // Update session page count
-      const pageViews = events.filter(
-        (e: { eventType: string }) => e.eventType === "page_view"
-      ).length;
+      const pageViews = events.filter((e) => e.eventType === "page_view").length;
       if (pageViews > 0) {
         await prisma.session.update({
           where: { id: session.id },

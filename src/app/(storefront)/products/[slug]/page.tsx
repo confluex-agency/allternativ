@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { formatCurrency } from "@/lib/utils";
-import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
-import { GlassesViewerLazy } from "@/components/storefront/glasses-viewer-lazy";
 import type { Metadata } from "next";
+import {
+  mockProducts,
+  tintToClass,
+  formatMockPrice,
+} from "@/lib/mock-data";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -11,118 +13,135 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const product = await prisma.product.findUnique({ where: { slug } });
+  const product = mockProducts.find((p) => p.slug === slug);
   if (!product) return { title: "Not Found" };
   return {
-    title: product.metaTitle || product.name,
-    description: product.metaDescription || product.description || "",
+    title: `${product.name} — ${product.tagline}`,
+    description: `Allternativ ${product.name}. ${product.tagline}.`,
   };
 }
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-
-  const product = await prisma.product.findUnique({
-    where: { slug },
-    include: {
-      images: { orderBy: { position: "asc" } },
-      categories: { include: { category: true } },
-    },
-  });
-
-  if (!product || !product.isActive) notFound();
+  const product = mockProducts.find((p) => p.slug === slug);
+  if (!product) notFound();
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
-      <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-        {/* 3D Viewer + Gallery */}
-        <div className="space-y-4">
-          <GlassesViewerLazy className="aspect-square" />
+    <div className="mx-auto max-w-[1440px] px-5 py-12 pb-28 md:px-6 md:py-20 md:pb-20 lg:px-12 lg:py-32">
+      <nav className="mb-8 eyebrow text-brand-muted md:mb-12">
+        <Link href="/products" className="fluid-transition hover:text-brand-ink">
+          ← Back to catalogue
+        </Link>
+      </nav>
+
+      <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
+        <div className="space-y-3 md:space-y-4">
+          <div
+            className={`relative aspect-square overflow-hidden rounded-[1.5rem] md:rounded-[2rem] ${tintToClass[product.tint]}`}
+          >
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(at 60% 30%, rgba(255,255,255,0.6), transparent 65%)",
+                mixBlendMode: "screen",
+              }}
+            />
+            <div className="absolute inset-0 grid place-items-center p-6">
+              <div className="text-center">
+                <p className="eyebrow text-brand-ink/30">placeholder</p>
+                <p className="mt-2 text-[11px] text-brand-ink/40 md:text-xs">
+                  visor 3D se habilita cuando lleguen los modelos
+                </p>
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-4 gap-2">
-            {product.images.slice(0, 4).map((img) => (
-              <div key={img.id} className="aspect-square bg-neutral-100" />
+            {(["rose", "mint", "sky", "beige"] as const).map((tint) => (
+              <div
+                key={tint}
+                className={`aspect-square rounded-[0.75rem] opacity-60 md:rounded-[1rem] ${tintToClass[tint]}`}
+                aria-hidden="true"
+              />
             ))}
           </div>
         </div>
 
-        {/* Info */}
         <div>
-          <h1 className="text-3xl font-light tracking-tight">
+          <p className="eyebrow text-brand-muted mb-3 md:mb-4">
+            {product.type.replace("_", " ")}
+          </p>
+          <h1 className="display text-[clamp(2.5rem,7vw,4rem)] text-brand-ink">
             {product.name}
           </h1>
-          <p className="mt-4 text-2xl">
-            {formatCurrency(product.priceCents)}
+          <p className="mt-2 text-base italic text-brand-ink-soft md:mt-3 md:text-lg">
+            {product.tagline}
+          </p>
+
+          <p className="mt-8 text-2xl text-brand-ink md:mt-10">
+            {formatMockPrice(product.priceCents)}
             {product.compareAtPriceCents && (
-              <span className="ml-3 text-lg line-through text-neutral-400">
-                {formatCurrency(product.compareAtPriceCents)}
+              <span className="ml-3 text-base text-brand-muted line-through">
+                {formatMockPrice(product.compareAtPriceCents)}
               </span>
             )}
           </p>
 
-          {product.description && (
-            <p className="mt-6 text-neutral-600 leading-relaxed">
-              {product.description}
-            </p>
-          )}
+          <p className="mt-8 max-w-md text-sm leading-relaxed text-brand-ink-soft md:mt-10 md:text-base">
+            Diseñado para sesiones largas de escucha y paisajes en
+            movimiento. Marco ligero de acetato con acabado mate y lentes
+            tratadas con filtro tornasol propio de la casa.
+          </p>
 
-          {/* Specs */}
-          <dl className="mt-8 space-y-3 text-sm">
-            {product.type && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Type</dt>
-                <dd>{product.type.replace("_", " ")}</dd>
-              </div>
-            )}
-            {product.frameShape && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Frame Shape</dt>
-                <dd>{product.frameShape.replace("_", " ")}</dd>
-              </div>
-            )}
-            {product.frameMaterial && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Material</dt>
-                <dd>{product.frameMaterial}</dd>
-              </div>
-            )}
-            {product.frameColor && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Color</dt>
-                <dd>{product.frameColor}</dd>
-              </div>
-            )}
-            {product.lensType && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Lens</dt>
-                <dd>{product.lensType}</dd>
-              </div>
-            )}
-            {product.gender && (
-              <div className="flex gap-3">
-                <dt className="text-neutral-500 w-28">Gender</dt>
-                <dd>{product.gender}</dd>
-              </div>
-            )}
+          <dl className="mt-8 space-y-3 text-sm md:mt-10">
+            <Spec label="Type" value={product.type.replace("_", " ")} />
+            <Spec label="Frame" value="Acetato italiano mate" />
+            <Spec label="Lens" value="Mineral — filtro tornasol" />
+            <Spec label="Origin" value="Handcrafted · LATAM" />
           </dl>
 
-          <div className="mt-10">
-            <AddToCartButton
-              productId={product.id}
-              name={product.name}
-              slug={product.slug}
-              priceCents={product.priceCents}
-              imageUrl={product.images[0]?.url || ""}
-              inStock={product.stockQuantity > 0}
-            />
-          </div>
-
-          {product.stockQuantity <= 5 && product.stockQuantity > 0 && (
-            <p className="mt-3 text-sm text-amber-600">
-              Only {product.stockQuantity} left in stock
-            </p>
-          )}
+          <button
+            type="button"
+            disabled
+            className="mt-10 hidden min-h-11 w-full rounded-full bg-brand-ink/60 px-7 py-4 eyebrow text-brand-beige cursor-not-allowed md:mt-12 md:block"
+          >
+            Pronto disponible
+          </button>
+          <p className="mt-3 hidden text-xs text-brand-muted md:block">
+            Mock preview — el carrito se activa cuando conectemos la base y
+            lleguen los modelos reales.
+          </p>
         </div>
       </div>
+
+      {/* Sticky mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-brand-ink/10 p-4 md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-xs text-brand-muted">{product.name}</p>
+            <p className="text-base text-brand-ink">
+              {formatMockPrice(product.priceCents)}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled
+            className="min-h-11 rounded-full bg-brand-ink/60 px-6 py-3 eyebrow text-brand-beige cursor-not-allowed"
+          >
+            Pronto disponible
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Spec({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 border-b border-brand-ink/10 pb-3 md:gap-4">
+      <dt className="eyebrow w-20 shrink-0 text-brand-muted md:w-24">{label}</dt>
+      <dd className="break-words text-brand-ink-soft">{value}</dd>
     </div>
   );
 }

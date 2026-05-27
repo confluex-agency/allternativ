@@ -89,15 +89,15 @@ export default async function ProductPage({ params }: Props) {
           </p>
 
           <p className="mt-8 max-w-md text-sm leading-relaxed text-brand-ink-soft md:mt-10 md:text-base">
-            Diseñado para sesiones largas de escucha y paisajes en
-            movimiento. Marco ligero de acetato con acabado mate y lentes
-            tratadas con filtro tornasol propio de la casa.
+            Designed for long listening sessions and landscapes in motion.
+            Lightweight acetate frame with matte finish and lenses treated
+            with our signature iridescent filter.
           </p>
 
           <dl className="mt-8 space-y-3 text-sm md:mt-10">
             <Spec label="Type" value={product.type.replace("_", " ")} />
-            <Spec label="Frame" value="Acetato italiano mate" />
-            <Spec label="Lens" value="Mineral — filtro tornasol" />
+            <Spec label="Frame" value="Matte Italian acetate" />
+            <Spec label="Lens" value="Mineral — iridescent filter" />
             <Spec label="Origin" value="Handcrafted · LATAM" />
           </dl>
 
@@ -106,11 +106,11 @@ export default async function ProductPage({ params }: Props) {
             disabled
             className="mt-10 hidden min-h-11 w-full rounded-full bg-brand-ink/60 px-7 py-4 eyebrow text-brand-beige cursor-not-allowed md:mt-12 md:block"
           >
-            Pronto disponible
+            Coming soon
           </button>
           <p className="mt-3 hidden text-xs text-brand-muted md:block">
-            Mock preview — el carrito se activa cuando conectemos la base y
-            lleguen los modelos reales.
+            Mock preview — cart activates once the database is connected and
+            real models arrive.
           </p>
         </div>
       </div>
@@ -129,7 +129,7 @@ export default async function ProductPage({ params }: Props) {
             disabled
             className="min-h-11 rounded-full bg-brand-ink/60 px-6 py-3 eyebrow text-brand-beige cursor-not-allowed"
           >
-            Pronto disponible
+            Coming soon
           </button>
         </div>
       </div>

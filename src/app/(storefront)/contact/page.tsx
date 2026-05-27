@@ -3,7 +3,7 @@ import { Instagram, Mail, MapPin } from "lucide-react";
 export const metadata = {
   title: "Contact",
   description:
-    "Escribinos. Colaboraciones, pedidos especiales, distribución o charla sobre frecuencias.",
+    "Write to us. Collaborations, special orders, distribution or conversations about frequency.",
 };
 
 const CHANNELS = [
@@ -21,8 +21,8 @@ const CHANNELS = [
   },
   {
     icon: MapPin,
-    label: "Taller",
-    value: "Buenos Aires — visitas con cita previa",
+    label: "Studio",
+    value: "Buenos Aires — visits by appointment",
     href: null,
   },
 ];
@@ -34,11 +34,11 @@ export default function ContactPage() {
         <div className="md:col-span-5">
           <p className="eyebrow text-brand-muted mb-5">contact</p>
           <h1 className="display text-[clamp(2.5rem,8vw,5rem)] text-brand-ink">
-            Escribinos.
+            Write to us.
           </h1>
           <p className="mt-6 max-w-sm text-base leading-relaxed text-brand-ink-soft md:mt-8">
-            Colaboraciones, pedidos especiales, distribución o charlas sobre
-            frecuencias y sunsets. Leemos todos los mensajes.
+            Collaborations, special orders, distribution or conversations about
+            frequency and sunsets. We read every message.
           </p>
 
           <ul className="mt-10 space-y-5 md:mt-12 md:space-y-6">
@@ -68,13 +68,13 @@ export default function ContactPage() {
         </div>
 
         <form className="glass md:col-span-7 rounded-[1.5rem] p-6 md:rounded-[2rem] md:p-12">
-          <p className="eyebrow text-brand-muted mb-2">formulario</p>
+          <p className="eyebrow text-brand-muted mb-2">form</p>
           <h2 className="display mb-8 text-2xl text-brand-ink md:mb-10 md:text-3xl">
-            Contanos qué tenés en mente.
+            Tell us what&apos;s on your mind.
           </h2>
 
           <div className="grid gap-5 md:grid-cols-2 md:gap-6">
-            <Field label="Nombre" name="name" required />
+            <Field label="Name" name="name" required />
             <Field label="Email" name="email" type="email" required />
           </div>
           <div className="mt-5 md:mt-6">
@@ -82,7 +82,7 @@ export default function ContactPage() {
               className="eyebrow mb-2 block text-brand-muted"
               htmlFor="topic"
             >
-              Asunto
+              Subject
             </label>
             <select
               id="topic"
@@ -90,10 +90,10 @@ export default function ContactPage() {
               className="min-h-11 w-full rounded-xl border border-brand-ink/15 bg-white/70 px-4 py-3 text-base text-brand-ink focus:border-brand-ink focus:outline-none fluid-transition"
               defaultValue="general"
             >
-              <option value="general">Consulta general</option>
-              <option value="custom">Pedido especial</option>
-              <option value="press">Prensa / colaboración</option>
-              <option value="stockist">Distribución / stockist</option>
+              <option value="general">General enquiry</option>
+              <option value="custom">Special order</option>
+              <option value="press">Press / collaboration</option>
+              <option value="stockist">Distribution / stockist</option>
             </select>
           </div>
           <div className="mt-5 md:mt-6">
@@ -101,14 +101,14 @@ export default function ContactPage() {
               className="eyebrow mb-2 block text-brand-muted"
               htmlFor="message"
             >
-              Mensaje
+              Message
             </label>
             <textarea
               id="message"
               name="message"
               rows={5}
               required
-              placeholder="Contanos con libertad."
+              placeholder="Write freely."
               className="w-full rounded-xl border border-brand-ink/15 bg-white/70 px-4 py-3 text-base text-brand-ink placeholder:text-brand-muted focus:border-brand-ink focus:outline-none fluid-transition resize-none"
             />
           </div>
@@ -116,10 +116,10 @@ export default function ContactPage() {
             type="submit"
             className="mt-8 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-ink px-7 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90 md:mt-10 md:w-auto"
           >
-            Enviar
+            Send
           </button>
           <p className="mt-4 text-xs text-brand-muted">
-            Mock preview — conectamos a Formspree cuando Diego confirme el endpoint.
+            Mock preview — wired to Formspree once the endpoint is confirmed.
           </p>
         </form>
       </div>

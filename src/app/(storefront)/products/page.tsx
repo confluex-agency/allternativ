@@ -49,8 +49,8 @@ export default async function ProductsPage({
           </h1>
         </div>
         <p className="max-w-xs text-sm text-brand-ink-soft">
-          Placeholder del catálogo. Las piezas reales se cargan cuando la
-          productora entregue la sesión de fotos.
+          Catalogue placeholder. Real pieces load once the production team
+          delivers the photoshoot.
         </p>
       </div>
 
@@ -77,7 +77,7 @@ export default async function ProductsPage({
 
       {filtered.length === 0 ? (
         <p className="py-24 text-center text-brand-muted">
-          No hay piezas todavía en esta colección.
+          No pieces in this collection yet.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">

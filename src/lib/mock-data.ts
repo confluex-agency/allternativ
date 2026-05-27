@@ -4,6 +4,7 @@
 export type MockProduct = {
   slug: string;
   name: string;
+  code: string;
   tagline: string;
   priceCents: number;
   compareAtPriceCents?: number;
@@ -22,94 +23,56 @@ export const mockCategories: MockCategory[] = [
   {
     slug: "sunglasses",
     name: "Sunglasses",
-    blurb: "Para sunsets infinitos",
+    blurb: "For infinite sunsets",
     tint: "rose",
   },
   {
     slug: "optical",
     name: "Optical",
-    blurb: "Prescripción con carácter",
+    blurb: "Prescription with character",
     tint: "mint",
   },
   {
     slug: "blue-light",
     name: "Blue Light",
-    blurb: "Pantallas sin ruido",
+    blurb: "Screens, quietly",
     tint: "sky",
   },
   {
     slug: "reading",
     name: "Reading",
-    blurb: "Lectura en calma",
+    blurb: "Reading in calm",
     tint: "beige",
   },
 ];
 
 export const mockProducts: MockProduct[] = [
   {
-    slug: "nova-rose",
-    name: "Nova",
-    tagline: "Rosa tornasol",
+    slug: "the-corinthian",
+    name: "The Corinthian",
+    code: "89310",
+    tagline: "Forest green / festival nights",
     priceCents: 18900,
-    compareAtPriceCents: 22900,
-    tint: "rose",
+    tint: "mint",
     type: "SUNGLASSES",
   },
   {
-    slug: "halo-mint",
-    name: "Halo",
-    tagline: "Verde menta holográfico",
-    priceCents: 16500,
-    tint: "mint",
-    type: "OPTICAL",
-  },
-  {
-    slug: "aurora-sky",
-    name: "Aurora",
-    tagline: "Azul techno",
-    priceCents: 14900,
+    slug: "orbital",
+    name: "Orbital",
+    code: "5312JT",
+    tagline: "Cool grey / city motion",
+    priceCents: 17500,
     tint: "sky",
-    type: "BLUE_LIGHT",
-  },
-  {
-    slug: "solace-beige",
-    name: "Solace",
-    tagline: "Beige cotidiano",
-    priceCents: 12900,
-    tint: "beige",
-    type: "READING",
-  },
-  {
-    slug: "mirage-rose",
-    name: "Mirage",
-    tagline: "Rosa espejado",
-    priceCents: 19900,
-    tint: "rose",
     type: "SUNGLASSES",
   },
   {
-    slug: "echo-mint",
-    name: "Echo",
-    tagline: "Verde lluvia",
-    priceCents: 15900,
-    tint: "mint",
-    type: "OPTICAL",
-  },
-  {
-    slug: "drift-sky",
-    name: "Drift",
-    tagline: "Azul cielo bajo",
-    priceCents: 14500,
-    tint: "sky",
-    type: "BLUE_LIGHT",
-  },
-  {
-    slug: "ember-beige",
-    name: "Ember",
-    tagline: "Beige cálido",
-    priceCents: 13500,
-    tint: "beige",
-    type: "READING",
+    slug: "neon-shift",
+    name: "Neon Shift",
+    code: "862JT",
+    tagline: "Crimson red / late hours",
+    priceCents: 16900,
+    tint: "rose",
+    type: "SUNGLASSES",
   },
 ];
 

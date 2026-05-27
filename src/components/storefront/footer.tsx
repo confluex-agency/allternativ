@@ -65,9 +65,9 @@ export function StorefrontFooter() {
           <div className="max-w-sm">
             <p className="eyebrow text-brand-beige/70 mb-4">Allternativ</p>
             <p className="text-sm leading-relaxed text-brand-beige/80">
-              Lentes y accesorios pensados para una realidad alterada.
-              Inspirados en música electrónica, sunsets y las texturas
-              tornasol de un cielo a media tarde.
+              Eyewear designed for those who live between music, light and
+              emotion. Inspired by electronic culture, sunsets and the
+              iridescent textures of a sky in motion.
             </p>
           </div>
 

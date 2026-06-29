@@ -228,7 +228,7 @@ export default function HomePage() {
         <div className="relative overflow-hidden rounded-[1.5rem] md:rounded-[2rem]">
           <div className="relative aspect-[4/5] sm:aspect-[5/3] lg:aspect-[21/9]">
             <Image
-              src="/brand/holo-trama-1.png"
+              src="/brand/holo-trama-1.jpg"
               alt="Iridescent holographic texture"
               fill
               sizes="(max-width: 768px) 100vw, 80vw"

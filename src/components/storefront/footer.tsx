@@ -61,8 +61,8 @@ export function StorefrontFooter() {
       </div>
 
       <div className="relative mx-auto max-w-[1440px] px-5 py-14 md:px-6 md:py-20 lg:px-12">
-        <div className="grid gap-10 md:gap-12 md:grid-cols-[1.5fr_repeat(4,1fr)]">
-          <div className="max-w-sm">
+        <div className="grid grid-cols-2 gap-10 md:gap-12 md:grid-cols-[1.5fr_repeat(4,1fr)]">
+          <div className="col-span-2 max-w-sm md:col-span-1">
             <p className="eyebrow text-brand-beige/70 mb-4">Allternativ</p>
             <p className="text-sm leading-relaxed text-brand-beige/80">
               Eyewear designed for those who live between music, light and

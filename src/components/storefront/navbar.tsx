@@ -92,7 +92,7 @@ export function StorefrontNavbar() {
         <div
           role="dialog"
           aria-modal="true"
-          className={`absolute right-0 top-0 h-full w-[85%] max-w-sm glass fluid-transition ${open ? "translate-x-0" : "translate-x-full"}`}
+          className={`absolute right-0 top-0 h-full w-[85%] max-w-sm bg-brand-beige/95 backdrop-blur-2xl border-l border-brand-ink/10 fluid-transition ${open ? "translate-x-0" : "translate-x-full"}`}
         >
           <div className="flex items-center justify-between px-6 py-5 border-b border-brand-ink/10">
             <span className="eyebrow text-brand-ink">Allternativ</span>

@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
 
+// React's dev RSC runtime uses eval() for debugging (callstacks). It is NEVER
+// used in production, so we only relax script-src in development and keep the
+// production CSP strict.
+const isDev = process.env.NODE_ENV !== "production";
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://js.stripe.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

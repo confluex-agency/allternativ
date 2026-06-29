@@ -48,11 +48,11 @@ export function StorefrontFooter() {
       />
 
       <div className="relative overflow-hidden border-y border-white/10 py-5 md:py-6">
-        <div className="flex animate-[marquee_40s_linear_infinite] whitespace-nowrap gap-12 md:gap-16">
+        <div className="flex animate-[marquee_18s_linear_infinite] whitespace-nowrap gap-10 md:gap-12">
           {Array.from({ length: 8 }).map((_, i) => (
             <span
               key={i}
-              className="display text-4xl md:text-5xl lg:text-7xl text-brand-beige/80"
+              className="display text-xl md:text-2xl lg:text-3xl text-brand-beige/80"
             >
               escape the ordinary —
             </span>

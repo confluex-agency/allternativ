@@ -1,0 +1,20 @@
+# Gitleaks configuration for Allternativ.
+# Extends the full default ruleset and only adds an allowlist for the
+# documented CI placeholder values used in .github/workflows/ci.yml.
+# These are NOT real secrets (verified: the only STRIPE_SECRET_KEY ever in
+# git history is the literal "sk_test_placeholder"). Real keys never contain
+# the word "placeholder", so genuine leaks are still detected.
+
+title = "Allternativ gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "CI placeholder env values (verified non-secret)"
+# Ignore any finding whose secret contains one of these words.
+stopwords = ["placeholder"]
+# Plus the explicit non-secret JWT value used only for the CI build.
+regexes = [
+  '''ci-test-secret-not-real-at-least-32-characters''',
+]

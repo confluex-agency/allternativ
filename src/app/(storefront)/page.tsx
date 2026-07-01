@@ -44,8 +44,13 @@ export default function HomePage() {
           className="pointer-events-none absolute -top-20 -left-20 size-[340px] md:size-[520px] holo-conic opacity-60"
         />
 
-        {/* Auto-rotating 3D glasses with frequency glow — desktop only */}
-        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] md:block lg:w-[42%]">
+        {/* Auto-rotating 3D glasses with frequency glow. Placement adapts to the
+            shape of the hero (same band height everywhere, so size is constant):
+            - Phone portrait: band sits higher (short hero, CTAs are near).
+            - Tablet portrait (sm+): band lower, more room below.
+            - Landscape (desktop/tablet): right column, full height.
+            Framing is self-fitting, so it never clips. */}
+        <div className="pointer-events-none absolute left-0 right-0 top-[27%] bottom-[27%] sm:portrait:top-[40%] sm:portrait:bottom-[14%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[46%] xl:landscape:w-[42%]">
           <HeroGlassesLazy />
         </div>
 

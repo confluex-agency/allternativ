@@ -60,7 +60,8 @@
 
 :root {
   /* Allternativ brand tokens */
-  --brand-beige: #f7f3f0;
+  /* --brand-beige: #f7f3f0; (original de la diseñadora) */
+  --brand-beige: #f2ece6; /* brillo bajado sutil, a medio camino del original */
   --brand-rose: #ffcfff;
   --brand-mint: #dcffe8;
   --brand-sky: #96bdff;

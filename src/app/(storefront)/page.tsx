@@ -6,6 +6,7 @@ import {
   tintToClass,
   formatMockPrice,
 } from "@/lib/mock-data";
+import { HeroGlassesLazy } from "@/components/storefront/hero-glasses-lazy";
 
 const LIFESTYLE_MOMENTS = [
   "Summer nights",
@@ -42,6 +43,11 @@ export default function HomePage() {
           aria-hidden="true"
           className="pointer-events-none absolute -top-20 -left-20 size-[340px] md:size-[520px] holo-conic opacity-60"
         />
+
+        {/* Auto-rotating 3D glasses with frequency glow — desktop only */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] md:block lg:w-[42%]">
+          <HeroGlassesLazy />
+        </div>
 
         <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-12 px-5 pb-16 pt-14 md:pt-32 lg:px-12 lg:pt-44">
           <div className="max-w-[72rem]">

@@ -152,6 +152,29 @@
         var(--brand-rose));
     filter: blur(40px) saturate(140%);
   }
+  /* Frequency glow behind the hero 3D glasses */
+  .hero-freq-glow {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: min(75%, 460px);
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background:
+      conic-gradient(from 0deg at 50% 50%,
+        var(--brand-rose),
+        var(--brand-sky),
+        var(--brand-mint),
+        #fff3c4,
+        var(--brand-rose));
+    filter: blur(60px) saturate(150%);
+    opacity: 0.5;
+    animation: freqPulse 6s ease-in-out infinite;
+  }
+  @keyframes freqPulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.4; }
+    50% { transform: scale(1.06); opacity: 0.6; }
+  }
   .glass {
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(15px) saturate(180%);
@@ -192,6 +215,9 @@
     transition-duration: 150ms !important;
   }
   .holo-conic {
+    animation: none !important;
+  }
+  .hero-freq-glow {
     animation: none !important;
   }
 }

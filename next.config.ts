@@ -11,7 +11,9 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.stripe.com https://*.supabase.co",
+  // blob: + data: let three.js GLTFLoader fetch embedded GLB textures (loaded as
+  // blob/ImageBitmap), otherwise 3D models render untextured.
+  "connect-src 'self' blob: data: https://api.stripe.com https://*.supabase.co",
   "frame-src https://js.stripe.com https://hooks.stripe.com",
   "worker-src 'self' blob:",
   "object-src 'none'",

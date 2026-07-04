@@ -20,7 +20,10 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self' https://checkout.stripe.com",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  // Forces subresources to HTTPS. In dev this breaks LAN access from other
+  // devices (phones on the local IP), which is plain HTTP, so only send it in
+  // production.
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
 const securityHeaders = [

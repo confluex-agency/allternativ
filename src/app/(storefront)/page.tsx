@@ -6,7 +6,7 @@ import {
   tintToClass,
   formatMockPrice,
 } from "@/lib/mock-data";
-import { HeroHeadLazy } from "@/components/storefront/hero-head-lazy";
+import { HeroVideoLazy } from "@/components/storefront/hero-video-lazy";
 
 const LIFESTYLE_MOMENTS = [
   "Summer nights",
@@ -50,8 +50,8 @@ export default function HomePage() {
             - Tablet portrait (sm+): band lower, more room below.
             - Landscape (desktop/tablet): right column, full height.
             Framing is self-fitting, so it never clips. */}
-        <div className="pointer-events-none absolute left-0 right-0 top-[26%] bottom-[22%] sm:portrait:top-[34%] sm:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
-          <HeroHeadLazy />
+        <div className="pointer-events-none absolute left-0 right-0 top-[22%] bottom-[36%] sm:portrait:top-[28%] sm:portrait:bottom-[24%] md:portrait:top-[32%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
+          <HeroVideoLazy />
         </div>
 
         <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-12 px-5 pb-16 pt-14 md:pt-32 lg:px-12 lg:pt-44">

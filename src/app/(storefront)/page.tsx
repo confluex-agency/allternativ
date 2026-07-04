@@ -41,44 +41,53 @@ export default function HomePage() {
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-20 -left-20 size-[340px] md:size-[520px] holo-conic opacity-60"
+          className="pointer-events-none absolute -top-20 -left-20 hidden size-[340px] md:size-[520px] holo-conic opacity-60 sm:block"
         />
 
-        {/* Auto-rotating 3D glasses with frequency glow. Placement adapts to the
-            shape of the hero (same band height everywhere, so size is constant):
-            - Phone portrait: band sits higher (short hero, CTAs are near).
-            - Tablet portrait (sm+): band lower, more room below.
-            - Landscape (desktop/tablet): right column, full height.
-            Framing is self-fitting, so it never clips. */}
-        <div className="pointer-events-none absolute left-0 right-0 top-[31%] bottom-[37%] sm:portrait:top-[30%] sm:portrait:bottom-[22%] md:portrait:top-[34%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
-          <HeroVideoLazy />
-        </div>
-
-        <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-12 px-5 pb-16 pt-14 md:pt-32 lg:px-12 lg:pt-44">
-          <div className="max-w-[72rem]">
-            <p className="eyebrow text-brand-ink-soft mb-5">
+        {/* ===== MOBILE hero (phones only) — "escape the ordinary" rotated + head
+             framed on the right. Tablet/desktop keep the layout further below.
+             Positions use %/vw/clamp so it holds across phone sizes. ===== */}
+        <div className="sm:hidden">
+          <div className="relative h-[60vh] min-h-[440px] overflow-hidden">
+            {/* soft collage blocks */}
+            <div
+              aria-hidden="true"
+              className="absolute left-6 top-[12%] h-[52%] w-[26%] rounded-md bg-brand-sky/35"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-[8%] left-[34%] h-[34%] w-[32%] rounded-md bg-brand-rose/25"
+            />
+            <p className="absolute left-5 top-4 z-20 eyebrow text-brand-ink-soft">
               SS&apos;26 — frequency collection
             </p>
-            <h1 className="display chromatic-title text-[clamp(3rem,13vw,8rem)] text-brand-ink">
-              escape
-              <br />
-              the ordinary.
-            </h1>
-            <p className="mt-6 text-lg italic text-brand-ink-soft md:mt-8 md:text-2xl">
+            {/* subtitle, set vertical reading upward */}
+            <p className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rotate-180 whitespace-nowrap text-sm italic text-brand-ink-soft [writing-mode:vertical-rl]">
               A frequency you can wear.
             </p>
+            {/* rotated headline */}
+            <div className="absolute left-[25%] top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 -rotate-90">
+              <h1 className="display chromatic-title whitespace-nowrap text-[clamp(2.5rem,13.5vw,4rem)] leading-[0.9] text-brand-ink">
+                escape
+                <br />
+                the ordinary.
+              </h1>
+            </div>
+            {/* head, framed on the right (object-contain inside, so it never crops) */}
+            <div className="pointer-events-none absolute right-4 top-1/2 z-10 h-[62%] w-[48%] -translate-y-1/2 overflow-hidden rounded-[1.25rem] bg-gradient-to-b from-brand-sky/25 to-brand-rose/15 shadow-[0_20px_40px_rgba(40,25,50,0.16)]">
+              <HeroVideoLazy fit="cover" />
+            </div>
           </div>
 
-          <div className="flex flex-col gap-8 md:grid md:grid-cols-[1fr_auto] md:items-end md:gap-10">
-            <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft md:text-base">
-              Eyewear for those who live between music, light and emotion —
-              where summer nights feel infinite and daily reality feels
-              optional.
+          <div className="px-5 pb-14 pt-6">
+            <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft">
+              Eyewear for those who live between music, light and emotion — where
+              summer nights feel infinite and daily reality feels optional.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-col gap-3">
               <Link
                 href="/products"
-                className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-ink px-6 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
               >
                 Shop the collection
                 <ArrowUpRight
@@ -88,10 +97,59 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/frequency"
-                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand-ink/20 px-6 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
               >
                 Enter the frequency
               </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== TABLET / DESKTOP hero (sm+) — unchanged ===== */}
+        <div className="hidden sm:block">
+          <div className="pointer-events-none absolute left-0 right-0 sm:portrait:top-[30%] sm:portrait:bottom-[22%] md:portrait:top-[34%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
+            <HeroVideoLazy />
+          </div>
+
+          <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-12 px-5 pb-16 pt-14 md:pt-32 lg:px-12 lg:pt-44">
+            <div className="max-w-[72rem]">
+              <p className="eyebrow text-brand-ink-soft mb-5">
+                SS&apos;26 — frequency collection
+              </p>
+              <h1 className="display chromatic-title text-[clamp(3rem,13vw,8rem)] text-brand-ink">
+                escape
+                <br />
+                the ordinary.
+              </h1>
+              <p className="mt-6 text-lg italic text-brand-ink-soft md:mt-8 md:text-2xl">
+                A frequency you can wear.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-8 md:grid md:grid-cols-[1fr_auto] md:items-end md:gap-10">
+              <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft md:text-base">
+                Eyewear for those who live between music, light and emotion —
+                where summer nights feel infinite and daily reality feels
+                optional.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/products"
+                  className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
+                >
+                  Shop the collection
+                  <ArrowUpRight
+                    size={16}
+                    className="fluid-transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                  />
+                </Link>
+                <Link
+                  href="/frequency"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
+                >
+                  Enter the frequency
+                </Link>
+              </div>
             </div>
           </div>
         </div>

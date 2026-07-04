@@ -31,7 +31,8 @@ function pickMode(): "webm" | "canvas" {
   return isApple || !canWebm ? "canvas" : "webm";
 }
 
-export function HeroVideo() {
+export function HeroVideo({ fit = "contain" }: { fit?: "contain" | "cover" }) {
+  const fitClass = fit === "cover" ? "object-cover" : "object-contain";
   const [mode] = useState<"webm" | "canvas">(pickMode);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -114,7 +115,7 @@ export function HeroVideo() {
       <span aria-hidden="true" className="hero-freq-glow" />
       {mode === "webm" ? (
         <video
-          className="h-full w-full object-contain"
+          className={`h-full w-full ${fitClass}`}
           style={{ filter: SHADOW }}
           src={WEBM}
           poster={POSTER}
@@ -133,13 +134,13 @@ export function HeroVideo() {
             src={POSTER}
             alt=""
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full object-contain fluid-transition"
+            className={`pointer-events-none absolute inset-0 h-full w-full fluid-transition ${fitClass}`}
             style={{ filter: SHADOW }}
           />
           <canvas
             ref={canvasRef}
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-contain"
+            className={`absolute inset-0 h-full w-full ${fitClass}`}
             style={{ filter: SHADOW }}
           />
           {/* Source kept full-size + autoPlay (iOS won't decode a 1px or

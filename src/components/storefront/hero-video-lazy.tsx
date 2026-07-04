@@ -9,6 +9,6 @@ const HeroVideo = dynamic(
   { ssr: false }
 );
 
-export function HeroVideoLazy() {
-  return <HeroVideo />;
+export function HeroVideoLazy({ fit }: { fit?: "contain" | "cover" }) {
+  return <HeroVideo fit={fit} />;
 }

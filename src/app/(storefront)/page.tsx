@@ -50,7 +50,7 @@ export default function HomePage() {
             - Tablet portrait (sm+): band lower, more room below.
             - Landscape (desktop/tablet): right column, full height.
             Framing is self-fitting, so it never clips. */}
-        <div className="pointer-events-none absolute left-0 right-0 top-[22%] bottom-[36%] sm:portrait:top-[28%] sm:portrait:bottom-[24%] md:portrait:top-[32%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
+        <div className="pointer-events-none absolute left-0 right-0 top-[38%] bottom-[30%] sm:portrait:top-[34%] sm:portrait:bottom-[22%] md:portrait:top-[34%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
           <HeroVideoLazy />
         </div>
 

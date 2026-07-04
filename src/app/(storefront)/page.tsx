@@ -26,7 +26,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* === HERO === */}
-      <section className="relative min-h-[calc(100dvh-4rem)] md:min-h-[92vh] overflow-hidden">
+      <section className="relative overflow-hidden sm:min-h-[calc(100dvh-4rem)] md:min-h-[92vh]">
         <Image
           src="/brand/hero-iridescent-sky.png"
           alt=""
@@ -47,17 +47,8 @@ export default function HomePage() {
         {/* ===== MOBILE hero (phones only) — "escape the ordinary" rotated + head
              framed on the right. Tablet/desktop keep the layout further below.
              Positions use %/vw/clamp so it holds across phone sizes. ===== */}
-        <div className="sm:hidden">
-          <div className="relative h-[60vh] min-h-[440px] overflow-hidden">
-            {/* soft collage blocks */}
-            <div
-              aria-hidden="true"
-              className="absolute left-6 top-[12%] h-[52%] w-[26%] rounded-md bg-brand-sky/35"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute bottom-[8%] left-[34%] h-[34%] w-[32%] rounded-md bg-brand-rose/25"
-            />
+        <div className="relative z-10 sm:hidden">
+          <div className="relative h-[44vh] min-h-[384px] overflow-hidden">
             <p className="absolute left-5 top-4 z-20 eyebrow text-brand-ink-soft">
               SS&apos;26 — frequency collection
             </p>
@@ -65,7 +56,9 @@ export default function HomePage() {
             <p className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rotate-180 whitespace-nowrap text-sm italic text-brand-ink-soft [writing-mode:vertical-rl]">
               A frequency you can wear.
             </p>
-            {/* rotated headline */}
+            {/* Rotated headline. The collage block is a CHILD sized in em, so it
+                scales with the clamp font and always sits behind "escape" on every
+                phone size — anchored to the text, not the screen. */}
             <div className="absolute left-[25%] top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 -rotate-90">
               <h1 className="display chromatic-title whitespace-nowrap text-[clamp(2.5rem,13.5vw,4rem)] leading-[0.9] text-brand-ink">
                 escape
@@ -73,13 +66,13 @@ export default function HomePage() {
                 the ordinary.
               </h1>
             </div>
-            {/* head, framed on the right (object-contain inside, so it never crops) */}
-            <div className="pointer-events-none absolute right-4 top-1/2 z-10 h-[62%] w-[48%] -translate-y-1/2 overflow-hidden rounded-[1.25rem] bg-gradient-to-b from-brand-sky/25 to-brand-rose/15 shadow-[0_20px_40px_rgba(40,25,50,0.16)]">
-              <HeroVideoLazy fit="cover" />
+            {/* head floats directly over the iridescent bg (no frame) */}
+            <div className="pointer-events-none absolute right-2 top-1/2 z-10 h-[66%] w-[52%] -translate-y-1/2">
+              <HeroVideoLazy />
             </div>
           </div>
 
-          <div className="px-5 pb-14 pt-6">
+          <div className="px-5 pb-10 pt-2">
             <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft">
               Eyewear for those who live between music, light and emotion — where
               summer nights feel infinite and daily reality feels optional.

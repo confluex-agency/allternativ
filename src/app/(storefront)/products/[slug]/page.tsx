@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   mockProducts,
-  tintToClass,
   formatMockPrice,
+  heroImage,
 } from "@/lib/mock-data";
 import { ProductGallery } from "@/components/storefront/product-gallery";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
@@ -28,8 +28,11 @@ export default async function ProductPage({ params }: Props) {
   const product = mockProducts.find((p) => p.slug === slug);
   if (!product) notFound();
 
-  const gallery = product.gallery ?? [];
-  const heroImage = gallery[0]?.src ?? "/brand/product-prism.png";
+  const hero = heroImage(product);
+  const colourLabel =
+    product.colorways.length > 1
+      ? `${product.colorways.length} colores`
+      : product.colorways[0].name;
 
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-12 pb-28 md:px-6 md:py-20 md:pb-20 lg:px-12 lg:py-28">
@@ -40,15 +43,10 @@ export default async function ProductPage({ params }: Props) {
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-20">
-        {/* Editorial gallery + 3D reveal */}
-        <ProductGallery
-          name={product.name}
-          tintClass={tintToClass[product.tint]}
-          gallery={gallery}
-          has3D={product.has3D ?? false}
-        />
+        {/* Editorial gallery + colourway swap */}
+        <ProductGallery name={product.name} colorways={product.colorways} />
 
-        {/* Editorial product info — big type, lots of air */}
+        {/* Product info */}
         <div className="lg:pt-2">
           <p className="eyebrow text-brand-muted mb-4">
             {product.type.replace("_", " ")}
@@ -73,34 +71,26 @@ export default async function ProductPage({ params }: Props) {
           </p>
 
           <p className="mt-8 max-w-md text-sm leading-relaxed text-brand-ink-soft md:mt-10 md:text-base">
-            {product.description ??
-              "Lightweight acetate frame with matte finish and lenses treated with our signature iridescent filter."}
+            {product.description}
           </p>
 
-          <div className="mt-8 max-w-md md:mt-10">
-            {/* Desktop CTA — on mobile the fixed bottom bar takes over. */}
-            <div className="hidden md:block">
-              <AddToCartButton
-                productId={product.code}
-                name={product.name}
-                slug={product.slug}
-                priceCents={product.priceCents}
-                imageUrl={heroImage}
-                inStock
-              />
-            </div>
-            {product.has3D && (
-              <p className="text-xs text-brand-muted md:mt-3">
-                Tip: open the <span className="text-brand-ink">3D</span> view to
-                spin the frame and try every colourway.
-              </p>
-            )}
+          {/* Desktop CTA — on mobile the fixed bottom bar takes over. */}
+          <div className="mt-8 hidden max-w-md md:mt-10 md:block">
+            <AddToCartButton
+              productId={product.code}
+              name={product.name}
+              slug={product.slug}
+              priceCents={product.priceCents}
+              imageUrl={hero}
+              inStock
+            />
           </div>
 
           <dl className="mt-10 space-y-3 text-sm md:mt-12">
             <Spec label="Type" value={product.type.replace("_", " ")} />
-            <Spec label="Frame" value={product.frame ?? "Matte Italian acetate"} />
-            <Spec label="Lens" value={product.lens ?? "Mineral — iridescent filter"} />
+            <Spec label="Colours" value={colourLabel} />
+            <Spec label="Frame" value={product.frame ?? "Acetate"} />
+            <Spec label="Lens" value={product.lens ?? "Mineral"} />
             <Spec label="Origin" value={product.origin ?? "Handcrafted · LATAM"} />
           </dl>
         </div>
@@ -121,7 +111,7 @@ export default async function ProductPage({ params }: Props) {
               name={product.name}
               slug={product.slug}
               priceCents={product.priceCents}
-              imageUrl={heroImage}
+              imageUrl={hero}
               inStock
             />
           </div>

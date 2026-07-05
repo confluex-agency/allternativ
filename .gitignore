@@ -54,3 +54,7 @@ next-env.d.ts
 *.key
 *.cert
 credentials.json
+
+# Raw photo dumps (source material — app uses the clean /catalog/<slug>/ copies)
+/public/catalog/Catalogo/
+/raw-lentes/

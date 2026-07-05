@@ -1,7 +1,14 @@
-// Static mock data used while the product catalogue is being photographed.
-// Swap this module for real Prisma queries once the designer ships the assets.
+// Catalogue data for the Frequency collection.
+// Photos are the client's real 9-angle shoots (one folder per colourway).
+// NOTE: model names (Orbital aside) are PLACEHOLDERS — swap for the real names
+// when they arrive. Swap this module for Prisma queries once the DB is wired.
 
-export type ProductAngle = { src: string; label: string };
+export type Colorway = {
+  key: string;
+  name: string;
+  swatch: string; // CSS colour for the selector dot
+  gallery: string[]; // ordered image srcs; [0] is the hero
+};
 
 export type MockProduct = {
   slug: string;
@@ -10,16 +17,13 @@ export type MockProduct = {
   tagline: string;
   priceCents: number;
   compareAtPriceCents?: number;
-  tint: "rose" | "mint" | "sky" | "beige";
   type: "SUNGLASSES" | "OPTICAL" | "BLUE_LIGHT" | "READING";
-  // Editorial gallery — real photographed angles. Empty until the shoot lands.
-  gallery?: ProductAngle[];
-  // Whether the interactive 3D model (glasses-web.glb) is available for this piece.
-  has3D?: boolean;
+  tint: "rose" | "mint" | "sky" | "beige"; // card background while the photo loads
   description?: string;
   frame?: string;
   lens?: string;
   origin?: string;
+  colorways: Colorway[]; // always at least one
 };
 
 export type MockCategory = {
@@ -29,77 +33,95 @@ export type MockCategory = {
   tint: "rose" | "mint" | "sky" | "beige";
 };
 
+// Build a gallery array for a colourway folder: /catalog/<slug>/<slug>-1.png …
+const g = (folder: string, count: number): string[] =>
+  Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.png`);
+
 export const mockCategories: MockCategory[] = [
-  {
-    slug: "sunglasses",
-    name: "Sunglasses",
-    blurb: "For infinite sunsets",
-    tint: "rose",
-  },
-  {
-    slug: "optical",
-    name: "Optical",
-    blurb: "Prescription with character",
-    tint: "mint",
-  },
-  {
-    slug: "blue-light",
-    name: "Blue Light",
-    blurb: "Screens, quietly",
-    tint: "sky",
-  },
-  {
-    slug: "reading",
-    name: "Reading",
-    blurb: "Reading in calm",
-    tint: "beige",
-  },
+  { slug: "sunglasses", name: "Sunglasses", blurb: "For infinite sunsets", tint: "rose" },
+  { slug: "optical", name: "Optical", blurb: "Prescription with character", tint: "mint" },
+  { slug: "blue-light", name: "Blue Light", blurb: "Screens, quietly", tint: "sky" },
+  { slug: "reading", name: "Reading", blurb: "Reading in calm", tint: "beige" },
 ];
 
 export const mockProducts: MockProduct[] = [
   {
-    slug: "the-corinthian",
-    name: "The Corinthian",
-    code: "89310",
-    tagline: "Forest green / festival nights",
+    slug: "orbital",
+    name: "Orbital",
+    code: "ORB-01",
+    tagline: "Wraparound / city motion",
     priceCents: 18900,
-    tint: "mint",
     type: "SUNGLASSES",
-    has3D: true,
+    tint: "sky",
     description:
-      "The first of the Frequency collection. A forest-green acetate frame with our signature iridescent filter — light bends through the lens the way it bends through the whole collection.",
-    frame: "Matte Italian acetate",
-    lens: "Mineral — iridescent filter",
+      "The wraparound that started the Frequency collection. Sculpted single-piece shield, feather-light, with our signature iridescent filter bending light across the whole lens.",
+    frame: "Injected matte nylon",
+    lens: "Smoke — iridescent filter",
     origin: "Handcrafted · LATAM",
-    gallery: [
-      { src: "/catalog/tile-1.jpg", label: "Three-quarter" },
-      { src: "/catalog/tile-9.jpg", label: "Front 3/4" },
-      { src: "/catalog/tile-8.jpg", label: "Front" },
-      { src: "/catalog/tile-6.jpg", label: "Profile" },
-      { src: "/catalog/tile-5.jpg", label: "Macro" },
-      { src: "/catalog/tile-2.jpg", label: "Detail" },
-      { src: "/catalog/tile-4.jpg", label: "Back" },
-      { src: "/catalog/tile-3.jpg", label: "Top" },
-      { src: "/catalog/tile-7.jpg", label: "Angle" },
+    colorways: [
+      { key: "black", name: "Negro", swatch: "#1c1c1e", gallery: g("orbital-black", 8) },
+      { key: "silver", name: "Plata", swatch: "#c7cace", gallery: g("orbital-silver", 9) },
     ],
   },
   {
-    slug: "orbital",
-    name: "Orbital",
-    code: "5312JT",
-    tagline: "Cool grey / city motion",
-    priceCents: 17500,
-    tint: "sky",
+    slug: "halo",
+    name: "Halo",
+    code: "HAL-02",
+    tagline: "Round metal / golden hour",
+    priceCents: 21900,
     type: "SUNGLASSES",
+    tint: "beige",
+    description:
+      "Slim round metal in warm gold, tortoise temple tips and a bottle-green mineral lens. Vintage geometry, modern frequency.",
+    frame: "Gold-tone metal · acetate tips",
+    lens: "Bottle green — mineral",
+    origin: "Handcrafted · LATAM",
+    colorways: [{ key: "gold", name: "Oro", swatch: "#c6a765", gallery: g("halo", 9) }],
   },
   {
-    slug: "neon-shift",
-    name: "Neon Shift",
-    code: "862JT",
-    tagline: "Crimson red / late hours",
-    priceCents: 16900,
-    tint: "rose",
+    slug: "vortex",
+    name: "Vortex",
+    code: "VRT-03",
+    tagline: "Shield / full send",
+    priceCents: 17900,
     type: "SUNGLASSES",
+    tint: "rose",
+    description:
+      "A one-lens sport shield built for speed. Angular, aerodynamic, unapologetically loud in crimson.",
+    frame: "Matte acetate",
+    lens: "Single shield — smoke gradient",
+    origin: "Handcrafted · LATAM",
+    colorways: [{ key: "red", name: "Rojo", swatch: "#b23a2e", gallery: g("vortex", 8) }],
+  },
+  {
+    slug: "nocturne",
+    name: "Nocturne",
+    code: "NOC-04",
+    tagline: "Cat-eye / after dark",
+    priceCents: 16900,
+    type: "SUNGLASSES",
+    tint: "mint",
+    description:
+      "A sharp glossy cat-eye in deep black acetate. Quiet during the day, unmistakable after dark.",
+    frame: "Glossy Italian acetate",
+    lens: "Smoke — iridescent filter",
+    origin: "Handcrafted · LATAM",
+    colorways: [{ key: "black", name: "Negro", swatch: "#141416", gallery: g("nocturne", 9) }],
+  },
+  {
+    slug: "prisma",
+    name: "Prisma",
+    code: "PRS-05",
+    tagline: "Translucent / spectral",
+    priceCents: 19900,
+    type: "SUNGLASSES",
+    tint: "mint",
+    description:
+      "Squared translucent acetate in olive glass, so light passes through the frame itself. The most literal take on the Frequency idea.",
+    frame: "Translucent olive acetate",
+    lens: "Green mirror — mineral",
+    origin: "Handcrafted · LATAM",
+    colorways: [{ key: "olive", name: "Oliva", swatch: "#9a9a5c", gallery: g("prisma", 9) }],
   },
 ];
 
@@ -109,6 +131,11 @@ export const tintToClass: Record<MockProduct["tint"], string> = {
   sky: "bg-brand-sky ring-1 ring-brand-ink/5",
   beige: "bg-[#ede5db] ring-1 ring-brand-ink/10",
 };
+
+// Convenience: the hero image for a product (first colourway, first angle).
+export function heroImage(product: MockProduct): string {
+  return product.colorways[0].gallery[0];
+}
 
 export function formatMockPrice(cents: number) {
   return `$${(cents / 100).toFixed(0)}`;

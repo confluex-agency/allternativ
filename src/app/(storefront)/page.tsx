@@ -3,9 +3,11 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import {
   mockProducts,
-  tintToClass,
   formatMockPrice,
+  heroImage,
 } from "@/lib/mock-data";
+
+const STUDIO_BG = "bg-[#e9edf3]";
 import { HeroVideoLazy } from "@/components/storefront/hero-video-lazy";
 
 const LIFESTYLE_MOMENTS = [
@@ -237,15 +239,22 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-          {mockProducts.map((product) => (
+          {mockProducts.slice(0, 3).map((product) => (
             <Link
               key={product.slug}
               href={`/products/${product.slug}`}
               className="group block"
             >
               <div
-                className={`relative aspect-square overflow-hidden rounded-[1.25rem] md:rounded-[1.5rem] fluid-transition group-hover:-translate-y-1 ${tintToClass[product.tint]}`}
+                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-6 fluid-transition group-hover:-translate-y-1 ${STUDIO_BG}`}
               >
+                <Image
+                  src={heroImage(product)}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-contain fluid-transition group-hover:scale-[1.03]"
+                />
                 <div
                   aria-hidden="true"
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
@@ -255,14 +264,6 @@ export default function HomePage() {
                     mixBlendMode: "screen",
                   }}
                 />
-                <div className="absolute inset-0 grid place-items-center">
-                  <span
-                    aria-hidden="true"
-                    className="eyebrow text-[10px] md:text-xs text-brand-ink/30"
-                  >
-                    placeholder
-                  </span>
-                </div>
                 <span className="absolute left-4 top-4 eyebrow text-[10px] text-brand-ink/50 md:left-6 md:top-6">
                   {product.code}
                 </span>

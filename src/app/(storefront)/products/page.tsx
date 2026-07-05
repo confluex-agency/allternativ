@@ -2,10 +2,13 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   mockProducts,
-  tintToClass,
   formatMockPrice,
+  heroImage,
   type MockProduct,
 } from "@/lib/mock-data";
+
+// Uniform studio background so every lens floats on the same clean surface.
+const STUDIO_BG = "bg-[#e9edf3]";
 
 export const metadata = {
   title: "All Eyewear",
@@ -50,8 +53,7 @@ export default async function ProductsPage({
           </h1>
         </div>
         <p className="max-w-xs text-sm text-brand-ink-soft">
-          Catalogue placeholder. Real pieces load once the production team
-          delivers the photoshoot.
+          The Frequency collection. Five silhouettes, shot from every angle.
         </p>
       </div>
 
@@ -89,23 +91,15 @@ export default async function ProductsPage({
               className="group block"
             >
               <div
-                className={`relative aspect-square overflow-hidden rounded-[1.25rem] fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] ${tintToClass[product.tint]}`}
+                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG}`}
               >
-                {product.gallery?.[0] ? (
-                  <Image
-                    src={product.gallery[0].src}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                    className="object-cover fluid-transition group-hover:scale-[1.04]"
-                  />
-                ) : (
-                  <div className="absolute inset-0 grid place-items-center">
-                    <span className="eyebrow text-[10px] md:text-xs text-brand-ink/25">
-                      placeholder
-                    </span>
-                  </div>
-                )}
+                <Image
+                  src={heroImage(product)}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                  className="object-contain fluid-transition group-hover:scale-[1.03]"
+                />
 
                 {/* Light sheen on hover — reads like a real photo catch-light. */}
                 <div
@@ -118,18 +112,17 @@ export default async function ProductsPage({
                   }}
                 />
 
-                {product.has3D && (
-                  <span
-                    className="eyebrow absolute right-2 top-2 rounded-full p-[1.5px] text-[9px] md:right-3 md:top-3"
-                    style={{
-                      background:
-                        "conic-gradient(from 200deg at 50% 50%, var(--brand-rose), var(--brand-mint), var(--brand-sky), var(--brand-rose))",
-                    }}
-                  >
-                    <span className="block rounded-full bg-brand-beige/90 px-2 py-0.5 text-brand-ink backdrop-blur">
-                      3D
-                    </span>
-                  </span>
+                {/* Colourway dots */}
+                {product.colorways.length > 1 && (
+                  <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
+                    {product.colorways.map((c) => (
+                      <span
+                        key={c.key}
+                        className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
+                        style={{ backgroundColor: c.swatch }}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="mt-4 flex items-start justify-between gap-2 md:mt-5">

@@ -2,153 +2,121 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Box } from "lucide-react";
-import { GlassesViewerLazy } from "@/components/storefront/glasses-viewer-lazy";
-import type { ProductAngle } from "@/lib/mock-data";
+import type { Colorway } from "@/lib/mock-data";
 
-// Editorial product gallery. Leads with real photography (fast, always looks
-// good), and offers the interactive 3D model as a "reveal" — the one thing a
-// flat catalogue can't do. Switching into 3D sweeps a prism-light burst.
+// Editorial product gallery: a big hero angle, a thumbnail rail of every angle,
+// and a colourway selector that swaps the whole photo set. Photos only — the 3D
+// viewer comes later.
+
+// Uniform studio surface so the lens floats with air around it (contain, not
+// cover) — no cropped temples.
+const STUDIO_BG = "bg-[#e9edf3]";
 
 type Props = {
   name: string;
-  tintClass: string;
-  gallery: ProductAngle[];
-  has3D: boolean;
+  colorways: Colorway[];
 };
 
-export function ProductGallery({ name, tintClass, gallery, has3D }: Props) {
-  const [mode, setMode] = useState<"photo" | "3d">("photo");
-  const [active, setActive] = useState(0);
-  // Bumped every time we enter 3D so the flash keyframe re-fires.
-  const [flashKey, setFlashKey] = useState(0);
+export function ProductGallery({ name, colorways }: Props) {
+  const [cwIndex, setCwIndex] = useState(0);
+  const [angle, setAngle] = useState(0);
 
-  function showPhoto(index: number) {
-    setMode("photo");
-    setActive(index);
+  const colorway = colorways[cwIndex];
+  const gallery = colorway.gallery;
+
+  function pickColorway(i: number) {
+    setCwIndex(i);
+    setAngle(0);
   }
-
-  function show3D() {
-    setMode("3d");
-    setFlashKey((k) => k + 1);
-  }
-
-  const hasPhotos = gallery.length > 0;
 
   return (
     <div className="space-y-3 md:space-y-4">
       {/* Hero frame */}
       <div
-        className={`group relative aspect-[16/10] overflow-hidden rounded-[1.5rem] md:rounded-[2rem] ${tintClass}`}
+        className={`group relative aspect-[4/3] overflow-hidden rounded-[1.5rem] p-4 md:rounded-[2rem] md:p-8 ${STUDIO_BG}`}
       >
-        {/* Photo layers — crossfade between angles */}
-        {hasPhotos &&
-          gallery.map((angle, i) => (
-            <Image
-              key={angle.src}
-              src={angle.src}
-              alt={`${name} — ${angle.label}`}
-              fill
-              priority={i === 0}
-              sizes="(max-width: 1024px) 100vw, 60vw"
-              className={`object-cover fluid-transition group-hover:scale-[1.03] ${
-                mode === "photo" && active === i ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          ))}
-
-        {/* Empty state — no shoot yet */}
-        {!hasPhotos && mode === "photo" && (
-          <div className="absolute inset-0 grid place-items-center p-6 text-center">
-            <div>
-              <p className="eyebrow text-brand-ink/30">photography soon</p>
-              <p className="mt-2 text-[11px] text-brand-ink/40 md:text-xs">
-                studio shoot lands with the production team
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 3D reveal */}
-        {mode === "3d" && (
-          <>
-            <GlassesViewerLazy className="reveal-3d absolute inset-0 h-full w-full !rounded-none" />
-            {/* The "PUM" — a single prism-light sweep. GlassesViewer already
-                renders its own "drag to rotate" hint, so we don't repeat it. */}
-            <div
-              key={flashKey}
-              aria-hidden="true"
-              className="prism-flash pointer-events-none absolute inset-0 z-10 mix-blend-screen"
-              style={{
-                background:
-                  "conic-gradient(from 210deg at 50% 50%, var(--brand-rose), var(--brand-mint), var(--brand-sky), var(--brand-rose))",
-              }}
-            />
-          </>
-        )}
-
-        {/* Angle caption (photo mode) */}
-        {hasPhotos && mode === "photo" && (
-          <span className="eyebrow pointer-events-none absolute bottom-3 left-4 text-[10px] text-brand-ink/40">
-            {gallery[active].label}
+        {gallery.map((src, i) => (
+          <Image
+            key={src}
+            src={src}
+            alt={`${name} ${colorway.name} — vista ${i + 1}`}
+            fill
+            priority={i === 0}
+            sizes="(max-width: 1024px) 100vw, 60vw"
+            className={`object-contain transition-opacity duration-300 ${
+              i === angle ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        ))}
+        {colorways.length > 1 && (
+          <span className="eyebrow pointer-events-none absolute bottom-3 left-4 rounded-full bg-brand-ink/70 px-3 py-1 text-[10px] text-brand-beige backdrop-blur">
+            {colorway.name}
           </span>
         )}
       </div>
 
       {/* Thumbnail rail */}
       <div className="grid grid-cols-5 gap-2 md:grid-cols-6 md:gap-3">
-        {gallery.map((angle, i) => {
-          const isActive = mode === "photo" && active === i;
+        {gallery.map((src, i) => {
+          const isActive = i === angle;
           return (
             <button
-              key={angle.src}
+              key={src}
               type="button"
-              onClick={() => showPhoto(i)}
-              aria-label={`View ${angle.label}`}
+              onClick={() => setAngle(i)}
+              aria-label={`Vista ${i + 1}`}
               aria-pressed={isActive}
-              className={`relative aspect-square overflow-hidden rounded-[0.6rem] md:rounded-[0.85rem] fluid-transition ${tintClass} ${
+              className={`relative aspect-square overflow-hidden rounded-[0.6rem] p-1 md:rounded-[0.85rem] fluid-transition ${STUDIO_BG} ${
                 isActive
                   ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
                   : "opacity-70 hover:opacity-100"
               }`}
             >
-              <Image
-                src={angle.src}
-                alt=""
-                fill
-                sizes="15vw"
-                className="object-cover"
-              />
+              <Image src={src} alt="" fill sizes="15vw" className="object-contain" />
             </button>
           );
         })}
-
-        {/* The 3D thumb — the surprise the catalogue can't show */}
-        {has3D && (
-          <button
-            type="button"
-            onClick={show3D}
-            aria-label="View in 3D"
-            aria-pressed={mode === "3d"}
-            className="group relative grid aspect-square place-items-center overflow-hidden rounded-[0.6rem] p-[2px] md:rounded-[0.85rem]"
-            style={{
-              background:
-                "conic-gradient(from 200deg at 50% 50%, var(--brand-rose), var(--brand-mint), var(--brand-sky), var(--brand-rose))",
-            }}
-          >
-            <span
-              className={`flex h-full w-full flex-col items-center justify-center gap-1 rounded-[0.5rem] md:rounded-[0.72rem] fluid-transition ${
-                mode === "3d"
-                  ? "bg-brand-ink text-brand-beige"
-                  : "bg-brand-beige text-brand-ink group-hover:bg-white"
-              }`}
-            >
-              <Box size={16} strokeWidth={1.5} />
-              <span className="eyebrow text-[9px] leading-none">3D</span>
-            </span>
-          </button>
-        )}
       </div>
+
+      {/* Colourway selector */}
+      {colorways.length > 1 && (
+        <div className="pt-2">
+          <p className="eyebrow text-brand-muted mb-3">
+            Color — {colorway.name}
+          </p>
+          <div className="flex gap-3">
+            {colorways.map((c, i) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => pickColorway(i)}
+                aria-pressed={i === cwIndex}
+                className="flex items-center gap-2"
+              >
+                <span
+                  className={`grid size-9 place-items-center rounded-full fluid-transition ${
+                    i === cwIndex
+                      ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
+                      : "ring-1 ring-brand-ink/15 hover:ring-brand-ink/40"
+                  }`}
+                >
+                  <span
+                    className="size-7 rounded-full"
+                    style={{ backgroundColor: c.swatch }}
+                  />
+                </span>
+                <span
+                  className={`text-sm fluid-transition ${
+                    i === cwIndex ? "text-brand-ink" : "text-brand-muted"
+                  }`}
+                >
+                  {c.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
@@ -7,7 +8,14 @@ import { Button } from "@/components/ui/button";
 import { trackCheckoutStart } from "@/lib/tracking";
 
 export function CartView() {
-  const { items, removeItem, updateQuantity, totalCents, clearCart } = useCart();
+  const cart = useCart();
+  const { removeItem, updateQuantity, totalCents, clearCart } = cart;
+
+  // Cart persists in localStorage — unavailable on the server. Treat it as
+  // empty until mounted so SSR and the first client render match, then reveal.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const items = mounted ? cart.items : [];
 
   if (items.length === 0) {
     return (

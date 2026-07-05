@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
@@ -16,8 +16,14 @@ const NAV_LINKS = [
 
 export function StorefrontNavbar() {
   const totalItems = useCart((s) => s.totalItems);
-  const count = totalItems();
   const [open, setOpen] = useState(false);
+
+  // The cart lives in localStorage (Zustand persist), which the server can't
+  // read. Render 0 until mounted so SSR and the first client render match,
+  // then reveal the real count — avoids a hydration mismatch on the badge.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const count = mounted ? totalItems() : 0;
 
   return (
     <header className="sticky top-0 z-50 glass border-b-0">

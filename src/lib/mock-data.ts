@@ -1,6 +1,8 @@
 // Static mock data used while the product catalogue is being photographed.
 // Swap this module for real Prisma queries once the designer ships the assets.
 
+export type ProductAngle = { src: string; label: string };
+
 export type MockProduct = {
   slug: string;
   name: string;
@@ -10,6 +12,14 @@ export type MockProduct = {
   compareAtPriceCents?: number;
   tint: "rose" | "mint" | "sky" | "beige";
   type: "SUNGLASSES" | "OPTICAL" | "BLUE_LIGHT" | "READING";
+  // Editorial gallery — real photographed angles. Empty until the shoot lands.
+  gallery?: ProductAngle[];
+  // Whether the interactive 3D model (glasses-web.glb) is available for this piece.
+  has3D?: boolean;
+  description?: string;
+  frame?: string;
+  lens?: string;
+  origin?: string;
 };
 
 export type MockCategory = {
@@ -55,6 +65,23 @@ export const mockProducts: MockProduct[] = [
     priceCents: 18900,
     tint: "mint",
     type: "SUNGLASSES",
+    has3D: true,
+    description:
+      "The first of the Frequency collection. A forest-green acetate frame with our signature iridescent filter — light bends through the lens the way it bends through the whole collection.",
+    frame: "Matte Italian acetate",
+    lens: "Mineral — iridescent filter",
+    origin: "Handcrafted · LATAM",
+    gallery: [
+      { src: "/catalog/tile-1.jpg", label: "Three-quarter" },
+      { src: "/catalog/tile-9.jpg", label: "Front 3/4" },
+      { src: "/catalog/tile-8.jpg", label: "Front" },
+      { src: "/catalog/tile-6.jpg", label: "Profile" },
+      { src: "/catalog/tile-5.jpg", label: "Macro" },
+      { src: "/catalog/tile-2.jpg", label: "Detail" },
+      { src: "/catalog/tile-4.jpg", label: "Back" },
+      { src: "/catalog/tile-3.jpg", label: "Top" },
+      { src: "/catalog/tile-7.jpg", label: "Angle" },
+    ],
   },
   {
     slug: "orbital",

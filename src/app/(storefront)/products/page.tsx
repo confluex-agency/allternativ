@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   mockProducts,
   tintToClass,
@@ -90,6 +91,23 @@ export default async function ProductsPage({
               <div
                 className={`relative aspect-square overflow-hidden rounded-[1.25rem] fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] ${tintToClass[product.tint]}`}
               >
+                {product.gallery?.[0] ? (
+                  <Image
+                    src={product.gallery[0].src}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                    className="object-cover fluid-transition group-hover:scale-[1.04]"
+                  />
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center">
+                    <span className="eyebrow text-[10px] md:text-xs text-brand-ink/25">
+                      placeholder
+                    </span>
+                  </div>
+                )}
+
+                {/* Light sheen on hover — reads like a real photo catch-light. */}
                 <div
                   aria-hidden="true"
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
@@ -99,11 +117,20 @@ export default async function ProductsPage({
                     mixBlendMode: "screen",
                   }}
                 />
-                <div className="absolute inset-0 grid place-items-center">
-                  <span className="eyebrow text-[10px] md:text-xs text-brand-ink/25">
-                    placeholder
+
+                {product.has3D && (
+                  <span
+                    className="eyebrow absolute right-2 top-2 rounded-full p-[1.5px] text-[9px] md:right-3 md:top-3"
+                    style={{
+                      background:
+                        "conic-gradient(from 200deg at 50% 50%, var(--brand-rose), var(--brand-mint), var(--brand-sky), var(--brand-rose))",
+                    }}
+                  >
+                    <span className="block rounded-full bg-brand-beige/90 px-2 py-0.5 text-brand-ink backdrop-blur">
+                      3D
+                    </span>
                   </span>
-                </div>
+                )}
               </div>
               <div className="mt-4 flex items-start justify-between gap-2 md:mt-5">
                 <div className="min-w-0">

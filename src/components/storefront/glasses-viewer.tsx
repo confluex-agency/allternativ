@@ -2,7 +2,13 @@
 
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useGLTF, Environment, ContactShadows } from "@react-three/drei";
+import {
+  OrbitControls,
+  useGLTF,
+  Environment,
+  Lightformer,
+  ContactShadows,
+} from "@react-three/drei";
 import { Suspense, useEffect, useState, useCallback } from "react";
 
 const MODEL_PATH = "/models/glasses-web.glb";
@@ -78,7 +84,35 @@ export function GlassesViewer({ className = "" }: { className?: string }) {
             blur={2}
           />
 
-          <Environment preset="studio" />
+          {/* Self-contained studio env — reflections without any external HDR
+              fetch, so the strict CSP never blocks it. */}
+          <Environment resolution={256}>
+            <Lightformer
+              intensity={2.2}
+              position={[0, 1.5, 2]}
+              scale={[4, 4, 1]}
+              color="#ffffff"
+            />
+            <Lightformer
+              intensity={1.1}
+              position={[-2.5, 0, 1.5]}
+              scale={[3, 2, 1]}
+              color="#e8ecff"
+            />
+            <Lightformer
+              intensity={1.1}
+              position={[2.5, 0, 1.5]}
+              scale={[3, 2, 1]}
+              color="#fff0f6"
+            />
+            <Lightformer
+              form="ring"
+              intensity={0.6}
+              position={[0, -2, 1]}
+              scale={[3, 3, 1]}
+              color="#ffffff"
+            />
+          </Environment>
 
           <OrbitControls
             enablePan={false}
@@ -90,8 +124,9 @@ export function GlassesViewer({ className = "" }: { className?: string }) {
         </Canvas>
       </Suspense>
 
-      {/* Color picker */}
-      <div className="absolute top-3 right-3 flex flex-col gap-2">
+      {/* Color picker — horizontal on phones (short landscape frame), vertical
+          on larger screens where there's height to spare. */}
+      <div className="absolute top-3 right-3 flex flex-row-reverse gap-2 md:flex-col">
         {COLOR_OPTIONS.map((opt, i) => (
           <button
             key={opt.name}

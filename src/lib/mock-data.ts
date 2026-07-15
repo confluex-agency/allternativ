@@ -18,7 +18,6 @@ export type MockProduct = {
   priceCents: number;
   compareAtPriceCents?: number;
   type: "SUNGLASSES" | "OPTICAL" | "BLUE_LIGHT" | "READING";
-  tint: "rose" | "mint" | "sky" | "beige"; // card background while the photo loads
   description?: string;
   frame?: string;
   lens?: string;
@@ -26,23 +25,9 @@ export type MockProduct = {
   colorways: Colorway[]; // always at least one
 };
 
-export type MockCategory = {
-  slug: string;
-  name: string;
-  blurb: string;
-  tint: "rose" | "mint" | "sky" | "beige";
-};
-
 // Build a gallery array for a colourway folder: /catalog/<slug>/<slug>-1.png …
 const g = (folder: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.png`);
-
-export const mockCategories: MockCategory[] = [
-  { slug: "sunglasses", name: "Sunglasses", blurb: "For infinite sunsets", tint: "rose" },
-  { slug: "optical", name: "Optical", blurb: "Prescription with character", tint: "mint" },
-  { slug: "blue-light", name: "Blue Light", blurb: "Screens, quietly", tint: "sky" },
-  { slug: "reading", name: "Reading", blurb: "Reading in calm", tint: "beige" },
-];
 
 export const mockProducts: MockProduct[] = [
   {
@@ -52,7 +37,6 @@ export const mockProducts: MockProduct[] = [
     tagline: "Wraparound / city motion",
     priceCents: 18900,
     type: "SUNGLASSES",
-    tint: "sky",
     description:
       "The wraparound that started the Frequency collection. Sculpted single-piece shield, feather-light, with our signature iridescent filter bending light across the whole lens.",
     frame: "Injected matte nylon",
@@ -70,7 +54,6 @@ export const mockProducts: MockProduct[] = [
     tagline: "Round metal / golden hour",
     priceCents: 21900,
     type: "SUNGLASSES",
-    tint: "beige",
     description:
       "Slim round metal in warm gold, tortoise temple tips and a bottle-green mineral lens. Vintage geometry, modern frequency.",
     frame: "Gold-tone metal · acetate tips",
@@ -85,7 +68,6 @@ export const mockProducts: MockProduct[] = [
     tagline: "Shield / full send",
     priceCents: 17900,
     type: "SUNGLASSES",
-    tint: "rose",
     description:
       "A one-lens sport shield built for speed. Angular, aerodynamic, unapologetically loud in crimson.",
     frame: "Matte acetate",
@@ -100,7 +82,6 @@ export const mockProducts: MockProduct[] = [
     tagline: "Cat-eye / after dark",
     priceCents: 16900,
     type: "SUNGLASSES",
-    tint: "mint",
     description:
       "A sharp glossy cat-eye in deep black acetate. Quiet during the day, unmistakable after dark.",
     frame: "Glossy Italian acetate",
@@ -115,7 +96,6 @@ export const mockProducts: MockProduct[] = [
     tagline: "Translucent / spectral",
     priceCents: 19900,
     type: "SUNGLASSES",
-    tint: "mint",
     description:
       "Squared translucent acetate in olive glass, so light passes through the frame itself. The most literal take on the Frequency idea.",
     frame: "Translucent olive acetate",
@@ -124,13 +104,6 @@ export const mockProducts: MockProduct[] = [
     colorways: [{ key: "olive", name: "Oliva", swatch: "#9a9a5c", gallery: g("prisma", 9) }],
   },
 ];
-
-export const tintToClass: Record<MockProduct["tint"], string> = {
-  rose: "bg-brand-rose ring-1 ring-brand-ink/5",
-  mint: "bg-brand-mint ring-1 ring-brand-ink/5",
-  sky: "bg-brand-sky ring-1 ring-brand-ink/5",
-  beige: "bg-[#ede5db] ring-1 ring-brand-ink/10",
-};
 
 // Convenience: the hero image for a product (first colourway, first angle).
 export function heroImage(product: MockProduct): string {

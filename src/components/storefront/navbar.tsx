@@ -5,11 +5,11 @@ import Link from "next/link";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
+// Only routes that actually have pieces behind them. The Frequency collection
+// is all sunglasses today, so a per-type link would just repeat /products —
+// add them back when a second type ships.
 const NAV_LINKS = [
   { href: "/products", label: "Shop" },
-  { href: "/products?type=SUNGLASSES", label: "Sunglasses" },
-  { href: "/products?type=OPTICAL", label: "Optical" },
-  { href: "/products?type=BLUE_LIGHT", label: "Blue Light" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];

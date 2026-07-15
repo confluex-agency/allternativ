@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { mockProducts } from "@/lib/mock-data";
 
 const COLUMNS = [
   {
     title: "Shop",
+    // Built from the catalogue so the column can't outlive its pieces. The old
+    // per-type links (Optical, Blue Light) pointed at empty collections.
     links: [
       { href: "/products", label: "All eyewear" },
-      { href: "/products?type=SUNGLASSES", label: "Sunglasses" },
-      { href: "/products?type=OPTICAL", label: "Optical" },
-      { href: "/products?type=BLUE_LIGHT", label: "Blue Light" },
+      ...mockProducts.map((p) => ({
+        href: `/products/${p.slug}`,
+        label: p.name,
+      })),
     ],
   },
   {

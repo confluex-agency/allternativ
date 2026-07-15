@@ -21,6 +21,11 @@ const TYPE_LABEL: Record<MockProduct["type"], string> = {
   READING: "Reading",
 };
 
+// Derived from the catalogue, never hardcoded: a chip must not advertise a
+// collection that has no pieces. Today every silhouette is SUNGLASSES, so the
+// row hides itself — it reappears on its own when a second type ships.
+const AVAILABLE_TYPES = [...new Set(mockProducts.map((p) => p.type))];
+
 export default async function ProductsPage({
   searchParams,
 }: {
@@ -57,9 +62,9 @@ export default async function ProductsPage({
         </p>
       </div>
 
-      <div className="mb-8 flex flex-wrap gap-2 md:mb-10">
-        {(["SUNGLASSES", "OPTICAL", "BLUE_LIGHT", "READING"] as const).map(
-          (type) => {
+      {AVAILABLE_TYPES.length > 1 && (
+        <div className="mb-8 flex flex-wrap gap-2 md:mb-10">
+          {AVAILABLE_TYPES.map((type) => {
             const active = typeFilter === type;
             return (
               <Link
@@ -74,9 +79,9 @@ export default async function ProductsPage({
                 {TYPE_LABEL[type]}
               </Link>
             );
-          },
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <p className="py-24 text-center text-brand-muted">

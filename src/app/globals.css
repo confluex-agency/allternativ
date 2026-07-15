@@ -111,12 +111,12 @@
   html {
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
-    overflow-x: hidden;
+    overflow-x: clip; /* clip (not hidden) so it doesn't break position: sticky */
   }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01", "cv11";
-    overflow-x: hidden;
+    overflow-x: clip; /* clip (not hidden) so it doesn't break position: sticky */
     width: 100%;
   }
   p {

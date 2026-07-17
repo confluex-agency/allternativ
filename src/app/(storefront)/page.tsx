@@ -263,21 +263,38 @@ export default function HomePage() {
               emotion — where summer nights feel infinite and daily reality
               feels optional.
             </p>
+            <Link
+              href="/about"
+              className="group mt-8 inline-flex items-center gap-2 eyebrow text-brand-ink fluid-transition hover:text-brand-muted md:mt-10"
+            >
+              Our story
+              <ArrowUpRight
+                size={16}
+                className="fluid-transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              />
+            </Link>
           </div>
 
-          <div className="relative md:col-span-5 aspect-[4/5] overflow-hidden rounded-[1.5rem] md:rounded-[2rem]">
+          <Link
+            href="/about"
+            className="group relative md:col-span-5 aspect-[4/5] overflow-hidden rounded-[1.5rem] md:rounded-[2rem]"
+          >
             <Image
               src="/brand/liquid-iridescent.png"
               alt="Iridescent liquid texture"
               fill
               sizes="(max-width: 768px) 100vw, 40vw"
-              className="object-cover"
+              className="object-cover fluid-transition group-hover:scale-[1.04]"
             />
-          </div>
+            <span className="absolute bottom-4 left-4 inline-flex items-center gap-1 eyebrow text-white opacity-0 fluid-transition group-hover:opacity-100 md:bottom-6 md:left-6">
+              Read our story
+              <ArrowUpRight size={14} />
+            </span>
+          </Link>
         </div>
       </section>
 
-      {/* === 02 — PRODUCT IDENTITY === */}
+      {/* === 03 — PRODUCT IDENTITY === */}
       <section className="bg-white/60 py-20 md:py-32 lg:py-48">
         <div className="mx-auto max-w-[1440px] px-5 md:px-6 lg:px-12">
           <div className="max-w-3xl">
@@ -298,17 +315,22 @@ export default function HomePage() {
 
           <div className="mt-12 grid grid-cols-1 gap-3 md:mt-16 md:grid-cols-3 md:gap-6">
             {PRODUCT_PILLARS.map((pillar, idx) => (
-              <article
+              <Link
                 key={pillar.label}
-                className={`relative overflow-hidden rounded-[1.25rem] p-6 md:rounded-[1.5rem] md:p-10 ${pillar.tint}`}
+                href="/products"
+                className={`group relative overflow-hidden rounded-[1.25rem] p-6 fluid-transition hover:-translate-y-1 md:rounded-[1.5rem] md:p-10 ${pillar.tint}`}
               >
-                <p className="eyebrow text-brand-ink/50 mb-10 md:mb-16">
-                  0{idx + 1}
-                </p>
+                <div className="mb-10 flex items-start justify-between md:mb-16">
+                  <p className="eyebrow text-brand-ink/50">0{idx + 1}</p>
+                  <ArrowUpRight
+                    size={18}
+                    className="text-brand-ink/50 opacity-0 fluid-transition group-hover:translate-x-0.5 group-hover:opacity-100"
+                  />
+                </div>
                 <h3 className="display text-2xl text-brand-ink md:text-4xl">
                   {pillar.label}.
                 </h3>
-              </article>
+              </Link>
             ))}
           </div>
         </div>
@@ -316,14 +338,17 @@ export default function HomePage() {
 
       {/* === 04 — EXPERIENCE / LIFESTYLE === */}
       <section className="relative mx-auto my-12 w-full max-w-[1440px] px-5 md:my-20 md:px-6 lg:my-32 lg:px-12">
-        <div className="relative overflow-hidden rounded-[1.5rem] md:rounded-[2rem]">
+        <Link
+          href="/catalogo"
+          className="group relative block overflow-hidden rounded-[1.5rem] md:rounded-[2rem]"
+        >
           <div className="relative aspect-[4/5] sm:aspect-[5/3] lg:aspect-[21/9]">
             <Image
               src="/brand/holo-trama-1.jpg"
               alt="Iridescent holographic texture"
               fill
               sizes="(max-width: 768px) 100vw, 80vw"
-              className="object-cover"
+              className="object-cover fluid-transition group-hover:scale-[1.02]"
             />
             <div
               aria-hidden="true"
@@ -344,9 +369,13 @@ export default function HomePage() {
                 When you wear Allternativ, you&apos;re not completing a look.
                 You&apos;re entering a different frequency.
               </p>
+              <span className="inline-flex items-center gap-2 eyebrow text-white fluid-transition group-hover:gap-3">
+                View the lookbook
+                <ArrowUpRight size={16} />
+              </span>
             </div>
           </div>
-        </div>
+        </Link>
 
         <div className="mt-10 grid gap-6 md:mt-16 md:grid-cols-[auto_1fr] md:items-center md:gap-12">
           <p className="eyebrow text-brand-muted">Built for</p>

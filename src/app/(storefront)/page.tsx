@@ -150,11 +150,88 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* === 01 — BRAND WORLD === */}
+      {/* === 01 — THE COLLECTION (products, straight after the hero) === */}
+      <section className="mx-auto max-w-[1440px] px-5 pb-20 pt-12 md:px-6 md:pb-32 md:pt-16 lg:px-12">
+        <div className="mb-8 flex flex-col gap-4 md:mb-12 md:flex-row md:items-end md:justify-between md:gap-6">
+          <div>
+            <p className="eyebrow text-brand-muted mb-3 md:mb-4">
+              01 — the collection
+            </p>
+            <h2 className="display text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
+              Five silhouettes.
+              <br />
+              <span className="italic font-light">One frequency.</span>
+            </h2>
+          </div>
+          <Link
+            href="/products"
+            className="inline-flex eyebrow text-brand-ink-soft fluid-transition hover:text-brand-ink"
+          >
+            Shop all →
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-5">
+          {mockProducts.map((product) => (
+            <Link
+              key={product.slug}
+              href={`/products/${product.slug}`}
+              className="group block"
+            >
+              <div
+                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG}`}
+              >
+                <Image
+                  src={heroImage(product)}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                  className="object-contain fluid-transition group-hover:scale-[1.03]"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
+                  style={{
+                    background:
+                      "radial-gradient(at 50% 40%, rgba(255,255,255,0.55), transparent 70%)",
+                    mixBlendMode: "screen",
+                  }}
+                />
+                {product.colorways.length > 1 && (
+                  <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
+                    {product.colorways.map((c) => (
+                      <span
+                        key={c.key}
+                        className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
+                        style={{ backgroundColor: c.swatch }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm text-brand-ink md:text-base">
+                    {product.name}
+                  </h3>
+                  <p className="mt-1 truncate text-xs text-brand-muted">
+                    {product.tagline}
+                  </p>
+                </div>
+                <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">
+                  {formatMockPrice(product.priceCents)}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* === 02 — BRAND WORLD === */}
       <section className="relative mx-auto max-w-[1440px] px-5 py-20 md:px-6 md:py-32 lg:px-12 lg:py-48">
         <div className="grid gap-10 md:grid-cols-12 md:items-center md:gap-16">
           <div className="md:col-span-7">
-            <p className="eyebrow text-brand-muted mb-5">01 — brand world</p>
+            <p className="eyebrow text-brand-muted mb-5">02 — brand world</p>
             <h2 className="display text-[clamp(2rem,7vw,4.5rem)] text-brand-ink">
               Not just eyewear.
               <br />
@@ -184,7 +261,7 @@ export default function HomePage() {
       <section className="bg-white/60 py-20 md:py-32 lg:py-48">
         <div className="mx-auto max-w-[1440px] px-5 md:px-6 lg:px-12">
           <div className="max-w-3xl">
-            <p className="eyebrow text-brand-muted mb-5">02 — product identity</p>
+            <p className="eyebrow text-brand-muted mb-5">03 — product identity</p>
             <h2 className="display text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
               Designed for movement,
               <br />
@@ -214,75 +291,6 @@ export default function HomePage() {
               </article>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* === 03 — THE COLLECTION === */}
-      <section className="mx-auto max-w-[1440px] px-5 py-20 md:px-6 md:py-32 lg:px-12 lg:py-48">
-        <div className="mb-10 flex flex-col gap-4 md:mb-16 md:flex-row md:items-end md:justify-between md:gap-6">
-          <div>
-            <p className="eyebrow text-brand-muted mb-3 md:mb-4">
-              03 — the collection
-            </p>
-            <h2 className="display text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
-              Three pieces.
-              <br />
-              <span className="italic font-light">One frequency.</span>
-            </h2>
-          </div>
-          <Link
-            href="/products"
-            className="inline-flex eyebrow text-brand-ink-soft fluid-transition hover:text-brand-ink"
-          >
-            Explore collection →
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-          {mockProducts.slice(0, 3).map((product) => (
-            <Link
-              key={product.slug}
-              href={`/products/${product.slug}`}
-              className="group block"
-            >
-              <div
-                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-6 fluid-transition group-hover:-translate-y-1 ${STUDIO_BG}`}
-              >
-                <Image
-                  src={heroImage(product)}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                  className="object-contain fluid-transition group-hover:scale-[1.03]"
-                />
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
-                  style={{
-                    background:
-                      "radial-gradient(at 50% 50%, rgba(255,255,255,0.4), transparent 70%)",
-                    mixBlendMode: "screen",
-                  }}
-                />
-                <span className="absolute left-4 top-4 eyebrow text-[10px] text-brand-ink/50 md:left-6 md:top-6">
-                  {product.code}
-                </span>
-              </div>
-              <div className="mt-4 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="truncate text-base text-brand-ink md:text-lg">
-                    {product.name}
-                  </h3>
-                  <p className="mt-1 truncate text-xs text-brand-muted">
-                    {product.tagline}
-                  </p>
-                </div>
-                <p className="text-xs text-brand-ink md:text-sm whitespace-nowrap">
-                  {formatMockPrice(product.priceCents)}
-                </p>
-              </div>
-            </Link>
-          ))}
         </div>
       </section>
 

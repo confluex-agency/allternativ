@@ -171,59 +171,79 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-5">
-          {mockProducts.map((product) => (
-            <Link
-              key={product.slug}
-              href={`/products/${product.slug}`}
-              className="group block"
-            >
-              <div
-                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG}`}
+        {/* Bento: the first piece runs large (2×2), the rest fill a 2×2 beside
+            it. On phones the feature becomes a wide banner and the other four
+            drop into a 2-up grid below. */}
+        <div className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
+          {mockProducts.map((product, i) => {
+            const featured = i === 0;
+            return (
+              <Link
+                key={product.slug}
+                href={`/products/${product.slug}`}
+                className={`group flex flex-col ${
+                  featured ? "col-span-2 lg:row-span-2" : ""
+                }`}
               >
-                <Image
-                  src={heroImage(product)}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                  className="object-contain fluid-transition group-hover:scale-[1.03]"
-                />
                 <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
-                  style={{
-                    background:
-                      "radial-gradient(at 50% 40%, rgba(255,255,255,0.55), transparent 70%)",
-                    mixBlendMode: "screen",
-                  }}
-                />
-                {product.colorways.length > 1 && (
-                  <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
-                    {product.colorways.map((c) => (
-                      <span
-                        key={c.key}
-                        className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
-                        style={{ backgroundColor: c.swatch }}
-                      />
-                    ))}
+                  className={`relative overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG} ${
+                    featured
+                      ? "aspect-[16/10] flex-1 lg:aspect-auto"
+                      : "aspect-[4/3]"
+                  }`}
+                >
+                  <Image
+                    src={heroImage(product)}
+                    alt={product.name}
+                    fill
+                    sizes={
+                      featured
+                        ? "(max-width: 1024px) 100vw, 50vw"
+                        : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    }
+                    className="object-contain fluid-transition group-hover:scale-[1.03]"
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
+                    style={{
+                      background:
+                        "radial-gradient(at 50% 40%, rgba(255,255,255,0.55), transparent 70%)",
+                      mixBlendMode: "screen",
+                    }}
+                  />
+                  {product.colorways.length > 1 && (
+                    <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
+                      {product.colorways.map((c) => (
+                        <span
+                          key={c.key}
+                          className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
+                          style={{ backgroundColor: c.swatch }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3
+                      className={`truncate text-brand-ink ${
+                        featured ? "text-base md:text-xl" : "text-sm md:text-base"
+                      }`}
+                    >
+                      {product.name}
+                    </h3>
+                    <p className="mt-1 truncate text-xs text-brand-muted">
+                      {product.tagline}
+                    </p>
                   </div>
-                )}
-              </div>
-              <div className="mt-4 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm text-brand-ink md:text-base">
-                    {product.name}
-                  </h3>
-                  <p className="mt-1 truncate text-xs text-brand-muted">
-                    {product.tagline}
+                  <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">
+                    {formatMockPrice(product.priceCents)}
                   </p>
                 </div>
-                <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">
-                  {formatMockPrice(product.priceCents)}
-                </p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </section>
 

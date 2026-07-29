@@ -34,7 +34,6 @@
     --ink:#0a0a0a;
     --ink-soft:#3a3a3a;
     --muted:#8a8a8a;
-    --studio:#e9edf3;
     --ease:cubic-bezier(.22,1,.36,1);
   }
   *,*::before,*::after{box-sizing:border-box}
@@ -152,9 +151,10 @@
   .card{display:flex;flex-direction:column;gap:.85rem;text-decoration:none;color:inherit}
   /* Los lentes son fotos APAISADAS: en un marco vertical quedan diminutos con
      un mar de fondo alrededor. 4/3 los deja grandes sin recortar las patillas. */
+  /* Sin color de fondo detras del lente: la foto ya trae su propio fondo de
+     estudio, asi que pintar el contenedor sumaba un segundo rectangulo. */
   .shot{
     position:relative;aspect-ratio:4/3;overflow:hidden;
-    background:var(--studio);
   }
   .shot .studio,.shot .worn{
     position:absolute;inset:0;width:100%;height:100%;

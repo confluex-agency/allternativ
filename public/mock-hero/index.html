@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<!-- Vercel sirve esto en /mock-hero SIN barra final (redirige 308 y se la saca),
+     asi que sin este <base> el navegador resuelve "mock-assets/..." contra la
+     raiz del sitio y todas las imagenes y la fuente dan 404. -->
+<base href="/mock-hero/">
 <title>Allternativ — mock hero + collection</title>
 <style>
   /* DM Sans self-hosteada: el CSP del proyecto (next.config.ts) tiene

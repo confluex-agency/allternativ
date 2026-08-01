@@ -57,4 +57,5 @@ credentials.json
 
 # Raw photo dumps (source material — app uses the clean /catalog/<slug>/ copies)
 /public/catalog/Catalogo/
+/public/catalog/**/WhatsApp*
 /raw-lentes/

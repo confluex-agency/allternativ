@@ -7,9 +7,8 @@ import {
   type MockProduct,
 } from "@/lib/mock-data";
 
-// Uniform studio background so every lens floats on the same clean surface.
-const STUDIO_BG = "bg-[#e9edf3]";
-
+// Las tarjetas no llevan color de fondo: cada foto ya trae su propio fondo de
+// estudio, y pintar el contenedor dejaba un segundo rectangulo a la vista.
 export const metadata = {
   title: "All Eyewear",
 };
@@ -96,7 +95,7 @@ export default async function ProductsPage({
               className="group block"
             >
               <div
-                className={`relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG}`}
+                className="relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5"
               >
                 <Image
                   src={heroImage(product)}

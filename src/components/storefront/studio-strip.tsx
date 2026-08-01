@@ -14,7 +14,8 @@ import type { MockProduct } from "@/lib/mock-data";
 // Native CSS scroll-snap does the work; no drag handlers, no animation library.
 // That also means it keeps momentum scrolling on iOS for free.
 
-const STUDIO_BG = "bg-[#e9edf3]";
+// Los frames no llevan color de fondo: cada foto ya trae el suyo, y pintar el
+// contenedor dejaba un segundo rectangulo a la vista.
 
 export function StudioStrip({ product }: { product: MockProduct }) {
   const [colorwayKey, setColorwayKey] = useState(product.colorways[0].key);
@@ -76,7 +77,7 @@ export function StudioStrip({ product }: { product: MockProduct }) {
         {colorway.gallery.map((src, i) => (
           <div
             key={src}
-            className={`relative aspect-[4/3] w-[82%] shrink-0 snap-center overflow-hidden rounded-[1.25rem] md:w-[46%] lg:w-[32%] ${STUDIO_BG}`}
+            className="relative aspect-[4/3] w-[82%] shrink-0 snap-center overflow-hidden rounded-[1.25rem] md:w-[46%] lg:w-[32%]"
           >
             <Image
               src={src}

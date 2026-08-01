@@ -6,6 +6,7 @@
 export type Colorway = {
   key: string;
   name: string;
+  sku: string; // buyable unit — this is what the supplier ERP ships against
   swatch: string; // CSS colour for the selector dot
   gallery: string[]; // ordered image srcs; [0] is the hero
 };
@@ -22,12 +23,14 @@ export type MockProduct = {
   frame?: string;
   lens?: string;
   origin?: string;
+  photo?: boolean; // true = real lifestyle/street photos (fill the card, no studio bg)
   colorways: Colorway[]; // always at least one
 };
 
 // Build a gallery array for a colourway folder: /catalog/<slug>/<slug>-1.png …
-const g = (folder: string, count: number): string[] =>
-  Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.png`);
+// ext defaults to png; pass "jpg" for real-photo folders.
+const g = (folder: string, count: number, ext: string = "png"): string[] =>
+  Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.${ext}`);
 
 export const mockProducts: MockProduct[] = [
   {
@@ -43,8 +46,8 @@ export const mockProducts: MockProduct[] = [
     lens: "Smoke — iridescent filter",
     origin: "Handcrafted · LATAM",
     colorways: [
-      { key: "black", name: "Negro", swatch: "#1c1c1e", gallery: g("orbital-black", 8) },
-      { key: "silver", name: "Plata", swatch: "#c7cace", gallery: g("orbital-silver", 9) },
+      { key: "black", name: "Negro", sku: "ORB-01-BLK", swatch: "#1c1c1e", gallery: g("orbital-black", 8) },
+      { key: "silver", name: "Plata", sku: "ORB-01-SLV", swatch: "#c7cace", gallery: g("orbital-silver", 9) },
     ],
   },
   {
@@ -59,7 +62,28 @@ export const mockProducts: MockProduct[] = [
     frame: "Gold-tone metal · acetate tips",
     lens: "Bottle green — mineral",
     origin: "Handcrafted · LATAM",
-    colorways: [{ key: "gold", name: "Oro", swatch: "#c6a765", gallery: g("halo", 9) }],
+    colorways: [
+      { key: "gold", name: "Oro", sku: "HAL-02-GLD", swatch: "#c6a765", gallery: g("halo", 9) },
+    ],
+  },
+  {
+    // TEST — real street/lifestyle shoot of the Halo, to try real photos in the
+    // catalogue instead of the studio angles. Same frame as "halo".
+    slug: "halo-2",
+    name: "Halo 2.0",
+    code: "HAL-02B",
+    tagline: "Round metal / worn in the wild",
+    priceCents: 21900,
+    type: "SUNGLASSES",
+    description:
+      "The Halo, shot on the street. Same slim round gold metal and bottle-green lens, framed against concrete, denim and golden-hour light.",
+    frame: "Gold-tone metal · acetate tips",
+    lens: "Bottle green — mineral",
+    origin: "Handcrafted · LATAM",
+    photo: true,
+    colorways: [
+      { key: "gold", name: "Oro", sku: "HAL-02B-GLD", swatch: "#c6a765", gallery: g("halo-2", 8, "jpg") },
+    ],
   },
   {
     slug: "vortex",
@@ -73,7 +97,9 @@ export const mockProducts: MockProduct[] = [
     frame: "Matte acetate",
     lens: "Single shield — smoke gradient",
     origin: "Handcrafted · LATAM",
-    colorways: [{ key: "red", name: "Rojo", swatch: "#b23a2e", gallery: g("vortex", 8) }],
+    colorways: [
+      { key: "red", name: "Rojo", sku: "VRT-03-RED", swatch: "#b23a2e", gallery: g("vortex", 8) },
+    ],
   },
   {
     slug: "nocturne",
@@ -87,7 +113,9 @@ export const mockProducts: MockProduct[] = [
     frame: "Glossy Italian acetate",
     lens: "Smoke — iridescent filter",
     origin: "Handcrafted · LATAM",
-    colorways: [{ key: "black", name: "Negro", swatch: "#141416", gallery: g("nocturne", 9) }],
+    colorways: [
+      { key: "black", name: "Negro", sku: "NOC-04-BLK", swatch: "#141416", gallery: g("nocturne", 9) },
+    ],
   },
   {
     slug: "prisma",
@@ -101,7 +129,9 @@ export const mockProducts: MockProduct[] = [
     frame: "Translucent olive acetate",
     lens: "Green mirror — mineral",
     origin: "Handcrafted · LATAM",
-    colorways: [{ key: "olive", name: "Oliva", swatch: "#9a9a5c", gallery: g("prisma", 9) }],
+    colorways: [
+      { key: "olive", name: "Oliva", sku: "PRS-05-OLV", swatch: "#9a9a5c", gallery: g("prisma", 9) },
+    ],
   },
 ];
 

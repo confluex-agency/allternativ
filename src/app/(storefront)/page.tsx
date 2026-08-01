@@ -7,7 +7,6 @@ import {
   heroImage,
 } from "@/lib/mock-data";
 
-const STUDIO_BG = "bg-[#e9edf3]";
 import { HeroVideoLazy } from "@/components/storefront/hero-video-lazy";
 
 const LIFESTYLE_MOMENTS = [
@@ -185,8 +184,13 @@ export default function HomePage() {
                   featured ? "col-span-2 lg:row-span-2" : ""
                 }`}
               >
+                {/* Sin color de estudio detras del lente: la foto ya trae su
+                    propio fondo, asi que pintar el contenedor sumaba un segundo
+                    rectangulo visible. Queda el fondo de la pagina. */}
                 <div
-                  className={`relative overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5 ${STUDIO_BG} ${
+                  className={`relative overflow-hidden rounded-[1.25rem] fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] ${
+                    product.photo ? "bg-brand-ink/5" : "p-3 md:p-5"
+                  } ${
                     featured
                       ? "aspect-[16/10] flex-1 lg:aspect-auto"
                       : "aspect-[4/3]"
@@ -201,7 +205,9 @@ export default function HomePage() {
                         ? "(max-width: 1024px) 100vw, 50vw"
                         : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                     }
-                    className="object-contain fluid-transition group-hover:scale-[1.03]"
+                    className={`${
+                      product.photo ? "object-cover" : "object-contain"
+                    } fluid-transition group-hover:scale-[1.03]`}
                   />
                   <div
                     aria-hidden="true"

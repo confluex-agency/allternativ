@@ -8,9 +8,9 @@ import type { Colorway } from "@/lib/mock-data";
 // and a colourway selector that swaps the whole photo set. Photos only — the 3D
 // viewer comes later.
 
-// Uniform studio surface so the lens floats with air around it (contain, not
-// cover) — no cropped temples.
-const STUDIO_BG = "bg-[#e9edf3]";
+// El lente va con aire alrededor (contain, no cover) para no cortar las patillas,
+// y sin color de fondo propio: cada foto ya trae el suyo, asi que pintar el
+// contenedor dejaba un segundo rectangulo a la vista.
 
 type Props = {
   name: string;
@@ -33,7 +33,7 @@ export function ProductGallery({ name, colorways }: Props) {
     <div className="space-y-3 md:space-y-4">
       {/* Hero frame */}
       <div
-        className={`group relative aspect-[4/3] overflow-hidden rounded-[1.5rem] p-4 md:rounded-[2rem] md:p-8 ${STUDIO_BG}`}
+        className="group relative aspect-[4/3] overflow-hidden rounded-[1.5rem] p-4 md:rounded-[2rem] md:p-8"
       >
         {gallery.map((src, i) => (
           <Image
@@ -66,7 +66,7 @@ export function ProductGallery({ name, colorways }: Props) {
               onClick={() => setAngle(i)}
               aria-label={`Vista ${i + 1}`}
               aria-pressed={isActive}
-              className={`relative aspect-square overflow-hidden rounded-[0.6rem] p-1 md:rounded-[0.85rem] fluid-transition ${STUDIO_BG} ${
+              className={`relative aspect-square overflow-hidden rounded-[0.6rem] p-1 md:rounded-[0.85rem] fluid-transition ${
                 isActive
                   ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
                   : "opacity-70 hover:opacity-100"

@@ -86,6 +86,7 @@ model Product {
   updatedAt             DateTime       @updatedAt @map("updated_at")
 
   images     ProductImage[]
+  variants   ProductVariant[]
   categories CategoriesOnProducts[]
   orderItems OrderItem[]
   wishlistItems WishlistItem[]
@@ -93,15 +94,43 @@ model Product {
   @@map("products")
 }
 
+// A buyable colourway of a product (Orbital black / Orbital silver).
+// This is the unit that carries SKU and stock, so it is also the unit the
+// supplier ERP (Dianxiaomi) maps against via `supplierSku`.
+model ProductVariant {
+  id            String   @id @default(cuid())
+  productId     String   @map("product_id")
+  sku           String   @unique
+  colorKey      String   @map("color_key")  // "black" — matches mock-data Colorway.key
+  colorName     String   @map("color_name") // "Negro" — shown in the selector
+  swatch        String?                     // CSS colour for the selector dot
+  priceCents    Int?     @map("price_cents") // null = inherit the product price
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  isActive      Boolean  @default(true) @map("is_active")
+  position      Int      @default(0)
+  supplierSku   String?  @map("supplier_sku") // supplier / ERP product code
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images     ProductImage[]
+  orderItems OrderItem[]
+
+  @@unique([productId, colorKey])
+  @@map("product_variants")
+}
+
 model ProductImage {
   id        String  @id @default(cuid())
   productId String  @map("product_id")
+  variantId String? @map("variant_id") // null = shared across colourways
   url       String
   altText   String? @map("alt_text")
   position  Int     @default(0)
   isPrimary Boolean @default(false) @map("is_primary")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@map("product_images")
 }
@@ -171,9 +200,17 @@ model Order {
   stripeSessionId   String?     @unique @map("stripe_session_id")
   shippingName      String?     @map("shipping_name")
   shippingAddress   String?     @map("shipping_address")
+  shippingAddress2  String?     @map("shipping_address_2")
   shippingCity      String?     @map("shipping_city")
+  shippingState     String?     @map("shipping_state")
   shippingCountry   String?     @map("shipping_country")
   shippingZip       String?     @map("shipping_zip")
+  shippingPhone     String?     @map("shipping_phone")
+  // ─ Supplier ERP (Dianxiaomi) round-trip ─
+  erpExportedAt     DateTime?   @map("erp_exported_at")
+  trackingNumber    String?     @map("tracking_number")
+  carrier           String?
+  shippedAt         DateTime?   @map("shipped_at")
   utmSource         String?     @map("utm_source")
   utmMedium         String?     @map("utm_medium")
   utmCampaign       String?     @map("utm_campaign")
@@ -187,14 +224,21 @@ model Order {
 }
 
 model OrderItem {
-  id             String @id @default(cuid())
-  orderId        String @map("order_id")
-  productId      String @map("product_id")
+  id             String  @id @default(cuid())
+  orderId        String  @map("order_id")
+  productId      String  @map("product_id")
+  variantId      String? @map("variant_id")
   quantity       Int
-  unitPriceCents Int    @map("unit_price_cents")
+  unitPriceCents Int     @map("unit_price_cents")
+  // Snapshots taken at purchase time — the SKU/name the ERP must ship, even if
+  // the catalogue is edited afterwards.
+  sku            String?
+  productName    String? @map("product_name")
+  variantName    String? @map("variant_name")
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@map("order_items")
 }

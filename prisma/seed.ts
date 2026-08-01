@@ -2,8 +2,14 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
+import { mockProducts } from "../src/lib/mock-data";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+// Same rule as prisma.config.ts: seeding goes through the SESSION pooler
+// (MIGRATE_DATABASE_URL), falling back to DATABASE_URL for local Postgres.
+const adapter = new PrismaPg({
+  connectionString: (process.env.MIGRATE_DATABASE_URL ||
+    process.env.DATABASE_URL)!,
+});
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -48,183 +54,100 @@ async function main() {
   );
   console.log("Created categories:", categories.length);
 
-  // Create sample products
-  const products = [
-    {
-      name: "Classic Round",
-      slug: "classic-round",
-      description:
-        "Timeless round frames crafted from premium acetate. Lightweight and comfortable for all-day wear.",
-      priceCents: 12900,
-      compareAtPriceCents: 15900,
-      stockQuantity: 50,
-      isActive: true,
-      isFeatured: true,
-      type: "OPTICAL" as const,
-      frameShape: "ROUND" as const,
-      frameMaterial: "ACETATE" as const,
-      frameColor: "Tortoise",
-      gender: "UNISEX" as const,
-      metaTitle: "Classic Round Optical Frames | Allternativ",
-      metaDescription:
-        "Premium round acetate frames. Lightweight, comfortable, timeless design.",
-    },
-    {
-      name: "Aviator Pro",
-      slug: "aviator-pro",
-      description:
-        "Bold aviator sunglasses with polarized lenses. UV400 protection with a modern twist on the classic design.",
-      priceCents: 15900,
-      stockQuantity: 35,
-      isActive: true,
-      isFeatured: true,
-      type: "SUNGLASSES" as const,
-      frameShape: "AVIATOR" as const,
-      frameMaterial: "METAL" as const,
-      frameColor: "Gold",
-      gender: "UNISEX" as const,
-      lensType: "Polarized",
-      metaTitle: "Aviator Pro Sunglasses | Allternativ",
-      metaDescription:
-        "Polarized aviator sunglasses with UV400 protection. Gold metal frames.",
-    },
-    {
-      name: "Digital Shield",
-      slug: "digital-shield",
-      description:
-        "Blue light blocking glasses designed for screen time. Reduce eye strain with style.",
-      priceCents: 8900,
-      stockQuantity: 100,
-      isActive: true,
-      isFeatured: false,
-      type: "BLUE_LIGHT" as const,
-      frameShape: "RECTANGLE" as const,
-      frameMaterial: "TR90" as const,
-      frameColor: "Matte Black",
-      gender: "UNISEX" as const,
-      lensType: "Blue Light Filter",
-      metaTitle: "Digital Shield Blue Light Glasses | Allternativ",
-      metaDescription:
-        "Blue light blocking glasses for screen time. TR90 frames, lightweight design.",
-    },
-    {
-      name: "Cat Eye Luxe",
-      slug: "cat-eye-luxe",
-      description:
-        "Elegant cat-eye frames with a contemporary silhouette. Premium acetate construction.",
-      priceCents: 13900,
-      stockQuantity: 40,
-      isActive: true,
-      isFeatured: true,
-      type: "OPTICAL" as const,
-      frameShape: "CAT_EYE" as const,
-      frameMaterial: "ACETATE" as const,
-      frameColor: "Black",
-      gender: "WOMEN" as const,
-      metaTitle: "Cat Eye Luxe Optical Frames | Allternativ",
-      metaDescription:
-        "Elegant cat-eye acetate frames for women. Contemporary design.",
-    },
-    {
-      name: "Titanium Square",
-      slug: "titanium-square",
-      description:
-        "Ultra-lightweight titanium frames with a clean square profile. Hypoallergenic and durable.",
-      priceCents: 19900,
-      stockQuantity: 25,
-      isActive: true,
-      isFeatured: false,
-      type: "OPTICAL" as const,
-      frameShape: "SQUARE" as const,
-      frameMaterial: "TITANIUM" as const,
-      frameColor: "Gunmetal",
-      gender: "MEN" as const,
-      metaTitle: "Titanium Square Frames | Allternativ",
-      metaDescription:
-        "Ultra-lightweight titanium square frames. Hypoallergenic, durable, premium.",
-    },
-    {
-      name: "Reader Classic",
-      slug: "reader-classic",
-      description:
-        "Comfortable reading glasses available in multiple strengths. Spring hinges for a perfect fit.",
-      priceCents: 4900,
-      stockQuantity: 200,
-      isActive: true,
-      isFeatured: false,
-      type: "READING" as const,
-      frameShape: "RECTANGLE" as const,
-      frameMaterial: "ACETATE" as const,
-      frameColor: "Dark Brown",
-      gender: "UNISEX" as const,
-      lensType: "+1.50",
-      metaTitle: "Reader Classic Reading Glasses | Allternativ",
-      metaDescription:
-        "Comfortable reading glasses with spring hinges. Multiple strengths available.",
-    },
-  ];
+  // Map the ProductType union to the category slug it belongs in.
+  const categorySlugForType: Record<string, string> = {
+    OPTICAL: "optical",
+    SUNGLASSES: "sunglasses",
+    BLUE_LIGHT: "blue-light",
+    READING: "reading",
+  };
 
-  for (const productData of products) {
+  // Seed the REAL catalogue straight from mock-data (single source of truth).
+  // Each mock product becomes one Product row, each colourway a ProductVariant
+  // (the buyable unit, carries the SKU), and every gallery image a ProductImage
+  // linked to its variant. Image [0] of the first colourway is the hero.
+  let productCount = 0;
+  let variantCount = 0;
+  for (const mp of mockProducts) {
     const product = await prisma.product.upsert({
-      where: { slug: productData.slug },
+      where: { slug: mp.slug },
       update: {},
-      create: productData,
+      create: {
+        name: mp.name,
+        slug: mp.slug,
+        description: mp.description ?? null,
+        priceCents: mp.priceCents,
+        compareAtPriceCents: mp.compareAtPriceCents ?? null,
+        stockQuantity: 25,
+        isActive: true,
+        isFeatured: mp.slug === "orbital",
+        type: mp.type,
+        lensType: mp.lens ?? null,
+        frameColor: mp.colorways[0]?.name ?? null,
+        gender: "UNISEX",
+        metaTitle: `${mp.name} — ${mp.tagline} | Allternativ`,
+        metaDescription: mp.description ?? null,
+      },
     });
 
-    // Add placeholder images
-    await prisma.productImage.createMany({
-      data: [
-        {
+    // One variant per colourway, each owning its own gallery.
+    let imagePosition = 0;
+    for (const [cwIndex, cw] of mp.colorways.entries()) {
+      const variant = await prisma.productVariant.upsert({
+        where: { sku: cw.sku },
+        update: {},
+        create: {
           productId: product.id,
-          url: `/images/products/${product.slug}-1.jpg`,
-          altText: `${product.name} - Front view`,
-          position: 0,
-          isPrimary: true,
+          sku: cw.sku,
+          colorKey: cw.key,
+          colorName: cw.name,
+          swatch: cw.swatch,
+          stockQuantity: 25,
+          isActive: true,
+          position: cwIndex,
         },
-        {
-          productId: product.id,
-          url: `/images/products/${product.slug}-2.jpg`,
-          altText: `${product.name} - Side view`,
-          position: 1,
-          isPrimary: false,
-        },
-      ],
-      skipDuplicates: true,
-    });
+      });
+      variantCount++;
 
-    // Link to appropriate category
-    const categorySlug =
-      productData.type === "OPTICAL"
-        ? "optical"
-        : productData.type === "SUNGLASSES"
-          ? "sunglasses"
-          : productData.type === "BLUE_LIGHT"
-            ? "blue-light"
-            : "reading";
-
-    const category = categories.find((c) => c.slug === categorySlug);
-    if (category) {
-      await prisma.categoriesOnProducts
-        .create({
-          data: { productId: product.id, categoryId: category.id },
-        })
-        .catch(() => {}); // ignore if already exists
+      // Skip if this variant already has its gallery (re-run of the seed).
+      const alreadySeeded = await prisma.productImage.count({
+        where: { variantId: variant.id },
+      });
+      if (alreadySeeded === 0) {
+        await prisma.productImage.createMany({
+          data: cw.gallery.map((url, i) => ({
+            productId: product.id,
+            variantId: variant.id,
+            url,
+            altText: `${mp.name} — ${cw.name}`,
+            position: imagePosition + i,
+            isPrimary: cwIndex === 0 && i === 0,
+          })),
+        });
+      }
+      imagePosition += cw.gallery.length;
     }
 
-    // Featured products go to best-sellers
-    if (productData.isFeatured) {
-      const bestSellers = categories.find((c) => c.slug === "best-sellers");
-      if (bestSellers) {
+    // Link to its type category, and feature-flagged products to best-sellers.
+    const catSlug = categorySlugForType[mp.type] ?? "sunglasses";
+    const cat = categories.find((c) => c.slug === catSlug);
+    if (cat) {
+      await prisma.categoriesOnProducts
+        .create({ data: { productId: product.id, categoryId: cat.id } })
+        .catch(() => {}); // ignore if already linked
+    }
+    if (product.isFeatured) {
+      const best = categories.find((c) => c.slug === "best-sellers");
+      if (best) {
         await prisma.categoriesOnProducts
-          .create({
-            data: { productId: product.id, categoryId: bestSellers.id },
-          })
+          .create({ data: { productId: product.id, categoryId: best.id } })
           .catch(() => {});
       }
     }
+    productCount++;
   }
 
-  console.log("Created products:", products.length);
+  console.log("Created products:", productCount, "| variants:", variantCount);
   console.log("Seed complete!");
 }
 

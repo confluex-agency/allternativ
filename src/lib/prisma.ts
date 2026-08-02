@@ -1,13 +1,13 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { env } from "@/lib/env";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({
-    connectionString: env.DATABASE_URL,
-  });
+  // MySQL/MariaDB on the Hostinger plan. The adapter takes the same
+  // mysql://user:pass@host:3306/db URL the panel gives you.
+  const adapter = new PrismaMariaDb(env.DATABASE_URL);
   return new PrismaClient({ adapter });
 }
 

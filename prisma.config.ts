@@ -9,9 +9,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // Migrations and seed go through the SESSION pooler (port 5432): the
-    // transaction pooler the app uses at runtime (6543) can't run them.
-    // Falls back to DATABASE_URL for local Postgres, where there's no pooler.
-    url: process.env["MIGRATE_DATABASE_URL"] || process.env["DATABASE_URL"],
+    url: process.env["DATABASE_URL"],
   },
 });

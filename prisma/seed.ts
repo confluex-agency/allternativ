@@ -1,15 +1,10 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { hash } from "bcryptjs";
 import { mockProducts } from "../src/lib/mock-data";
 
-// Same rule as prisma.config.ts: seeding goes through the SESSION pooler
-// (MIGRATE_DATABASE_URL), falling back to DATABASE_URL for local Postgres.
-const adapter = new PrismaPg({
-  connectionString: (process.env.MIGRATE_DATABASE_URL ||
-    process.env.DATABASE_URL)!,
-});
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {

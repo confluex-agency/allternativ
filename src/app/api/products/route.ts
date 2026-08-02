@@ -71,11 +71,14 @@ export async function GET(request: NextRequest) {
       ...(category
         ? { categories: { some: { category: { slug: category } } } }
         : {}),
+      // No `mode: "insensitive"` here: that is a PostgreSQL-only option. MySQL
+      // already compares case-insensitively with the default utf8mb4 collation,
+      // so `contains` alone gives the same result.
       ...(search
         ? {
             OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { description: { contains: search, mode: "insensitive" } },
+              { name: { contains: search } },
+              { description: { contains: search } },
             ],
           }
         : {}),

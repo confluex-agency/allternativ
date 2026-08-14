@@ -37,6 +37,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 .env.production
+.env*.bak
+.env.backup
+
 # .env.example is safe to commit (placeholder values only)
 !.env.example
 

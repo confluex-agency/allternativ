@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { CASE_COLORS, caseLabel } from "@/lib/product-options";
+import {
+  reserveStock,
+  releaseReservationGroup,
+  attachSessionToReservations,
+  OutOfStockError,
+  RESERVATION_MINUTES,
+} from "@/lib/inventory";
 
 // Checkout prices against ProductVariant, the buyable unit. It used to look up
 // Product by an id the cart never held (it sent the product code), so no basket
@@ -56,18 +64,28 @@ export async function POST(request: NextRequest) {
 
     const byId = new Map(variants.map((v) => [v.id, v]));
 
-    // Refuse the whole basket rather than silently dropping a line: someone who
-    // reaches payment expecting three pairs should not be charged for two.
-    for (const item of items) {
-      const variant = byId.get(item.variantId)!;
-      if (variant.stockQuantity < item.quantity) {
+    // Take the stock now, before sending anyone to pay. Checking here and
+    // decrementing after payment leaves minutes in which everyone is told the
+    // last unit is theirs. See src/lib/inventory.ts.
+    const reservationGroup = randomUUID();
+    try {
+      await reserveStock(
+        items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        reservationGroup,
+      );
+    } catch (error) {
+      if (error instanceof OutOfStockError) {
+        const variant = byId.get(error.variantId);
         return NextResponse.json(
           {
-            error: `${variant.product.name} (${variant.colorName}) does not have enough stock`,
+            error: variant
+              ? `${variant.product.name} (${variant.colorName}) has just sold out`
+              : "One of the items has just sold out",
           },
           { status: 409 },
         );
       }
+      throw error;
     }
 
     const lineItems = items.map((item) => {
@@ -86,10 +104,15 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const session = await stripe.checkout.sessions.create({
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
       mode: "payment",
+      // The session dies at the same moment the stock reservation does, so an
+      // abandoned checkout cannot hold a unit any longer than it holds a price.
+      expires_at: Math.floor(Date.now() / 1000) + RESERVATION_MINUTES * 60,
       // Without an address and a phone number the supplier cannot dispatch, and
       // the export file reaches them with no recipient.
       shipping_address_collection: {
@@ -112,8 +135,17 @@ export async function POST(request: NextRequest) {
             sku: byId.get(i.variantId)!.sku,
           })),
         ),
+        reservationGroup,
       },
-    });
+      });
+    } catch (error) {
+      // Stripe refused the session, so nobody is going to pay for this stock.
+      // Hand it straight back instead of waiting for it to time out.
+      await releaseReservationGroup(reservationGroup);
+      throw error;
+    }
+
+    await attachSessionToReservations(reservationGroup, session.id);
 
     return NextResponse.json({ url: session.url });
   } catch {

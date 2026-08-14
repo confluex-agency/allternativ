@@ -1,12 +1,12 @@
 /**
  * Daily cron: aggregates sessions + events from previous day into daily_analytics.
- * Run at 02:00 UTC via Render cron.
+ * Run at 02:00 UTC.
  */
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {

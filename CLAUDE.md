@@ -106,6 +106,51 @@ image has a `type`. There is deliberately no second set of names.
 - `allow_promotion_codes` is on, so discount codes created in the Stripe
   dashboard work without a deploy.
 
+### Why the shop cannot oversell
+
+Stock is taken when the **checkout opens**, not when payment lands. Otherwise
+minutes pass between "yes, there is one left" and "you paid for it", and
+everyone is told yes. See `src/lib/inventory.ts`.
+
+The guarantee is a single conditional statement, not a queue:
+
+```
+UPDATE product_variants SET stock_quantity = stock_quantity - n
+WHERE id = ? AND stock_quantity >= n
+```
+
+If it changed no rows, somebody else won. Condition and write are the same
+operation, so no amount of concurrency can produce a negative figure. Verified
+against the real database: ten simultaneous checkouts for the last unit, one
+winner, no deadlocks.
+
+- Reservations expire after `RESERVATION_MINUTES` (30), matching the Stripe
+  session's `expires_at`.
+- They are released lazily before every reservation attempt **and** by
+  `scripts/sweep-orders.ts`, so the shop recovers even with no traffic.
+- Paying after your reservation expired still produces an order, because the
+  money is real, and stock is taken late. **Stock may go negative on purpose**:
+  it means the shop owes more than it holds, and every further sale of that
+  variant is refused until a human intervenes.
+
+### Webhooks are written down before they are acted on
+
+`/api/webhooks/stripe` verifies the signature, stores the event in
+`webhook_events`, and hands off to `src/lib/webhooks/process-stripe-event.ts`.
+That split is what lets a failed event be replayed from the record.
+
+- Stripe is the durable queue: it retries a 5xx for up to three days, and the
+  unique `stripeEventId` makes retries harmless.
+- `UnprocessableEventError` marks an event that will never succeed (malformed
+  metadata). It is closed as `FAILED` with its reason instead of being retried
+  for three days.
+- `scripts/sweep-orders.ts` retries recoverable failures and shouts about
+  anything still stuck or any negative stock.
+
+A message broker was considered and deliberately not used: overselling is a race
+on one row, which the database settles, and durability is already Stripe's job.
+Revisit if several independent consumers ever need to react to a sale.
+
 ## Admin roles
 
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,

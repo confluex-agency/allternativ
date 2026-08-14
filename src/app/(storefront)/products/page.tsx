@@ -1,29 +1,17 @@
 import Link from "next/link";
-import Image from "next/image";
-import {
-  mockProducts,
-  formatMockPrice,
-  heroImage,
-  type MockProduct,
-} from "@/lib/mock-data";
+import { getLiveProducts } from "@/lib/catalog";
+import { ProductCard } from "@/components/storefront/product-card";
 
-// Las tarjetas no llevan color de fondo: cada foto ya trae su propio fondo de
-// estudio, y pintar el contenedor dejaba un segundo rectangulo a la vista.
 export const metadata = {
   title: "All Eyewear",
 };
 
-const TYPE_LABEL: Record<MockProduct["type"], string> = {
+const TYPE_LABEL: Record<string, string> = {
   SUNGLASSES: "Sunglasses",
   OPTICAL: "Optical",
   BLUE_LIGHT: "Blue Light",
   READING: "Reading",
 };
-
-// Derived from the catalogue, never hardcoded: a chip must not advertise a
-// collection that has no pieces. Today every silhouette is SUNGLASSES, so the
-// row hides itself — it reappears on its own when a second type ships.
-const AVAILABLE_TYPES = [...new Set(mockProducts.map((p) => p.type))];
 
 export default async function ProductsPage({
   searchParams,
@@ -32,19 +20,20 @@ export default async function ProductsPage({
 }) {
   const params = await searchParams;
   const typeFilter = params.type;
-  const categoryFilter = params.category;
 
-  const filtered = mockProducts.filter((p) => {
-    if (typeFilter && p.type !== typeFilter) return false;
-    if (categoryFilter && p.type.toLowerCase() !== categoryFilter.replace("-", "_"))
-      return false;
-    return true;
-  });
+  const products = await getLiveProducts();
+
+  const filtered = typeFilter
+    ? products.filter((p) => p.type === typeFilter)
+    : products;
+
+  // Derived from the catalogue, never hardcoded: a chip must not advertise a
+  // collection that has no pieces. Today every silhouette is SUNGLASSES, so the
+  // row hides itself — it reappears on its own when a second type ships.
+  const availableTypes = [...new Set(products.map((p) => p.type))];
 
   const title = typeFilter
-    ? TYPE_LABEL[typeFilter as MockProduct["type"]] ?? "All Eyewear"
-    : categoryFilter
-    ? categoryFilter.replace("-", " ")
+    ? (TYPE_LABEL[typeFilter] ?? "All Eyewear")
     : "All Eyewear";
 
   return (
@@ -57,13 +46,13 @@ export default async function ProductsPage({
           </h1>
         </div>
         <p className="max-w-xs text-sm text-brand-ink-soft">
-          The Frequency collection. Five silhouettes, shot from every angle.
+          The Frequency collection, shot from every angle.
         </p>
       </div>
 
-      {AVAILABLE_TYPES.length > 1 && (
+      {availableTypes.length > 1 && (
         <div className="mb-8 flex flex-wrap gap-2 md:mb-10">
-          {AVAILABLE_TYPES.map((type) => {
+          {availableTypes.map((type) => {
             const active = typeFilter === type;
             return (
               <Link
@@ -75,7 +64,7 @@ export default async function ProductsPage({
                     : "border-brand-ink/15 text-brand-ink-soft hover:border-brand-ink hover:text-brand-ink"
                 }`}
               >
-                {TYPE_LABEL[type]}
+                {TYPE_LABEL[type] ?? type}
               </Link>
             );
           })}
@@ -88,66 +77,8 @@ export default async function ProductsPage({
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((product) => (
-            <Link
-              key={product.slug}
-              href={`/products/${product.slug}`}
-              className="group block"
-            >
-              <div
-                className="relative aspect-[4/3] overflow-hidden rounded-[1.25rem] p-3 fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] md:p-5"
-              >
-                <Image
-                  src={heroImage(product)}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                  className="object-contain fluid-transition group-hover:scale-[1.03]"
-                />
-
-                {/* Light sheen on hover — reads like a real photo catch-light. */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
-                  style={{
-                    background:
-                      "radial-gradient(at 50% 40%, rgba(255,255,255,0.55), transparent 70%)",
-                    mixBlendMode: "screen",
-                  }}
-                />
-
-                {/* Colourway dots */}
-                {product.colorways.length > 1 && (
-                  <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
-                    {product.colorways.map((c) => (
-                      <span
-                        key={c.key}
-                        className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
-                        style={{ backgroundColor: c.swatch }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 flex items-start justify-between gap-2 md:mt-5">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm md:text-base text-brand-ink">
-                    {product.name}
-                  </h3>
-                  <p className="mt-1 truncate text-xs text-brand-muted">
-                    {product.tagline}
-                  </p>
-                </div>
-                <p className="text-xs md:text-sm text-brand-ink whitespace-nowrap">
-                  {formatMockPrice(product.priceCents)}
-                  {product.compareAtPriceCents && (
-                    <span className="ml-1 hidden text-xs text-brand-muted line-through md:inline">
-                      {formatMockPrice(product.compareAtPriceCents)}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </Link>
+          {filtered.map((product, i) => (
+            <ProductCard key={product.id} product={product} priority={i < 4} />
           ))}
         </div>
       )}

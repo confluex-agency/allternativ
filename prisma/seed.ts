@@ -54,11 +54,28 @@ async function main() {
   for (const mp of mockProducts) {
     const product = await prisma.product.upsert({
       where: { slug: mp.slug },
-      update: {},
+      // While mock-data is still the source of truth for the catalogue, re-running
+      // the seed refreshes the copy that comes from it. Once the admin CRUD ships
+      // this has to go back to `update: {}`, or it will overwrite what the client
+      // edits by hand.
+      update: {
+        name: mp.name,
+        code: mp.code,
+        tagline: mp.tagline,
+        description: mp.description ?? null,
+        frameDetail: mp.frame ?? null,
+        origin: mp.origin ?? null,
+        lensType: mp.lens ?? null,
+        priceCents: mp.priceCents,
+      },
       create: {
         name: mp.name,
         slug: mp.slug,
+        code: mp.code,
+        tagline: mp.tagline,
         description: mp.description ?? null,
+        frameDetail: mp.frame ?? null,
+        origin: mp.origin ?? null,
         priceCents: mp.priceCents,
         compareAtPriceCents: mp.compareAtPriceCents ?? null,
         stockQuantity: 25,

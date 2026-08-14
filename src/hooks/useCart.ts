@@ -4,11 +4,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CartItem } from "@/types";
 
+// Lines are keyed by `lineId` (variant + case colour). Adding the same variant
+// with a different case adds a second line, which is what the customer expects
+// and what the supplier needs in order to pack the right box.
+
 interface CartStore {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  removeItem: (lineId: string) => void;
+  updateQuantity: (lineId: string, quantity: number) => void;
   clearCart: () => void;
   totalItems: () => number;
   totalCents: () => number;
@@ -21,33 +25,31 @@ export const useCart = create<CartStore>()(
 
       addItem: (item) =>
         set((state) => {
-          const existing = state.items.find(
-            (i) => i.productId === item.productId
-          );
+          const existing = state.items.find((i) => i.lineId === item.lineId);
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.productId === item.productId
+                i.lineId === item.lineId
                   ? { ...i, quantity: i.quantity + item.quantity }
-                  : i
+                  : i,
               ),
             };
           }
           return { items: [...state.items, item] };
         }),
 
-      removeItem: (productId) =>
+      removeItem: (lineId) =>
         set((state) => ({
-          items: state.items.filter((i) => i.productId !== productId),
+          items: state.items.filter((i) => i.lineId !== lineId),
         })),
 
-      updateQuantity: (productId, quantity) =>
+      updateQuantity: (lineId, quantity) =>
         set((state) => ({
           items:
             quantity <= 0
-              ? state.items.filter((i) => i.productId !== productId)
+              ? state.items.filter((i) => i.lineId !== lineId)
               : state.items.map((i) =>
-                  i.productId === productId ? { ...i, quantity } : i
+                  i.lineId === lineId ? { ...i, quantity } : i,
                 ),
         })),
 
@@ -58,6 +60,13 @@ export const useCart = create<CartStore>()(
       totalCents: () =>
         get().items.reduce((sum, i) => sum + i.priceCents * i.quantity, 0),
     }),
-    { name: "allternativ-cart" }
-  )
+    {
+      name: "allternativ-cart",
+      // Lines used to be keyed by product code, which the checkout could not
+      // resolve. Anything saved under the old shape is dropped rather than
+      // migrated: those baskets could never have been paid for anyway.
+      version: 2,
+      migrate: () => ({ items: [] as CartItem[] }),
+    },
+  ),
 );

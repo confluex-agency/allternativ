@@ -5,7 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(cents: number, currency = "USD"): string {
+/**
+ * Selling currency. The brief prices everything in euros ("€XX"); the figure per
+ * model is still to be confirmed by the client. Change it here only.
+ */
+export const STORE_CURRENCY = "EUR";
+
+/**
+ * Shop-facing price: whole units, no cents. Sunglasses are priced at round
+ * numbers, and "€189.00" reads like an invoice. Use formatCurrency instead
+ * wherever the exact amount matters, such as orders and refunds.
+ */
+export function formatPrice(cents: number, currency = STORE_CURRENCY): string {
+  return new Intl.NumberFormat("en-IE", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+}
+
+export function formatCurrency(cents: number, currency = STORE_CURRENCY): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),

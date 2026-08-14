@@ -1,12 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import {
-  mockProducts,
-  formatMockPrice,
-  heroImage,
-} from "@/lib/mock-data";
-
+import { getLiveProducts } from "@/lib/catalog";
+import { ProductCard } from "@/components/storefront/product-card";
 import { HeroVideoLazy } from "@/components/storefront/hero-video-lazy";
 
 const LIFESTYLE_MOMENTS = [
@@ -23,7 +19,15 @@ const PRODUCT_PILLARS = [
   { label: "Expressive", tint: "bg-brand-rose" },
 ];
 
-export default function HomePage() {
+// The catalogue is editable from the admin, so the page cannot be frozen at
+// build time: it rebuilds itself at most once a minute. Prices and stock are
+// re-read from the database at checkout regardless, so a stale card can never
+// charge the wrong amount.
+export const revalidate = 60;
+
+export default async function HomePage() {
+  const products = await getLiveProducts();
+
   return (
     <div className="flex flex-col">
       {/* === HERO === */}
@@ -174,82 +178,15 @@ export default function HomePage() {
             it. On phones the feature becomes a wide banner and the other four
             drop into a 2-up grid below. */}
         <div className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
-          {mockProducts.map((product, i) => {
-            const featured = i === 0;
-            return (
-              <Link
-                key={product.slug}
-                href={`/products/${product.slug}`}
-                className={`group flex flex-col ${
-                  featured ? "col-span-2 lg:row-span-2" : ""
-                }`}
-              >
-                {/* Sin color de estudio detras del lente: la foto ya trae su
-                    propio fondo, asi que pintar el contenedor sumaba un segundo
-                    rectangulo visible. Queda el fondo de la pagina. */}
-                <div
-                  className={`relative overflow-hidden rounded-[1.25rem] fluid-transition group-hover:-translate-y-1 md:rounded-[1.5rem] ${
-                    product.photo ? "bg-brand-ink/5" : "p-3 md:p-5"
-                  } ${
-                    featured
-                      ? "aspect-[16/10] flex-1 lg:aspect-auto"
-                      : "aspect-[4/3]"
-                  }`}
-                >
-                  <Image
-                    src={heroImage(product)}
-                    alt={product.name}
-                    fill
-                    sizes={
-                      featured
-                        ? "(max-width: 1024px) 100vw, 50vw"
-                        : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    }
-                    className={`${
-                      product.photo ? "object-cover" : "object-contain"
-                    } fluid-transition group-hover:scale-[1.03]`}
-                  />
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 fluid-transition"
-                    style={{
-                      background:
-                        "radial-gradient(at 50% 40%, rgba(255,255,255,0.55), transparent 70%)",
-                      mixBlendMode: "screen",
-                    }}
-                  />
-                  {product.colorways.length > 1 && (
-                    <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
-                      {product.colorways.map((c) => (
-                        <span
-                          key={c.key}
-                          className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
-                          style={{ backgroundColor: c.swatch }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <h3
-                      className={`truncate text-brand-ink ${
-                        featured ? "text-base md:text-xl" : "text-sm md:text-base"
-                      }`}
-                    >
-                      {product.name}
-                    </h3>
-                    <p className="mt-1 truncate text-xs text-brand-muted">
-                      {product.tagline}
-                    </p>
-                  </div>
-                  <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">
-                    {formatMockPrice(product.priceCents)}
-                  </p>
-                </div>
-              </Link>
-            );
-          })}
+          {products.map((product, i) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              featured={i === 0}
+              priority={i === 0}
+              className={i === 0 ? "col-span-2 lg:row-span-2" : ""}
+            />
+          ))}
         </div>
       </section>
 

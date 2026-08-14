@@ -121,6 +121,10 @@ model Product {
   id                    String         @id @default(cuid())
   name                  String
   slug                  String         @unique
+  // The client's own model code, printed in the brief as "ORBITAL — 5312JT".
+  // Distinct from ProductVariant.sku, which identifies a buyable colourway.
+  code                  String?        @unique
+  tagline               String?        @db.VarChar(255)
   description           String?        @db.Text
   priceCents            Int            @map("price_cents")
   compareAtPriceCents   Int?           @map("compare_at_price_cents")
@@ -139,6 +143,10 @@ model Product {
   feeling               String?        @db.Text
   // ─ Published specs (section 08). Only confirmed values should be filled in;
   //   anything left null is simply not shown on the product page. ─
+  // Published as written. The frameMaterial enum above stays for filtering, but
+  // it cannot express a real spec line like "Injected matte nylon".
+  frameDetail           String?        @map("frame_detail")
+  origin                String?
   lensMaterial          String?        @map("lens_material")
   uvProtection          String?        @map("uv_protection")   // e.g. "UV400"
   lensCategory          Int?           @map("lens_category")   // 0-4, the standard scale

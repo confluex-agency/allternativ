@@ -19,7 +19,7 @@ async function main() {
       email: adminEmail,
       passwordHash,
       name: "Admin",
-      role: "SUPER_ADMIN",
+      role: "OWNER",
       mustChangePassword: true,
     },
   });
@@ -30,32 +30,20 @@ async function main() {
     );
   }
 
-  // Create categories
-  const categories = await Promise.all(
-    [
-      { name: "Optical", slug: "optical" },
-      { name: "Sunglasses", slug: "sunglasses" },
-      { name: "Blue Light", slug: "blue-light" },
-      { name: "Reading", slug: "reading" },
-      { name: "New Arrivals", slug: "new-arrivals" },
-      { name: "Best Sellers", slug: "best-sellers" },
-    ].map((cat) =>
-      prisma.category.upsert({
-        where: { slug: cat.slug },
-        update: {},
-        create: cat,
-      })
-    )
-  );
-  console.log("Created categories:", categories.length);
-
-  // Map the ProductType union to the category slug it belongs in.
-  const categorySlugForType: Record<string, string> = {
-    OPTICAL: "optical",
-    SUNGLASSES: "sunglasses",
-    BLUE_LIGHT: "blue-light",
-    READING: "reading",
-  };
+  // The launch collection. Name and tagline are PROVISIONAL: the client has not
+  // defined collection names yet (they are marked "to be defined" in the brief).
+  const collection = await prisma.collection.upsert({
+    where: { slug: "collection-01" },
+    update: {},
+    create: {
+      name: "Collection 01",
+      slug: "collection-01",
+      tagline: "A frequency you can wear.",
+      status: "LIVE",
+      isFeatured: true,
+    },
+  });
+  console.log("Created collection:", collection.name);
 
   // Seed the REAL catalogue straight from mock-data (single source of truth).
   // Each mock product becomes one Product row, each colourway a ProductVariant
@@ -74,7 +62,7 @@ async function main() {
         priceCents: mp.priceCents,
         compareAtPriceCents: mp.compareAtPriceCents ?? null,
         stockQuantity: 25,
-        isActive: true,
+        status: "LIVE",
         isFeatured: mp.slug === "orbital",
         type: mp.type,
         lensType: mp.lens ?? null,
@@ -115,6 +103,10 @@ async function main() {
             variantId: variant.id,
             url,
             altText: `${mp.name} — ${cw.name}`,
+            // Products flagged `photo` are the real street shoot, so they are
+            // MODEL shots. Everything else is a studio product shot. Once the
+            // client's shared folder lands, the file-name prefix sets this.
+            type: mp.photo ? ("MODEL" as const) : ("PRODUCT" as const),
             position: imagePosition + i,
             isPrimary: cwIndex === 0 && i === 0,
           })),
@@ -123,22 +115,16 @@ async function main() {
       imagePosition += cw.gallery.length;
     }
 
-    // Link to its type category, and feature-flagged products to best-sellers.
-    const catSlug = categorySlugForType[mp.type] ?? "sunglasses";
-    const cat = categories.find((c) => c.slug === catSlug);
-    if (cat) {
-      await prisma.categoriesOnProducts
-        .create({ data: { productId: product.id, categoryId: cat.id } })
-        .catch(() => {}); // ignore if already linked
-    }
-    if (product.isFeatured) {
-      const best = categories.find((c) => c.slug === "best-sellers");
-      if (best) {
-        await prisma.categoriesOnProducts
-          .create({ data: { productId: product.id, categoryId: best.id } })
-          .catch(() => {});
-      }
-    }
+    // Every model belongs to the launch collection, in catalogue order.
+    await prisma.productsOnCollections
+      .create({
+        data: {
+          productId: product.id,
+          collectionId: collection.id,
+          position: productCount,
+        },
+      })
+      .catch(() => {}); // already linked on a re-run
     productCount++;
   }
 

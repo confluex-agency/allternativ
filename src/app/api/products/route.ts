@@ -14,7 +14,10 @@ const ProductSchema = z.object({
   priceCents: z.number().int().min(0).max(100_000_000),
   compareAtPriceCents: z.number().int().min(0).max(100_000_000).optional(),
   stockQuantity: z.number().int().min(0).max(1_000_000).default(0),
-  isActive: z.boolean().default(true),
+  status: z
+    .enum(["DRAFT", "SCHEDULED", "LIVE", "HIDDEN", "DISCONTINUED"])
+    .default("DRAFT"),
+  launchDate: z.coerce.date().optional(),
   isFeatured: z.boolean().default(false),
   type: z.enum(["OPTICAL", "SUNGLASSES", "BLUE_LIGHT", "READING"]),
   frameShape: z
@@ -35,6 +38,13 @@ const ProductSchema = z.object({
   lensType: z.string().max(100).optional(),
   frameColor: z.string().max(50).optional(),
   gender: z.enum(["MEN", "WOMEN", "UNISEX"]).default("UNISEX"),
+  feeling: z.string().max(2000).optional(),
+  lensMaterial: z.string().max(100).optional(),
+  uvProtection: z.string().max(50).optional(),
+  lensCategory: z.number().int().min(0).max(4).optional(),
+  dimensionsMm: z.string().max(50).optional(),
+  weightGrams: z.number().int().min(0).max(10_000).optional(),
+  fit: z.string().max(50).optional(),
   metaTitle: z.string().max(200).optional(),
   metaDescription: z.string().max(500).optional(),
 });
@@ -46,13 +56,15 @@ const ProductTypeFilter = z.enum([
   "READING",
 ]);
 
-const ALLOWED_WRITE_ROLES = new Set(["ADMIN", "SUPER_ADMIN", "EDITOR"]);
+// Section 18: the ecommerce admin owns products, prices, variants and stock.
+// The content admin edits copy and imagery, which is a different surface.
+const ALLOWED_WRITE_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
 
 // Public: list active products
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const typeRaw = searchParams.get("type");
-  const category = searchParams.get("category");
+  const collection = searchParams.get("collection");
   const featured = searchParams.get("featured");
   const search = searchParams.get("q");
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -65,11 +77,11 @@ export async function GET(request: NextRequest) {
 
   const products = await prisma.product.findMany({
     where: {
-      isActive: true,
+      status: "LIVE",
       ...(typeFilter?.success ? { type: typeFilter.data } : {}),
       ...(featured === "true" ? { isFeatured: true } : {}),
-      ...(category
-        ? { categories: { some: { category: { slug: category } } } }
+      ...(collection
+        ? { collections: { some: { collection: { slug: collection } } } }
         : {}),
       // No `mode: "insensitive"` here: that is a PostgreSQL-only option. MySQL
       // already compares case-insensitively with the default utf8mb4 collation,
@@ -85,7 +97,7 @@ export async function GET(request: NextRequest) {
     },
     include: {
       images: { where: { isPrimary: true }, take: 1 },
-      categories: { include: { category: true } },
+      collections: { include: { collection: true } },
     },
     orderBy: { createdAt: "desc" },
     take: pageSize,

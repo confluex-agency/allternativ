@@ -4,7 +4,7 @@ import { getAuthFromCookies } from "@/lib/auth";
 import { parseCsv } from "@/lib/erp/csv";
 import { parseTrackingRows } from "@/lib/erp/dianxiaomi";
 
-const ALLOWED_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+const ALLOWED_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
 const MAX_BYTES = 2 * 1024 * 1024; // a tracking sheet is tiny; cap the parse
 
 // Admin: upload the tracking sheet the supplier exports from Dianxiaomi.

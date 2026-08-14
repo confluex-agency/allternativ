@@ -1,8 +1,11 @@
 export type {
   AdminUser,
+  AuditLog,
   Product,
+  ProductVariant,
   ProductImage,
-  Category,
+  Collection,
+  NewsletterSubscriber,
   Customer,
   Order,
   OrderItem,

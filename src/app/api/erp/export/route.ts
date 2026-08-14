@@ -10,7 +10,7 @@ import {
   type ErpOrder,
 } from "@/lib/erp/dianxiaomi";
 
-const ALLOWED_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+const ALLOWED_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
 
 const QuerySchema = z.object({
   // Which orders to hand to the supplier. PAID is the normal case.

@@ -15,10 +15,12 @@ datasource db {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
+// Roles as named by the client brief (section 18).
 enum AdminRole {
-  SUPER_ADMIN
-  ADMIN
-  EDITOR
+  OWNER             // full access: settings, users, commercial data
+  ECOMMERCE_ADMIN   // products, prices, variants, inventory, promotions, orders
+  CONTENT_ADMIN     // images, copy, collections, homepage, editorial content
+  ANALYTICS_VIEWER  // dashboards and reports, no editing
 }
 
 model AdminUser {
@@ -26,13 +28,35 @@ model AdminUser {
   email               String    @unique
   passwordHash        String    @map("password_hash")
   name                String
-  role                AdminRole @default(ADMIN)
+  // Least-privileged default on purpose: a row created without an explicit role
+  // can read dashboards and nothing else.
+  role                AdminRole @default(ANALYTICS_VIEWER)
   mustChangePassword  Boolean   @default(true) @map("must_change_password")
   passwordChangedAt   DateTime  @default(now()) @map("password_changed_at")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("admin_users")
+}
+
+// Section 34: important commercial and content changes must be traceable.
+// Deliberately NOT a foreign key to AdminUser — the log has to outlive the
+// account that made the change, so the author's email is copied in.
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String?  @map("admin_user_id")
+  adminEmail  String   @map("admin_email")
+  action      String   // "update" | "create" | "delete" | "publish" ...
+  entityType  String   @map("entity_type") // "product" | "price" | "promotion" ...
+  entityId    String?  @map("entity_id")
+  entityLabel String?  @map("entity_label") @db.VarChar(255) // human name at the time
+  oldValue    Json?    @map("old_value")
+  newValue    Json?    @map("new_value")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 // ─── Products ────────────────────────────────────────────────────────────────
@@ -70,6 +94,29 @@ enum Gender {
   UNISEX
 }
 
+// Publication lifecycle asked for in section 19 of the client brief. Replaces
+// the old `isActive` boolean: "hidden" and "discontinued" are different states
+// commercially, and a boolean cannot tell them apart.
+enum ProductStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  HIDDEN
+  DISCONTINUED
+}
+
+// The six image roles defined in section 07. These are also the file-name
+// prefixes agreed with the client for the shared photography folder
+// (product-01.jpg, model-01.jpg, ...), so importing a drop is a direct mapping.
+enum ImageType {
+  PRODUCT
+  MODEL
+  DETAIL
+  CASE
+  LIFESTYLE
+  PACKAGING
+}
+
 model Product {
   id                    String         @id @default(cuid())
   name                  String
@@ -78,7 +125,8 @@ model Product {
   priceCents            Int            @map("price_cents")
   compareAtPriceCents   Int?           @map("compare_at_price_cents")
   stockQuantity         Int            @default(0) @map("stock_quantity")
-  isActive              Boolean        @default(true) @map("is_active")
+  status                ProductStatus  @default(DRAFT)
+  launchDate            DateTime?      @map("launch_date")
   isFeatured            Boolean        @default(false) @map("is_featured")
   type                  ProductType
   frameShape            FrameShape?    @map("frame_shape")
@@ -86,15 +134,26 @@ model Product {
   lensType              String?        @map("lens_type")
   frameColor            String?        @map("frame_color")
   gender                Gender         @default(UNISEX)
+  // ─ "The Feeling" (section 09): editorial copy, deliberately separate from
+  //   the technical description. Written by the client, not by us. ─
+  feeling               String?        @db.Text
+  // ─ Published specs (section 08). Only confirmed values should be filled in;
+  //   anything left null is simply not shown on the product page. ─
+  lensMaterial          String?        @map("lens_material")
+  uvProtection          String?        @map("uv_protection")   // e.g. "UV400"
+  lensCategory          Int?           @map("lens_category")   // 0-4, the standard scale
+  dimensionsMm          String?        @map("dimensions_mm")   // e.g. "50-22-145"
+  weightGrams           Int?           @map("weight_grams")
+  fit                   String?
   metaTitle             String?        @map("meta_title")
   metaDescription       String?        @map("meta_description") @db.VarChar(255)
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
 
-  images     ProductImage[]
-  variants   ProductVariant[]
-  categories CategoriesOnProducts[]
-  orderItems OrderItem[]
+  images      ProductImage[]
+  variants    ProductVariant[]
+  collections ProductsOnCollections[]
+  orderItems  OrderItem[]
   wishlistItems WishlistItem[]
 
   @@map("products")
@@ -127,13 +186,16 @@ model ProductVariant {
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String  @map("product_id")
-  variantId String? @map("variant_id") // null = shared across colourways
-  url       String  @db.VarChar(500)
-  altText   String? @map("alt_text") @db.VarChar(255)
-  position  Int     @default(0)
-  isPrimary Boolean @default(false) @map("is_primary")
+  id        String    @id @default(cuid())
+  productId String    @map("product_id")
+  variantId String?   @map("variant_id") // null = shared across colourways
+  url       String    @db.VarChar(500)
+  altText   String?   @map("alt_text") @db.VarChar(255)
+  // What the photo shows. Drives the product gallery order (section 07) and lets
+  // the collection card find its hover image (section 05).
+  type      ImageType @default(PRODUCT)
+  position  Int       @default(0)
+  isPrimary Boolean   @default(false) @map("is_primary")
 
   product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -141,25 +203,84 @@ model ProductImage {
   @@map("product_images")
 }
 
-model Category {
-  id   String @id @default(cuid())
-  name String @unique
-  slug String @unique
+// ─── Collections / Drops ────────────────────────────────────────────────────
+// Sections 03 and 20 of the brief: Allternativ launches through drops, not
+// through traditional product categories. A collection owns its own editorial
+// identity and its own launch, and products are ordered inside it by hand.
 
-  products CategoriesOnProducts[]
-
-  @@map("categories")
+enum CollectionStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  ARCHIVED
 }
 
-model CategoriesOnProducts {
-  productId  String @map("product_id")
-  categoryId String @map("category_id")
+model Collection {
+  id            String           @id @default(cuid())
+  name          String
+  slug          String           @unique
+  tagline       String?          @db.VarChar(255)
+  description   String?          @db.Text
+  heroImageUrl  String?          @map("hero_image_url") @db.VarChar(500)
+  heroVideoUrl  String?          @map("hero_video_url") @db.VarChar(500)
+  status        CollectionStatus @default(DRAFT)
+  launchDate    DateTime?        @map("launch_date")
+  isFeatured    Boolean          @default(false) @map("is_featured")
+  position      Int              @default(0)
+  metaTitle     String?          @map("meta_title")
+  metaDescription String?        @map("meta_description") @db.VarChar(255)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products ProductsOnCollections[]
 
-  @@id([productId, categoryId])
-  @@map("categories_on_products")
+  @@map("collections")
+}
+
+model ProductsOnCollections {
+  productId    String @map("product_id")
+  collectionId String @map("collection_id")
+  position     Int    @default(0) // "Reorder products" in section 20
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, collectionId])
+  @@map("products_on_collections")
+}
+
+// ─── Newsletter / lead capture ──────────────────────────────────────────────
+// Section 16 ("STAY IN THE FREQUENCY") plus the welcome-discount popup: the
+// visitor hands over an email in exchange for a code. Kept apart from Customer
+// on purpose, because most subscribers never buy and most buyers never opt in.
+
+enum SubscriberStatus {
+  PENDING      // double opt-in email sent, not confirmed yet
+  SUBSCRIBED
+  UNSUBSCRIBED
+}
+
+model NewsletterSubscriber {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  status         SubscriberStatus @default(PENDING)
+  source         String?          // "popup" | "footer" | "checkout"
+  // Proof of consent. Selling into the EU, the timestamp and where it came from
+  // are the record that matters if the consent is ever challenged.
+  consentAt      DateTime?        @map("consent_at")
+  consentIpHash  String?          @map("consent_ip_hash") // hashed, never raw
+  confirmedAt    DateTime?        @map("confirmed_at")
+  unsubscribedAt DateTime?        @map("unsubscribed_at")
+  // Every marketing email must carry a working one-click unsubscribe link.
+  // Generated up front so no backfill is ever needed.
+  unsubscribeToken String         @unique @map("unsubscribe_token") @default(cuid())
+  // Which welcome code this person was handed, so it is not given twice.
+  discountCode   String?          @map("discount_code")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("newsletter_subscribers")
 }
 
 // ─── Customers & Orders ─────────────────────────────────────────────────────
@@ -174,6 +295,15 @@ model Customer {
   stripeCustomerId  String?  @unique @map("stripe_customer_id")
   totalSpentCents   Int      @default(0) @map("total_spent_cents")
   orderCount        Int      @default(0) @map("order_count")
+  // ─ Account (the ACCOUNT entry in the nav, section 02). Null means the person
+  //   bought as a guest and the record was created by the Stripe webhook. ─
+  passwordHash      String?  @map("password_hash")
+  emailVerifiedAt   DateTime? @map("email_verified_at")
+  // ─ Section 25 is explicit: having an account is NOT marketing consent. These
+  //   are stored separately and the timestamp is the proof of when it was given. ─
+  marketingConsent  Boolean  @default(false) @map("marketing_consent")
+  marketingConsentAt DateTime? @map("marketing_consent_at")
+  notes             String?  @db.Text
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -191,6 +321,7 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  REFUNDED
 }
 
 model Order {
@@ -201,8 +332,15 @@ model Order {
   subtotalCents     Int         @map("subtotal_cents")
   shippingCents     Int         @default(0) @map("shipping_cents")
   taxCents          Int         @default(0) @map("tax_cents")
+  // ─ Discount actually applied, frozen on the order. Section 22 requires every
+  //   promotion to stay linked to the orders it produced, and that only holds if
+  //   the order records it: the coupon itself lives in Stripe and can change. ─
+  discountCents     Int         @default(0) @map("discount_cents")
+  promotionCode     String?     @map("promotion_code")
   totalCents        Int         @map("total_cents")
+  refundedCents     Int         @default(0) @map("refunded_cents")
   currency          String      @default("USD")
+  notes             String?     @db.Text // internal notes (section 24)
   stripeSessionId   String?     @unique @map("stripe_session_id")
   shippingName      String?     @map("shipping_name")
   shippingAddress   String?     @map("shipping_address") @db.VarChar(255)
@@ -241,6 +379,10 @@ model OrderItem {
   sku            String?
   productName    String? @map("product_name")
   variantName    String? @map("variant_name")
+  // Case colour is an option of the purchase, not a variant of the product:
+  // choosing white does not create a different SKU. It has to survive to the
+  // supplier, who ships it (sections 07, 10 and 13).
+  caseColor      String? @map("case_color")
 
   order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product         @relation(fields: [productId], references: [id])

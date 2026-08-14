@@ -41,6 +41,7 @@ export type ErpRow = {
   supplierSku: string;
   productName: string;
   variantName: string;
+  caseColor: string;
   quantity: number;
   unitPrice: string;
   itemTotal: string;
@@ -67,6 +68,9 @@ export const ERP_COLUMNS: { key: keyof ErpRow; header: string }[] = [
   { key: "supplierSku", header: "Supplier SKU" },
   { key: "productName", header: "Product Name" },
   { key: "variantName", header: "Variant" },
+  // The case is chosen at checkout and is not part of the SKU, so without this
+  // column the supplier has no way of knowing which one to pack.
+  { key: "caseColor", header: "Case Colour" },
   { key: "quantity", header: "Quantity" },
   { key: "unitPrice", header: "Unit Price" },
   { key: "itemTotal", header: "Item Total" },
@@ -107,6 +111,7 @@ export function buildErpRows(orders: ErpOrder[]): ErpRow[] {
       supplierSku: item.variant?.supplierSku ?? "",
       productName: item.productName ?? item.product.name,
       variantName: item.variantName ?? item.variant?.colorName ?? "",
+      caseColor: item.caseColor ?? "",
       quantity: item.quantity,
       unitPrice: money(item.unitPriceCents),
       itemTotal: money(item.unitPriceCents * item.quantity),

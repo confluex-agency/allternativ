@@ -318,6 +318,30 @@ model WebhookEvent {
   @@map("webhook_events")
 }
 
+// Every request the supplier's system makes to our WooCommerce facade, whether
+// or not we implement the route.
+//
+// Nobody knows exactly what Dianxiaomi calls when it authorises a store, and
+// guessing wastes days. The log is how we find out: connect it, watch what it
+// asks for, implement that. Credentials are never written here.
+model WooRequestLog {
+  id             String   @id @default(cuid())
+  method         String
+  path           String   @db.VarChar(500)
+  query          String?  @db.Text
+  body           String?  @db.Text
+  authenticated  Boolean  @default(false)
+  /** False when the route is one we have not implemented — the interesting ones. */
+  matched        Boolean  @default(false)
+  responseStatus Int
+  userAgent      String?  @map("user_agent") @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([matched])
+  @@map("woo_request_logs")
+}
+
 // ─── Newsletter / lead capture ──────────────────────────────────────────────
 // Section 16 ("STAY IN THE FREQUENCY") plus the welcome-discount popup: the
 // visitor hands over an email in exchange for a code. Kept apart from Customer
@@ -396,6 +420,10 @@ enum OrderStatus {
 model Order {
   id                String      @id @default(cuid())
   orderNumber       String      @unique @map("order_number")
+  // WooCommerce identifies orders with an integer, and the supplier's system
+  // speaks WooCommerce. Our cuid would very likely break a client that stores
+  // the id in a numeric column, so a real integer is kept alongside it.
+  wooId             Int         @unique @default(autoincrement()) @map("woo_id")
   customerId        String      @map("customer_id")
   status            OrderStatus @default(PENDING)
   subtotalCents     Int         @map("subtotal_cents")

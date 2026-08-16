@@ -16,8 +16,23 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 
-/** How long a checkout holds its stock. Matches the Stripe session lifetime. */
-export const RESERVATION_MINUTES = 30;
+/** How long the Stripe payment page stays open. */
+export const CHECKOUT_WINDOW_MINUTES = 30;
+
+/**
+ * Extra time the reservation outlives the payment page.
+ *
+ * Stripe refuses to charge an expired session, so the only way a payment can
+ * land after we have handed the stock back is the last-second one: charged at
+ * 29:59, webhook delivered at 30:04. Holding the reservation a little longer
+ * than the session closes that window, and it costs nothing in practice because
+ * `checkout.session.expired` releases the stock as soon as Stripe gives up.
+ */
+export const RESERVATION_GRACE_MINUTES = 10;
+
+/** How long a checkout holds its stock, in total. */
+export const RESERVATION_MINUTES =
+  CHECKOUT_WINDOW_MINUTES + RESERVATION_GRACE_MINUTES;
 
 export type ReservationRequest = {
   variantId: string;

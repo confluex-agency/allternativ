@@ -194,9 +194,11 @@ async function handleCompletedSession(
   });
 
   // The reservation timed out and its units went back on sale before the payment
-  // landed. Rare, but real: someone leaves the Stripe page open past the window
-  // and pays anyway. The order stands, because the money is real, so the units
-  // have to come off stock now instead.
+  // landed. This should now be unreachable in normal operation: the reservation
+  // outlives the payment page by RESERVATION_GRACE_MINUTES, and Stripe will not
+  // charge an expired session. It is kept as a net for the abnormal case, such
+  // as a webhook delayed for hours by an outage. The order stands either way,
+  // because the money is real, so the units come off stock late instead.
   //
   // This is allowed to drive stock negative, and that is the point: a negative
   // figure means the shop owes more than it holds, and `reserveStock` refuses

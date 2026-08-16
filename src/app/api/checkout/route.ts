@@ -10,7 +10,7 @@ import {
   releaseReservationGroup,
   attachSessionToReservations,
   OutOfStockError,
-  RESERVATION_MINUTES,
+  CHECKOUT_WINDOW_MINUTES,
 } from "@/lib/inventory";
 
 // Checkout prices against ProductVariant, the buyable unit. It used to look up
@@ -107,36 +107,39 @@ export async function POST(request: NextRequest) {
     let session;
     try {
       session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: lineItems,
-      mode: "payment",
-      // The session dies at the same moment the stock reservation does, so an
-      // abandoned checkout cannot hold a unit any longer than it holds a price.
-      expires_at: Math.floor(Date.now() / 1000) + RESERVATION_MINUTES * 60,
-      // Without an address and a phone number the supplier cannot dispatch, and
-      // the export file reaches them with no recipient.
-      shipping_address_collection: {
-        allowed_countries: ["IE", "GB", "ES", "FR", "DE", "IT", "PT", "NL", "BE"],
-      },
-      phone_number_collection: { enabled: true },
-      // Lets Stripe's own coupons and promotion codes be redeemed at checkout,
-      // so the team can run a discount without a deploy.
-      allow_promotion_codes: true,
-      success_url: `${env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${env.NEXT_PUBLIC_APP_URL}/cart`,
-      metadata: {
-        // What the webhook needs to write the order lines, including the case
-        // colour, which is not a variant and so cannot be recovered from the SKU.
-        items: JSON.stringify(
-          items.map((i) => ({
-            variantId: i.variantId,
-            quantity: i.quantity,
-            caseColor: i.caseColor,
-            sku: byId.get(i.variantId)!.sku,
-          })),
-        ),
-        reservationGroup,
-      },
+        payment_method_types: ["card"],
+        line_items: lineItems,
+        mode: "payment",
+        // The payment page closes before the reservation does, on purpose: see
+        // RESERVATION_GRACE_MINUTES. An abandoned checkout still frees its stock
+        // straight away, because Stripe sends `checkout.session.expired`.
+        expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_WINDOW_MINUTES * 60,
+        // Without an address and a phone number the supplier cannot dispatch, and
+        // the export file reaches them with no recipient.
+        shipping_address_collection: {
+          allowed_countries: [
+            "IE", "GB", "ES", "FR", "DE", "IT", "PT", "NL", "BE",
+          ],
+        },
+        phone_number_collection: { enabled: true },
+        // Lets Stripe's own coupons and promotion codes be redeemed at checkout,
+        // so the team can run a discount without a deploy.
+        allow_promotion_codes: true,
+        success_url: `${env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${env.NEXT_PUBLIC_APP_URL}/cart`,
+        metadata: {
+          // What the webhook needs to write the order lines, including the case
+          // colour, which is not a variant and cannot be recovered from the SKU.
+          items: JSON.stringify(
+            items.map((i) => ({
+              variantId: i.variantId,
+              quantity: i.quantity,
+              caseColor: i.caseColor,
+              sku: byId.get(i.variantId)!.sku,
+            })),
+          ),
+          reservationGroup,
+        },
       });
     } catch (error) {
       // Stripe refused the session, so nobody is going to pay for this stock.

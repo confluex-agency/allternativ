@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ClearCartOnSuccess } from "@/components/storefront/clear-cart-on-success";
 
 export const metadata = {
   title: "Order Confirmed",
@@ -7,6 +8,7 @@ export const metadata = {
 export default function CheckoutSuccessPage() {
   return (
     <div className="mx-auto max-w-xl px-6 py-24 text-center">
+      <ClearCartOnSuccess />
       <div className="text-5xl mb-6">✓</div>
       <h1 className="text-3xl font-light tracking-tight">
         Thank you for your order

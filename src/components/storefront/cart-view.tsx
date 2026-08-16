@@ -11,7 +11,7 @@ import { trackCheckoutStart } from "@/lib/tracking";
 
 export function CartView() {
   const cart = useCart();
-  const { removeItem, updateQuantity, totalCents, clearCart } = cart;
+  const { removeItem, updateQuantity, totalCents } = cart;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +62,10 @@ export function CartView() {
       }
 
       const { url } = await res.json();
-      clearCart();
+      // The basket is NOT emptied here. Leaving for the payment page is not the
+      // same as paying: people change their mind, lose signal, or come back
+      // tomorrow, and finding an empty cart is how a sale gets thrown away.
+      // It is cleared on the confirmation page, once the payment is real.
       window.location.href = url;
     } catch {
       setError("We could not reach the payment provider. Please try again.");

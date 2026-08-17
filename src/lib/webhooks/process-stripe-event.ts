@@ -209,6 +209,11 @@ async function handleCompletedSession(
         where: { id: item.variantId },
         data: { stockQuantity: { decrement: item.quantity } },
       });
+      // The case left with it, so it comes off its pool too.
+      await prisma.caseStock.updateMany({
+        where: { key: item.caseColor },
+        data: { stockQuantity: { decrement: item.quantity } },
+      });
     }
     console.error(
       `[stock] Session ${session.id} was paid after its reservation expired. ` +

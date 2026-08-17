@@ -203,10 +203,31 @@ model ProductVariant {
 // Deliberately NOT a queue: overselling is a race on one row, and the database
 // settles it with a conditional update. A message broker orders work, which is
 // a different problem.
+// The cases the eyewear ships in. Bought up front in a fixed quantity, exactly
+// like the frames, and consumed one per pair sold.
+//
+// Kept apart from ProductVariant because a case is not a product: it has no
+// price, no page and no SKU of its own, and every model draws from the same two
+// pools. Keyed by the values in CASE_COLORS so the code and the table cannot
+// drift apart.
+model CaseStock {
+  key           String   @id // "BLACK" | "WHITE" — matches CASE_COLORS
+  name          String
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  isActive      Boolean  @default(true) @map("is_active")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("case_stock")
+}
+
 model StockReservation {
   id              String    @id @default(cuid())
   variantId       String    @map("variant_id")
   quantity        Int
+  // The case colour this same line is holding, in the same quantity: one case
+  // per pair. Riding on the eyewear reservation rather than having its own row
+  // means the expiry, the sweep and the release already cover it.
+  caseKey         String?   @map("case_key")
   /** Groups every line of one checkout attempt, so they release together. */
   groupId         String    @map("group_id")
   stripeSessionId String?   @map("stripe_session_id")

@@ -22,6 +22,9 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import type Stripe from "stripe";
 import { processStripeEvent } from "../src/lib/webhooks/process-stripe-event";
+// The shared one, deliberately: this script used to carry its own copy, which
+// then quietly failed to hand cases back when case stock was introduced.
+import { releaseExpiredReservations } from "../src/lib/inventory";
 
 const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
@@ -29,31 +32,6 @@ const prisma = new PrismaClient({ adapter });
 /** Older than this and a failed event is not worth retrying automatically. */
 const RETRY_WINDOW_HOURS = 72;
 const MAX_ATTEMPTS = 10;
-
-async function releaseExpired(): Promise<number> {
-  const expired = await prisma.stockReservation.findMany({
-    where: { releasedAt: null, expiresAt: { lt: new Date() } },
-    select: { id: true, variantId: true, quantity: true },
-  });
-
-  let released = 0;
-  for (const reservation of expired) {
-    await prisma.$transaction(async (tx) => {
-      const claimed = await tx.stockReservation.updateMany({
-        where: { id: reservation.id, releasedAt: null },
-        data: { releasedAt: new Date(), consumed: false },
-      });
-      if (claimed.count === 0) return;
-
-      await tx.productVariant.update({
-        where: { id: reservation.variantId },
-        data: { stockQuantity: { increment: reservation.quantity } },
-      });
-      released++;
-    });
-  }
-  return released;
-}
 
 async function retryFailedEvents(): Promise<{ ok: number; stillFailing: number }> {
   const since = new Date(Date.now() - RETRY_WINDOW_HOURS * 60 * 60 * 1000);
@@ -97,7 +75,7 @@ async function retryFailedEvents(): Promise<{ ok: number; stillFailing: number }
 }
 
 async function main() {
-  const released = await releaseExpired();
+  const released = await releaseExpiredReservations();
   console.log(`Reservations released: ${released}`);
 
   const { ok, stillFailing } = await retryFailedEvents();
@@ -121,6 +99,19 @@ async function main() {
         .join(", ")}`,
     );
   }
+
+  const cases = await prisma.caseStock.findMany({ orderBy: { key: "asc" } });
+  const emptyCases = cases.filter((c) => c.stockQuantity <= 0 && c.isActive);
+  if (emptyCases.length > 0) {
+    console.error(
+      `⚠️  Cases out of stock, the shop has stopped offering them: ${emptyCases
+        .map((c) => `${c.key} (${c.stockQuantity})`)
+        .join(", ")}`,
+    );
+  }
+  console.log(
+    `Cases: ${cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  ")}`,
+  );
 }
 
 main()

@@ -30,6 +30,22 @@ async function main() {
     );
   }
 
+  // The two cases every pair ships in. Bought up front in a fixed quantity,
+  // like the frames. ⚠️ These numbers are PLACEHOLDERS: the real counts are
+  // question 04 to the client. Until they answer, they are set high enough not
+  // to block a test purchase and low enough to be obviously fake.
+  for (const c of [
+    { key: "BLACK", name: "Black" },
+    { key: "WHITE", name: "White" },
+  ]) {
+    await prisma.caseStock.upsert({
+      where: { key: c.key },
+      update: { name: c.name },
+      create: { ...c, stockQuantity: 100 },
+    });
+  }
+  console.log("Created case stock: BLACK, WHITE (placeholder quantities)");
+
   // The launch collection. Name and tagline are PROVISIONAL: the client has not
   // defined collection names yet (they are marked "to be defined" in the brief).
   const collection = await prisma.collection.upsert({

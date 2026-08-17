@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { ImageType, ProductType } from "@/generated/prisma/client";
+import { CASE_COLORS, caseLabel, type CaseColor } from "@/lib/product-options";
 
 export type CatalogImage = {
   id: string;
@@ -151,6 +152,36 @@ export async function getLiveProductSlugs(): Promise<string[]> {
     select: { slug: true },
   });
   return rows.map((r) => r.slug);
+}
+
+/**
+ * The case colours a shopper can actually pick right now.
+ *
+ * Cases are bought up front in a fixed quantity like the frames are, so the
+ * selector has to know when a colour has run out. Offering a case that cannot
+ * be packed is a sale that fails at the warehouse instead of at the checkout.
+ */
+export type CaseOption = {
+  key: CaseColor;
+  name: string;
+  available: boolean;
+};
+
+export async function getCaseOptions(): Promise<CaseOption[]> {
+  const rows = await prisma.caseStock.findMany({ orderBy: { key: "asc" } });
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+
+  // Driven by CASE_COLORS, not by whatever happens to be in the table, so a
+  // missing row shows up as "unavailable" rather than as a silently absent
+  // option that nobody notices.
+  return CASE_COLORS.map((key) => {
+    const row = byKey.get(key);
+    return {
+      key,
+      name: row?.name ?? caseLabel(key),
+      available: Boolean(row?.isActive && row.stockQuantity > 0),
+    };
+  });
 }
 
 // ─── Helpers shared by the storefront ───────────────────────────────────────

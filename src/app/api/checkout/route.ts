@@ -4,12 +4,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { env } from "@/lib/env";
-import { CASE_COLORS, caseLabel } from "@/lib/product-options";
+import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
 import {
   reserveStock,
   releaseReservationGroup,
   attachSessionToReservations,
   OutOfStockError,
+  OutOfCasesError,
   CHECKOUT_WINDOW_MINUTES,
 } from "@/lib/inventory";
 
@@ -70,10 +71,27 @@ export async function POST(request: NextRequest) {
     const reservationGroup = randomUUID();
     try {
       await reserveStock(
-        items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          // One case per pair, out of its own pool.
+          caseKey: i.caseColor,
+        })),
         reservationGroup,
       );
     } catch (error) {
+      if (error instanceof OutOfCasesError) {
+        // Worth its own message: the eyewear is there, the case is not, and the
+        // shopper only has to change one choice to carry on.
+        return NextResponse.json(
+          {
+            error: isCaseColor(error.caseKey)
+              ? `We have run out of ${caseLabel(error.caseKey)} cases. Please choose the other colour.`
+              : "That case colour has just run out. Please choose another.",
+          },
+          { status: 409 },
+        );
+      }
       if (error instanceof OutOfStockError) {
         const variant = byId.get(error.variantId);
         return NextResponse.json(

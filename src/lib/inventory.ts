@@ -37,12 +37,22 @@ export const RESERVATION_MINUTES =
 export type ReservationRequest = {
   variantId: string;
   quantity: number;
+  /** One case is consumed per pair, so it is reserved with the same quantity. */
+  caseKey?: string;
 };
 
 export class OutOfStockError extends Error {
   constructor(public readonly variantId: string) {
     super("Not enough stock");
     this.name = "OutOfStockError";
+  }
+}
+
+/** The eyewear is there but the chosen case is not. */
+export class OutOfCasesError extends Error {
+  constructor(public readonly caseKey: string) {
+    super("Not enough cases");
+    this.name = "OutOfCasesError";
   }
 }
 
@@ -54,29 +64,64 @@ export class OutOfStockError extends Error {
  * forever. Safe to run concurrently — a reservation is only released once,
  * because the update is conditional on it still being unreleased.
  */
+/** Fields every release path needs. */
+const RESERVATION_FIELDS = {
+  id: true,
+  variantId: true,
+  quantity: true,
+  caseKey: true,
+} as const;
+
+type OpenReservation = {
+  id: string;
+  variantId: string;
+  quantity: number;
+  caseKey: string | null;
+};
+
+/**
+ * Puts one reservation's units back, eyewear and case together.
+ *
+ * The claim is conditional on the reservation still being open, so two runs
+ * racing each other cannot give the same unit back twice. Returns false when
+ * somebody else got there first.
+ */
+async function giveBack(
+  tx: Prisma.TransactionClient,
+  reservation: OpenReservation,
+): Promise<boolean> {
+  const claimed = await tx.stockReservation.updateMany({
+    where: { id: reservation.id, releasedAt: null },
+    data: { releasedAt: new Date(), consumed: false },
+  });
+  if (claimed.count === 0) return false;
+
+  await tx.productVariant.update({
+    where: { id: reservation.variantId },
+    data: { stockQuantity: { increment: reservation.quantity } },
+  });
+
+  if (reservation.caseKey) {
+    await tx.caseStock.update({
+      where: { key: reservation.caseKey },
+      data: { stockQuantity: { increment: reservation.quantity } },
+    });
+  }
+
+  return true;
+}
+
 export async function releaseExpiredReservations(): Promise<number> {
   const expired = await prisma.stockReservation.findMany({
     where: { releasedAt: null, expiresAt: { lt: new Date() } },
-    select: { id: true, variantId: true, quantity: true },
+    select: RESERVATION_FIELDS,
   });
   if (expired.length === 0) return 0;
 
   let released = 0;
   for (const reservation of expired) {
     await prisma.$transaction(async (tx) => {
-      // Conditional on still being open, so two concurrent runs cannot give the
-      // same unit back twice.
-      const claimed = await tx.stockReservation.updateMany({
-        where: { id: reservation.id, releasedAt: null },
-        data: { releasedAt: new Date(), consumed: false },
-      });
-      if (claimed.count === 0) return;
-
-      await tx.productVariant.update({
-        where: { id: reservation.variantId },
-        data: { stockQuantity: { increment: reservation.quantity } },
-      });
-      released++;
+      if (await giveBack(tx, reservation)) released++;
     });
   }
   return released;
@@ -115,10 +160,26 @@ export async function reserveStock(
         throw new OutOfStockError(item.variantId);
       }
 
+      // The case comes out of its own pool, with the same conditional update
+      // and the same guarantee. A pair with no case to ship it in is not a
+      // sale, so this failing rolls the whole basket back too.
+      if (item.caseKey) {
+        const cases = await tx.caseStock.updateMany({
+          where: {
+            key: item.caseKey,
+            isActive: true,
+            stockQuantity: { gte: item.quantity },
+          },
+          data: { stockQuantity: { decrement: item.quantity } },
+        });
+        if (cases.count === 0) throw new OutOfCasesError(item.caseKey);
+      }
+
       await tx.stockReservation.create({
         data: {
           variantId: item.variantId,
           quantity: item.quantity,
+          caseKey: item.caseKey ?? null,
           groupId,
           expiresAt,
         },
@@ -145,21 +206,12 @@ export async function attachSessionToReservations(
 export async function releaseReservationGroup(groupId: string): Promise<void> {
   const open = await prisma.stockReservation.findMany({
     where: { groupId, releasedAt: null },
-    select: { id: true, variantId: true, quantity: true },
+    select: RESERVATION_FIELDS,
   });
 
   for (const reservation of open) {
     await prisma.$transaction(async (tx) => {
-      const claimed = await tx.stockReservation.updateMany({
-        where: { id: reservation.id, releasedAt: null },
-        data: { releasedAt: new Date(), consumed: false },
-      });
-      if (claimed.count === 0) return;
-
-      await tx.productVariant.update({
-        where: { id: reservation.variantId },
-        data: { stockQuantity: { increment: reservation.quantity } },
-      });
+      await giveBack(tx, reservation);
     });
   }
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CatalogProduct } from "@/lib/catalog";
+import type { CatalogProduct, CaseOption } from "@/lib/catalog";
 import {
-  CASE_COLORS,
   CASE_SWATCH,
   DEFAULT_CASE_COLOR,
   caseLabel,
@@ -24,11 +23,21 @@ type Props = {
   product: CatalogProduct;
   /** Images per variant, already in the order the brief asks for. */
   galleries: Record<string, CatalogProduct["variants"][number]["images"]>;
+  /** Case colours and whether each is still in stock. */
+  caseOptions: CaseOption[];
 };
 
-export function ProductPurchase({ product, galleries }: Props) {
+export function ProductPurchase({ product, galleries, caseOptions }: Props) {
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? "");
-  const [caseColor, setCaseColor] = useState<CaseColor>(DEFAULT_CASE_COLOR);
+  // Start on a case that can actually be shipped, so the default is never a
+  // colour that has run out.
+  const [caseColor, setCaseColor] = useState<CaseColor>(
+    () =>
+      caseOptions.find((c) => c.key === DEFAULT_CASE_COLOR && c.available)
+        ?.key ??
+      caseOptions.find((c) => c.available)?.key ??
+      DEFAULT_CASE_COLOR,
+  );
   const [justAdded, setJustAdded] = useState(false);
   const addItem = useCart((s) => s.addItem);
 
@@ -164,32 +173,37 @@ export function ProductPurchase({ product, galleries }: Props) {
               Case — {caseLabel(caseColor)}
             </p>
             <div className="flex flex-wrap gap-3">
-              {CASE_COLORS.map((c) => (
+              {caseOptions.map((option) => (
                 <button
-                  key={c}
+                  key={option.key}
                   type="button"
-                  onClick={() => setCaseColor(c)}
-                  aria-pressed={c === caseColor}
-                  className="flex items-center gap-2"
+                  onClick={() => setCaseColor(option.key)}
+                  disabled={!option.available}
+                  aria-pressed={option.key === caseColor}
+                  className="flex items-center gap-2 disabled:cursor-not-allowed"
                 >
                   <span
                     className={`grid size-9 place-items-center rounded-full fluid-transition ${
-                      c === caseColor
+                      option.key === caseColor
                         ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
                         : "ring-1 ring-brand-ink/15 hover:ring-brand-ink/40"
-                    }`}
+                    } ${option.available ? "" : "opacity-40"}`}
                   >
                     <span
                       className="size-7 rounded-full ring-1 ring-inset ring-brand-ink/10"
-                      style={{ backgroundColor: CASE_SWATCH[c] }}
+                      style={{ backgroundColor: CASE_SWATCH[option.key] }}
                     />
                   </span>
                   <span
                     className={`text-sm fluid-transition ${
-                      c === caseColor ? "text-brand-ink" : "text-brand-muted"
+                      !option.available
+                        ? "text-brand-muted line-through"
+                        : option.key === caseColor
+                          ? "text-brand-ink"
+                          : "text-brand-muted"
                     }`}
                   >
-                    {caseLabel(c)}
+                    {caseLabel(option.key)}
                   </span>
                 </button>
               ))}

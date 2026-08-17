@@ -112,6 +112,18 @@
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
     overflow-x: clip; /* clip (not hidden) so it doesn't break position: sticky */
+    /* No scrollbar on the page, by decision: the system one cut a grey strip
+       down the full-bleed hero. Scrolling itself is untouched — wheel, touch,
+       keyboard and Page Up/Down all work. What is given up is seeing how much
+       of the page is left, and dragging the thumb.
+       `scrollbar-width` covers Firefox and Chrome 121+; the WebKit rule below
+       covers older Chrome, Edge and Safari. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
   }
   body {
     @apply bg-background text-foreground antialiased;

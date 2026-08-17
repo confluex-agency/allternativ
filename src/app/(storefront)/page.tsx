@@ -3,7 +3,23 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { getLiveProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/storefront/product-card";
-import { HeroVideoLazy } from "@/components/storefront/hero-video-lazy";
+import { HeroScenes, type HeroScene } from "@/components/storefront/hero-scenes";
+
+// The chosen hero direction. Three frames from one rooftop shoot at golden
+// hour: the prism, the light it throws, and the sky it is held against.
+//
+// ⚠️ These are AI campaign images and the eyewear in them is NOT a real
+// Allternativ product, which is why the hero deliberately never names a model.
+// They are placeholders for a real shoot in the same direction, and swapping
+// them is a change of these three files and nothing else.
+const HERO_SCENES: HeroScene[] = [
+  {
+    src: "/campaign/hero-01.webp",
+    alt: "Model on a rooftop at golden hour holding a prism up to the low sun",
+  },
+  { src: "/campaign/hero-02.webp", alt: "" },
+  { src: "/campaign/hero-03.webp", alt: "" },
+];
 
 const LIFESTYLE_MOMENTS = [
   "Summer nights",
@@ -31,61 +47,52 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col">
       {/* === HERO === */}
-      <section className="relative overflow-hidden sm:min-h-[calc(100dvh-4rem)] md:min-h-[92vh]">
-        <Image
-          src="/brand/hero-iridescent-sky.png"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
+      {/* Golden hour: three frames from one rooftop shoot, cross-fading. The
+          copy sits over open sky in every frame, which is why it stays legible
+          with a warm scrim instead of the dark overlay a photo hero usually
+          needs. Replaces the floating 3D head; that component still exists and
+          is used on other branches. */}
+      <section className="relative overflow-hidden min-h-[75svh] sm:min-h-[calc(100dvh-4rem)] md:min-h-[92vh]">
+        <HeroScenes scenes={HERO_SCENES} />
+
+        {/* Two scrims, both beige rather than black: a dark overlay would read
+            as a different brand entirely. The first lifts the left side so the
+            headline holds on any frame; the second lands the photo on the page
+            colour so the collection below does not start with a hard edge. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-brand-beige/85 via-brand-beige/30 to-transparent sm:from-brand-beige/70 sm:via-brand-beige/10"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-b from-brand-beige/10 via-brand-beige/30 to-brand-beige"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-20 -left-20 hidden size-[340px] md:size-[520px] holo-conic opacity-60 sm:block"
+          className="absolute inset-0 bg-gradient-to-b from-brand-beige/25 via-transparent to-brand-beige"
         />
 
-        {/* ===== MOBILE hero (phones only) — "escape the ordinary" rotated + head
-             framed on the right. Tablet/desktop keep the layout further below.
-             Positions use %/vw/clamp so it holds across phone sizes. ===== */}
-        <div className="relative z-10 sm:hidden">
-          <div className="relative h-[44vh] min-h-[384px] overflow-hidden">
-            <p className="absolute left-5 top-4 z-20 eyebrow text-brand-ink-soft">
+        <div className="relative z-10 mx-auto flex min-h-[75svh] sm:min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-10 px-5 pb-20 pt-10 md:px-6 md:pb-28 md:pt-32 lg:px-12 lg:pt-44">
+          <div className="max-w-[44rem]">
+            <p className="eyebrow text-brand-ink-soft mb-4 md:mb-5">
               SS&apos;26 — frequency collection
             </p>
-            {/* subtitle, set vertical reading upward */}
-            <p className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rotate-180 whitespace-nowrap text-sm italic text-brand-ink-soft [writing-mode:vertical-rl]">
+            <h1 className="display chromatic-title text-[clamp(2.75rem,11vw,8rem)] leading-[0.95] text-brand-ink">
+              escape
+              <br />
+              the ordinary.
+            </h1>
+            <p className="mt-5 text-lg italic text-brand-ink-soft md:mt-8 md:text-2xl">
               A frequency you can wear.
             </p>
-            {/* Rotated headline. The collage block is a CHILD sized in em, so it
-                scales with the clamp font and always sits behind "escape" on every
-                phone size — anchored to the text, not the screen. */}
-            <div className="absolute left-[25%] top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 -rotate-90">
-              <h1 className="display chromatic-title whitespace-nowrap text-[clamp(2.5rem,13.5vw,4rem)] leading-[0.9] text-brand-ink">
-                escape
-                <br />
-                the ordinary.
-              </h1>
-            </div>
-            {/* head floats directly over the iridescent bg (no frame) */}
-            <div className="pointer-events-none absolute right-2 top-1/2 z-10 h-[66%] w-[52%] -translate-y-1/2">
-              <HeroVideoLazy />
-            </div>
           </div>
 
-          <div className="px-5 pb-10 pt-2">
-            <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft">
-              Eyewear for those who live between music, light and emotion — where
-              summer nights feel infinite and daily reality feels optional.
+          <div className="flex flex-col gap-6 md:grid md:grid-cols-[1fr_auto] md:items-end md:gap-10">
+            <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft md:text-base">
+              Eyewear for those who live between music, light and emotion —
+              where summer nights feel infinite and daily reality feels
+              optional.
             </p>
-            <div className="mt-6 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
               <Link
                 href="/products"
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-ink px-6 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
+                className="group inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
               >
                 Shop the collection
                 <ArrowUpRight
@@ -95,59 +102,10 @@ export default async function HomePage() {
               </Link>
               <Link
                 href="/frequency"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand-ink/20 px-6 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
+                className="inline-flex min-h-12 items-center gap-2 rounded-full border border-brand-ink/25 bg-brand-beige/40 px-6 py-3 eyebrow text-brand-ink backdrop-blur-sm fluid-transition hover:border-brand-ink hover:bg-brand-beige/70"
               >
                 Enter the frequency
               </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* ===== TABLET / DESKTOP hero (sm+) — unchanged ===== */}
-        <div className="hidden sm:block">
-          <div className="pointer-events-none absolute left-0 right-0 sm:portrait:top-[30%] sm:portrait:bottom-[22%] md:portrait:top-[34%] md:portrait:bottom-[12%] landscape:left-auto landscape:top-0 landscape:bottom-0 landscape:w-[48%] xl:landscape:w-[44%]">
-            <HeroVideoLazy />
-          </div>
-
-          <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] md:min-h-[92vh] max-w-[1440px] flex-col justify-between gap-12 px-5 pb-16 pt-14 md:pt-32 lg:px-12 lg:pt-44">
-            <div className="max-w-[72rem]">
-              <p className="eyebrow text-brand-ink-soft mb-5">
-                SS&apos;26 — frequency collection
-              </p>
-              <h1 className="display chromatic-title text-[clamp(3rem,13vw,8rem)] text-brand-ink">
-                escape
-                <br />
-                the ordinary.
-              </h1>
-              <p className="mt-6 text-lg italic text-brand-ink-soft md:mt-8 md:text-2xl">
-                A frequency you can wear.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-8 md:grid md:grid-cols-[1fr_auto] md:items-end md:gap-10">
-              <p className="max-w-md text-sm leading-relaxed text-brand-ink-soft md:text-base">
-                Eyewear for those who live between music, light and emotion —
-                where summer nights feel infinite and daily reality feels
-                optional.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/products"
-                  className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
-                >
-                  Shop the collection
-                  <ArrowUpRight
-                    size={16}
-                    className="fluid-transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                  />
-                </Link>
-                <Link
-                  href="/frequency"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
-                >
-                  Enter the frequency
-                </Link>
-              </div>
             </div>
           </div>
         </div>

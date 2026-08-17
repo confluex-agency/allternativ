@@ -11,21 +11,21 @@ type Tile = { src: string; label: string; wide?: boolean };
 // Arranged for editorial rhythm: two wide "feature" frames (profile, macro)
 // offset against each other, a brand-voice block breaking the grid.
 const ROW_1: Tile[] = [
-  { src: "/catalog/tile-1.jpg", label: "Three-quarter" },
-  { src: "/catalog/tile-8.jpg", label: "Front" },
-  { src: "/catalog/tile-9.jpg", label: "Front 3/4" },
+  { src: "/catalog/tile-1.webp", label: "Three-quarter" },
+  { src: "/catalog/tile-8.webp", label: "Front" },
+  { src: "/catalog/tile-9.webp", label: "Front 3/4" },
 ];
 const ROW_2: Tile[] = [
-  { src: "/catalog/tile-6.jpg", label: "Profile", wide: true },
-  { src: "/catalog/tile-2.jpg", label: "Detail" },
+  { src: "/catalog/tile-6.webp", label: "Profile", wide: true },
+  { src: "/catalog/tile-2.webp", label: "Detail" },
 ];
 const ROW_3: Tile[] = [
-  { src: "/catalog/tile-5.jpg", label: "Macro", wide: true },
+  { src: "/catalog/tile-5.webp", label: "Macro", wide: true },
 ];
 const ROW_4: Tile[] = [
-  { src: "/catalog/tile-4.jpg", label: "Back" },
-  { src: "/catalog/tile-3.jpg", label: "Top" },
-  { src: "/catalog/tile-7.jpg", label: "Angle" },
+  { src: "/catalog/tile-4.webp", label: "Back" },
+  { src: "/catalog/tile-3.webp", label: "Top" },
+  { src: "/catalog/tile-7.webp", label: "Angle" },
 ];
 
 function Frame({ tile }: { tile: Tile }) {

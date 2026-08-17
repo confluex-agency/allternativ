@@ -27,10 +27,12 @@ export type MockProduct = {
   colorways: Colorway[]; // always at least one
 };
 
-// Build a gallery array for a colourway folder: /catalog/<slug>/<slug>-1.png …
-// ext defaults to png; pass "jpg" for real-photo folders.
-const g = (folder: string, count: number, ext: string = "png"): string[] =>
-  Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.${ext}`);
+// Build a gallery array for a colourway folder: /catalog/<slug>/<slug>-1.webp …
+// Everything is WebP since 2026-08-17: the folder held 106MB of PNG that
+// travelled on every deploy, and the same images are 3MB as WebP with no
+// visible loss. The `ext` parameter is gone because there is nothing else left.
+const g = (folder: string, count: number): string[] =>
+  Array.from({ length: count }, (_, i) => `/catalog/${folder}/${folder}-${i + 1}.webp`);
 
 export const mockProducts: MockProduct[] = [
   {
@@ -82,7 +84,7 @@ export const mockProducts: MockProduct[] = [
     origin: "Handcrafted · LATAM",
     photo: true,
     colorways: [
-      { key: "gold", name: "Oro", sku: "HAL-02B-GLD", swatch: "#c6a765", gallery: g("halo-2", 8, "jpg") },
+      { key: "gold", name: "Oro", sku: "HAL-02B-GLD", swatch: "#c6a765", gallery: g("halo-2", 8) },
     ],
   },
   {

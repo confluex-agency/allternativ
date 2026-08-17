@@ -29,7 +29,7 @@ const COLORWAYS: Colorway[] = [
     key: "black",
     name: "Negro",
     swatch: "#1c1c1e",
-    image: "/catalog/orbital/black.png",
+    image: "/catalog/orbital/black.webp",
     // Clean studio material instead of the speckled baked texture.
     material: { color: "#1a1a1c", metalness: 0.25, roughness: 0.45 },
   },
@@ -37,7 +37,7 @@ const COLORWAYS: Colorway[] = [
     key: "silver",
     name: "Plata",
     swatch: "#c7cace",
-    image: "/catalog/orbital/silver.png",
+    image: "/catalog/orbital/silver.webp",
     material: { color: "#cfd2d8", metalness: 1, roughness: 0.28 },
   },
 ];

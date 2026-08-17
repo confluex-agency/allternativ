@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 // blooms behind it. Real photos → perfect quality, no 3D artifacts.
 
 const FRAMES = [0, 1, 2, 3, 4].map(
-  (i) => `/catalog/orbital/spin/black-${i}.png`
+  (i) => `/catalog/orbital/spin/black-${i}.webp`
 );
 
 const clamp = (v: number, min: number, max: number) =>

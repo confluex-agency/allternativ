@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthFromCookies } from "@/lib/auth";
+import { requireRole, REPORTING_ROLES } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookies();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Dashboards are the one thing every admin role may read.
+  const auth = await requireRole(...REPORTING_ROLES);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.status === 401 ? "Unauthorized" : "Forbidden" },
+      { status: auth.status },
+    );
   }
 
   const { searchParams } = request.nextUrl;
@@ -17,8 +21,18 @@ export async function GET(request: NextRequest) {
       where: { createdAt: { gte: since }, status: { not: "CANCELLED" } },
       orderBy: { createdAt: "desc" },
       take: 20,
-      include: {
-        customer: { select: { email: true, name: true } },
+      // An explicit allow-list, not the whole row. Dashboards are open to every
+      // admin role including ANALYTICS_VIEWER, and an Order carries the buyer's
+      // name, address and phone. A sales chart needs amounts and dates; the
+      // order number is enough to label a row. Identifying the buyer is what
+      // /api/orders is for, and that one is restricted to commercial roles.
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        totalCents: true,
+        currency: true,
+        createdAt: true,
       },
     }),
     prisma.dailyAnalytics.findMany({

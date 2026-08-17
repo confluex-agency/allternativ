@@ -1,66 +1,48 @@
-"use client";
-
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireAdminPage } from "@/lib/admin-guard";
 
-export default function AdminDashboardPage() {
-  const { user, loading } = useAuth();
+// Server component on purpose. The guard runs before anything renders, and it
+// goes through the same check the API routes use, so a token that was killed by
+// a password change cannot open this page either.
+//
+// It also means the greeting no longer needs useAuth(), which removes one of
+// the two duplicate /api/auth/me requests this screen used to fire.
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-neutral-400">Loading...</div>
-      </div>
-    );
-  }
+export default async function AdminDashboardPage() {
+  const user = await requireAdminPage();
+
+  // The figures below are still placeholders. They are wired up in the admin
+  // phase; this round is about who is allowed in, not what they see.
+  const cards = [
+    { label: "Total Revenue", value: "—" },
+    { label: "Orders", value: "—" },
+    { label: "Visitors Today", value: "—" },
+    { label: "Products", value: "—" },
+  ];
 
   return (
     <div>
       <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <p className="mt-1 text-neutral-500">Welcome back, {user?.name}.</p>
+      <p className="mt-1 text-neutral-500">Welcome back, {user.name}.</p>
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">$0.00</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">
-              Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">0</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">
-              Visitors Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">0</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">
-              Products
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">0</div>
-          </CardContent>
-        </Card>
+        {cards.map((card) => (
+          <Card key={card.label}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-neutral-500">
+                {card.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold">{card.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      <p className="mt-6 text-sm text-neutral-400">
+        Figures are not connected yet.
+      </p>
     </div>
   );
 }

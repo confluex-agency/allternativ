@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthFromCookies } from "@/lib/auth";
+import { requireRole, COMMERCIAL_ROLES } from "@/lib/auth";
 import { parseCsv } from "@/lib/erp/csv";
 import { parseTrackingRows } from "@/lib/erp/dianxiaomi";
 
-const ALLOWED_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
 const MAX_BYTES = 2 * 1024 * 1024; // a tracking sheet is tiny; cap the parse
 
 // Admin: upload the tracking sheet the supplier exports from Dianxiaomi.
 // Accepts the raw CSV as the request body (text/csv) or a `file` field in a
 // multipart form. Matched orders move to SHIPPED with their tracking number.
 export async function POST(request: NextRequest) {
-  const auth = await getAuthFromCookies();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!ALLOWED_ROLES.has(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await requireRole(...COMMERCIAL_ROLES);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.status === 401 ? "Unauthorized" : "Forbidden" },
+      { status: auth.status },
+    );
   }
 
   const contentType = request.headers.get("content-type") ?? "";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthFromCookies } from "@/lib/auth";
+import { requireRole, COMMERCIAL_ROLES } from "@/lib/auth";
 import { toCsv } from "@/lib/erp/csv";
 import {
   buildErpRows,
@@ -10,7 +10,6 @@ import {
   type ErpOrder,
 } from "@/lib/erp/dianxiaomi";
 
-const ALLOWED_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
 
 const QuerySchema = z.object({
   // Which orders to hand to the supplier. PAID is the normal case.
@@ -28,12 +27,12 @@ const QuerySchema = z.object({
 
 // Admin: download paid orders as a CSV for the supplier's Dianxiaomi import.
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookies();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!ALLOWED_ROLES.has(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await requireRole(...COMMERCIAL_ROLES);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.status === 401 ? "Unauthorized" : "Forbidden" },
+      { status: auth.status },
+    );
   }
 
   const parsed = QuerySchema.safeParse(

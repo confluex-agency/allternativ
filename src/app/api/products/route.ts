@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthFromCookies } from "@/lib/auth";
+import { requireRole, COMMERCIAL_ROLES } from "@/lib/auth";
 
 const ProductSchema = z.object({
   name: z.string().min(1).max(200),
@@ -56,10 +56,6 @@ const ProductTypeFilter = z.enum([
   "READING",
 ]);
 
-// Section 18: the ecommerce admin owns products, prices, variants and stock.
-// The content admin edits copy and imagery, which is a different surface.
-const ALLOWED_WRITE_ROLES = new Set(["OWNER", "ECOMMERCE_ADMIN"]);
-
 // Public: list active products
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -109,12 +105,14 @@ export async function GET(request: NextRequest) {
 
 // Admin: create product
 export async function POST(request: NextRequest) {
-  const auth = await getAuthFromCookies();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!ALLOWED_WRITE_ROLES.has(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Section 18: the ecommerce admin owns products, prices, variants and stock.
+  // The content admin edits copy and imagery, which is a different surface.
+  const auth = await requireRole(...COMMERCIAL_ROLES);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.status === 401 ? "Unauthorized" : "Forbidden" },
+      { status: auth.status },
+    );
   }
 
   try {

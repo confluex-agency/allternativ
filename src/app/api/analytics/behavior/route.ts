@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthFromCookies } from "@/lib/auth";
+import { requireRole, REPORTING_ROLES } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const auth = await getAuthFromCookies();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Dashboards are the one thing every admin role may read.
+  const auth = await requireRole(...REPORTING_ROLES);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: auth.status === 401 ? "Unauthorized" : "Forbidden" },
+      { status: auth.status },
+    );
   }
 
   const { searchParams } = request.nextUrl;

@@ -29,6 +29,34 @@ with the outstanding questions and the delivery order, is in the vault.
 
 Render is no longer used; `render.yaml` is a leftover.
 
+## Develop against the local database, not Hostinger
+
+```bash
+docker compose up -d          # MariaDB 11.8 on port 3307
+npx prisma migrate deploy
+npx prisma db seed
+```
+
+`.env` ships pointing at it. The Hostinger URL is kept in the same file,
+commented, as `HOSTINGER_DATABASE_URL`; switching back is uncommenting a line.
+
+**Why this exists.** The shared MySQL user on Hostinger is capped at **500
+connections per hour**, and a handful of builds is enough to exhaust it:
+
+```
+User 'u..._alt_staging' has exceeded the 'max_connections_per_hour' resource
+```
+
+That failure looks alarming and is not a code problem. It is not a production
+risk either, because the limit counts *connections* and a long-lived server
+reuses its pool. It is a development problem: every `npm run build` prerenders
+the product pages and opens connections, and repeated builds add up. Run those
+against the container.
+
+The container is pinned to MariaDB **11.8**, the same version Hostinger runs,
+with `utf8mb4` / `utf8mb4_unicode_ci` set explicitly — MariaDB 11 would
+otherwise default to a different collation than production.
+
 ## Database rules that are easy to get wrong
 
 **`prisma migrate dev` does not work here.** It needs to create a shadow

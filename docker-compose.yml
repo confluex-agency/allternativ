@@ -1,0 +1,48 @@
+# Local database for development.
+#
+# Pinned to MariaDB 11.8 because that is exactly what Hostinger runs in
+# production (11.8.8). Developing against a different engine is how you find out
+# about the differences on deploy day instead of now.
+#
+# It exists because the shared MySQL user on Hostinger is capped at 500
+# connections per hour, and a handful of builds is enough to burn through that
+# and leave you unable to build at all. Local development should not spend a
+# production resource.
+#
+#   docker compose up -d      start it
+#   docker compose down       stop it, keeping the data
+#   docker compose down -v    stop it and wipe the data (then migrate + seed)
+
+services:
+  db:
+    image: mariadb:11.8
+    container_name: allternativ-db
+    restart: unless-stopped
+    environment:
+      # Development-only credentials, deliberately in the repo: this database
+      # holds seeded catalogue data, is reachable only from this machine, and
+      # having them here is what makes the setup reproducible. Nothing real
+      # ever lives in it.
+      MARIADB_ROOT_PASSWORD: allternativ-dev
+      MARIADB_DATABASE: allternativ
+      MARIADB_USER: allternativ
+      MARIADB_PASSWORD: allternativ-dev
+    command:
+      # Matches the Hostinger database exactly. MariaDB 11 would otherwise
+      # default to utf8mb4_uca1400_ai_ci, which is not what production uses.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      # 3307 on the host, not 3306: this machine already runs a MySQL 8 service
+      # on the standard port.
+      - "3307:3306"
+    volumes:
+      - allternativ-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  allternativ-db-data:

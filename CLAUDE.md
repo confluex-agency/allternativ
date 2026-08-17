@@ -29,6 +29,81 @@ with the outstanding questions and the delivery order, is in the vault.
 
 Render is no longer used; `render.yaml` is a leftover.
 
+## Security
+
+### Fixing vulnerabilities
+
+**Never `npm audit fix`**, with or without `--force`. It rewrites the lockfile
+broadly and produces a diff nobody can review. Fix with a targeted version bump,
+or with an entry in the `overrides` block in `package.json` — the mechanism is
+already there.
+
+Pin ranges deliberately. `next` is on `~16.2.12`, not `^16.2.12`: a caret would
+let a fresh install on Hostinger pull 16.3.x, a minor nobody tested, and
+Hostinger reinstalls on every deploy.
+
+Move together, always: `@prisma/client`, `@prisma/adapter-mariadb` and the
+`prisma` CLI. A mismatch between client, engine and adapter fails confusingly.
+
+### Accepted residuals (2026-08-17)
+
+Production went from 16 vulnerabilities to 4. These four stay, on purpose.
+**Judge a residual by reachability, not by severity**: can attacker-controlled
+input get to this code path in the deployed app? If not, it is accepted, and the
+reason is written down.
+
+| Package | Why it stays |
+|---|---|
+| `deepmerge-ts` (high) | Stack exhaustion merging recursive objects. Arrives through `@prisma/config`, which pins it at **exactly 7.1.5** while the fix needs 8.x. Forcing a major into Prisma's own config loader risks breaking `prisma.config.ts`, which the migration workflow above depends on. It runs when the CLI merges a config file *we* author and commit — no attacker input goes near it. |
+| `@prisma/config`, `prisma` (high) | Flagged only because they depend on `deepmerge-ts`. Same reasoning. |
+| `fast-uri` (high) | Host confusion in URI parsing. Arrives via `prisma → @prisma/dev → @prisma/streams-local → ajv`. CLI only. |
+
+All four are the Prisma **command line**, not the running server. They show up
+under `--omit=dev` only because `@prisma/client` declares `prisma` as a peer
+dependency, so npm treats it as production-reachable. Nothing in `src/` imports
+the CLI.
+
+**Re-check when Prisma bumps its own pin**, and any time `npm audit` grows a
+package that is not on this list.
+
+### Who can reach what
+
+Roles come from section 18 of the client brief. Checked in one place:
+`requireRole()` in `src/lib/auth.ts`. Never re-implement a check inline — that is
+exactly how `/api/orders` and `/api/customers` ended up with no check at all.
+
+| Endpoint | OWNER | ECOMMERCE_ADMIN | CONTENT_ADMIN | ANALYTICS_VIEWER |
+|---|---|---|---|---|
+| `POST /api/products` | ✅ | ✅ | ❌ | ❌ |
+| `GET /api/orders` | ✅ | ✅ | ❌ | ❌ |
+| `GET /api/customers` | ✅ | ✅ | ❌ | ❌ |
+| `GET /api/erp/*` | ✅ | ✅ | ❌ | ❌ |
+| `GET /api/analytics/*` | ✅ | ✅ | ✅ | ✅ |
+
+401 and 403 mean different things and are returned separately: not signed in
+versus signed in without the right role.
+
+Analytics is open to every role, so **nothing customer-identifying may be added
+to those payloads**. `/api/analytics/sales` uses an explicit `select` for that
+reason; a bare `findMany` returns the whole Order row, shipping address included.
+
+Admin **pages** are guarded by `requireAdminPage()` in `src/lib/admin-guard.ts`,
+not by `src/proxy.ts` alone. The proxy only verifies the token signature; it
+cannot check `passwordChangedAt` without a database read on every request. Before
+the guard existed, a token killed by a password change still opened admin pages
+while being rejected by every API route.
+
+### Two things that will bite on deploy
+
+**Login returns 500 in production without Upstash.** `src/lib/rate-limit.ts`
+fails closed on purpose: no Redis in production means the limiter throws rather
+than silently leaving login unthrottled. The consequence is not "rate limiting is
+off", it is **nobody can sign in to the admin**. Configure Upstash before or with
+the staging deploy.
+
+**Set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in staging.** The default in
+`prisma/seed.ts` is committed and therefore in git history.
+
 ## Develop against the local database, not Hostinger
 
 ```bash

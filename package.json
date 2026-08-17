@@ -13,12 +13,13 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.26",
+    "sharp": "^0.35.3"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
-    "@prisma/adapter-mariadb": "^7.5.0",
-    "@prisma/client": "^7.5.0",
+    "@prisma/adapter-mariadb": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@tanstack/react-query": "^5.91.3",
@@ -34,7 +35,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.0",
-    "shadcn": "^4.1.0",
     "sonner": "^2.0.7",
     "stripe": "^20.4.1",
     "tailwind-merge": "^3.5.0",
@@ -55,7 +55,8 @@
     "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
-    "prisma": "^7.8.0",
+    "prisma": "^7.9.1",
+    "shadcn": "^4.18.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

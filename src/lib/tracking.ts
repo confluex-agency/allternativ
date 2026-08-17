@@ -3,7 +3,19 @@
 const VISITOR_COOKIE = "alt_vid";
 const SESSION_KEY = "alt_sid";
 const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-const FLUSH_INTERVAL = 5000; // 5 seconds
+// 30 seconds, not 5.
+//
+// Every flush is one request to /api/tracking, and that endpoint checks a rate
+// limit on Upstash, so the cost of analytics scales with visitors — not with
+// anything the shop earns. Batching the same events into fewer requests cuts
+// that several times over, and it takes load off our own server too.
+//
+// Nothing is lost by waiting: `flush()` skips an empty buffer, it fires early
+// once 50 events pile up, and the visibilitychange handler flushes with
+// sendBeacon when the tab is hidden or closed. The only difference is that a
+// figure on the dashboard may be up to half a minute behind, which for a shop
+// that is not selling yet is not a cost at all.
+const FLUSH_INTERVAL = 30000; // 30 seconds
 
 let visitorId: string;
 let sessionId: string;

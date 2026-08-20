@@ -218,7 +218,14 @@ export default async function HomePage() {
               alt="Rooftop at golden hour, a spectrum thrown across a white shirt"
               fill
               sizes="(max-width: 768px) 100vw, 40vw"
-              className="object-cover object-right fluid-transition group-hover:scale-[1.04]"
+              data-framing="brand-world"
+              data-framing-label="02 — brand world"
+              // 69% pulls the crop window right until the face carries the
+              // frame. No breakpoint prefix: the slot is 4/5 at every width, so
+              // the crop geometry is identical and one value serves both. Only
+              // the horizontal matters here — a landscape photograph in a
+              // portrait frame is cropped on the sides, never top to bottom.
+              className="object-cover object-[69%_50%] fluid-transition group-hover:scale-[1.04]"
             />
             <span className="absolute bottom-4 left-4 inline-flex items-center gap-1 eyebrow text-white opacity-0 fluid-transition group-hover:opacity-100 md:bottom-6 md:left-6">
               Read our story
@@ -264,6 +271,8 @@ export default async function HomePage() {
                   alt={pillar.alt}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
+                  data-framing={`identity-${pillar.label.toLowerCase()}`}
+                  data-framing-label={`03 — ${pillar.label.toLowerCase()}`}
                   className="object-cover fluid-transition group-hover:scale-[1.04]"
                 />
                 <div
@@ -306,6 +315,8 @@ export default async function HomePage() {
               alt="A crowd dancing in a dark warehouse, one person in silver wraparound frames"
               fill
               sizes="(max-width: 768px) 100vw, 80vw"
+              data-framing="lifestyle-after-dark"
+              data-framing-label="04 — a different lifestyle"
               className="object-cover fluid-transition group-hover:scale-[1.02]"
             />
             {/* Lighter than the scrim the holographic texture needed: this frame
@@ -364,7 +375,15 @@ export default async function HomePage() {
             alt=""
             fill
             sizes="100vw"
-            className="object-cover object-center"
+            data-framing="closing"
+            data-framing-label="05 — closing"
+            // Centred on phones, where the band is tall enough to hold the head
+            // on its own and Nicolas signed it off as is. On desktop the band
+            // goes wide and short, the crop turns into a horizontal slice, and
+            // at 50% that slice lands below the eyes: 15% lifts it back onto
+            // the face. Only the vertical matters — the slice already uses the
+            // full width, so the horizontal value here changes nothing.
+            className="object-cover object-center md:object-[50%_15%]"
           />
           {/* The card is frosted glass, and frosting needs something behind it.
               Sitting on the page beige it read as a flat outline; over a

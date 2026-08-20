@@ -8,6 +8,23 @@ import { formatPrice, STORE_CURRENCY } from "@/lib/utils";
 import { caseLabel } from "@/lib/product-options";
 import { Button } from "@/components/ui/button";
 import { trackCheckoutStart } from "@/lib/tracking";
+import {
+  SHIPPABLE_COUNTRIES,
+  quoteShipping,
+  freeShippingMessage,
+} from "@/lib/shipping";
+
+const SHIP_TO_KEY = "allternativ:ship-to";
+
+// English country names without shipping a list of our own. Falls back to the
+// code on the rare browser that cannot do this.
+const countryName = (code: string) => {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
 
 export function CartView() {
   const cart = useCart();
@@ -20,6 +37,22 @@ export function CartView() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const items = mounted ? cart.items : [];
+
+  // ── Where it is going ─────────────────────────────────────────────────────
+  // Deliberately starts empty instead of guessing a country. Stripe's hosted
+  // page cannot recalculate delivery from the address typed on its side, so
+  // whatever is chosen here is BOTH the price charged and the only country the
+  // payment page will accept. A wrong default would not merely misprice the
+  // parcel, it would lock the customer out of entering their real address.
+  const [shipTo, setShipTo] = useState("");
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SHIP_TO_KEY);
+    if (saved && SHIPPABLE_COUNTRIES.includes(saved)) setShipTo(saved);
+  }, []);
+
+  const pairs = items.reduce((n, i) => n + i.quantity, 0);
+  const shipping = shipTo ? quoteShipping(shipTo, pairs) : null;
+  const nudge = freeShippingMessage(pairs);
 
   if (items.length === 0) {
     return (
@@ -53,6 +86,7 @@ export function CartView() {
             caseColor: i.caseColor,
           })),
           currency: STORE_CURRENCY.toLowerCase(),
+          destinationCountry: shipTo,
         }),
       });
 
@@ -142,25 +176,90 @@ export function CartView() {
       </div>
 
       <div className="mt-8 pt-6 border-t">
-        <div className="flex justify-between text-lg font-medium">
-          <span>Total</span>
-          <span>{formatPrice(totalCents())}</span>
+        {/* The client asked for the delivery cost to be visible here rather
+            than folded into the price: "No queremos incorporar artificialmente
+            el shipping dentro del retail price." */}
+        <label className="block">
+          <span className="text-xs uppercase tracking-wide text-neutral-500">
+            Ship to
+          </span>
+          <select
+            value={shipTo}
+            onChange={(e) => {
+              setShipTo(e.target.value);
+              window.localStorage.setItem(SHIP_TO_KEY, e.target.value);
+            }}
+            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select a country…</option>
+            {SHIPPABLE_COUNTRIES.map((c) => (
+              <option key={c} value={c}>
+                {countryName(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="mt-5 space-y-2 text-sm">
+          <div className="flex justify-between text-neutral-600">
+            <span>Subtotal</span>
+            <span>{formatPrice(totalCents())}</span>
+          </div>
+          <div className="flex justify-between text-neutral-600">
+            <span>Shipping</span>
+            <span>
+              {!shipping ? (
+                <span className="text-neutral-400">Select a country</span>
+              ) : shipping.free ? (
+                <span className="font-medium text-emerald-700">Free</span>
+              ) : (
+                formatPrice(shipping.amountCents, shipping.currency)
+              )}
+            </span>
+          </div>
         </div>
+
+        <div className="mt-3 flex justify-between border-t pt-3 text-lg font-medium">
+          <span>Total</span>
+          <span>
+            {formatPrice(totalCents() + (shipping?.amountCents ?? 0))}
+          </span>
+        </div>
+
+        {/* Their copy, word for word. This is the lever they want to measure,
+            so paraphrasing it would break the comparison. */}
+        {nudge && (
+          <p
+            className={`mt-3 text-sm ${
+              shipping?.free ? "text-emerald-700" : "text-neutral-700"
+            }`}
+          >
+            {nudge}
+          </p>
+        )}
+
         <p className="mt-2 text-xs text-neutral-500">
-          Shipping and any discount code are applied at the next step.
+          Tracked delivery, 8–15 business days. Discount codes are applied at
+          the next step.
         </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-600">
             {error}
           </p>
         )}
+        {/* Disabled until a destination is chosen: without it there is no
+            delivery price to quote and no country to pin the payment page to. */}
         <Button
           onClick={handleCheckout}
-          disabled={submitting}
+          disabled={submitting || !shipTo}
           className="w-full mt-6 py-6 text-sm font-medium tracking-wide"
           size="lg"
         >
-          {submitting ? "TAKING YOU TO CHECKOUT…" : "CHECKOUT"}
+          {submitting
+            ? "TAKING YOU TO CHECKOUT…"
+            : !shipTo
+              ? "CHOOSE A DESTINATION"
+              : "CHECKOUT"}
         </Button>
       </div>
     </div>

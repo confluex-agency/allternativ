@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
+import { quoteShipping, DELIVERY_ESTIMATE_BUSINESS_DAYS } from "@/lib/shipping";
+import type Stripe from "stripe";
 import {
   reserveStock,
   releaseReservationGroup,
@@ -33,6 +35,16 @@ const CheckoutSchema = z.object({
     .min(1)
     .max(50),
   currency: z.enum(SUPPORTED_CURRENCIES).default("eur"),
+  // Where it is going, chosen in the cart BEFORE we get here.
+  //
+  // ⚠️ It has to be known now, not later, and that is a hard constraint rather
+  // than a preference. Stripe's own documentation is explicit: "The hosted page
+  // integration in Stripe Checkout does not support dynamically customizing
+  // shipping options." We redirect to the hosted page, so the address the
+  // customer types on Stripe's side cannot change the delivery price. The
+  // country therefore comes from us, and `allowed_countries` below is pinned to
+  // it so the two can never disagree.
+  destinationCountry: z.string().length(2).toUpperCase(),
 });
 
 export async function POST(request: NextRequest) {
@@ -44,7 +56,18 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { items, currency } = parsed.data;
+    const { items, currency, destinationCountry } = parsed.data;
+
+    // Refuse a destination we have no quoted rate for rather than guessing one.
+    // Shipping something at an invented price is worse than not selling it.
+    const pairs = items.reduce((n, i) => n + i.quantity, 0);
+    const shipping = quoteShipping(destinationCountry, pairs, currency);
+    if (!shipping) {
+      return NextResponse.json(
+        { error: "We do not ship to that country yet." },
+        { status: 400 },
+      );
+    }
 
     const variantIds = [...new Set(items.map((i) => i.variantId))];
     const variants = await prisma.productVariant.findMany({
@@ -131,14 +154,46 @@ export async function POST(request: NextRequest) {
         // The payment page closes before the reservation does, on purpose: see
         // RESERVATION_GRACE_MINUTES. An abandoned checkout still frees its stock
         // straight away, because Stripe sends `checkout.session.expired`.
-        expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_WINDOW_MINUTES * 60,
+        expires_at:
+          Math.floor(Date.now() / 1000) + CHECKOUT_WINDOW_MINUTES * 60,
         // Without an address and a phone number the supplier cannot dispatch, and
         // the export file reaches them with no recipient.
+        //
+        // Pinned to the one country the delivery price was quoted for. Offering
+        // the full list here would let someone pick Spain in the cart, pay the
+        // Spanish rate, and then have it sent to Malta for four euros more.
         shipping_address_collection: {
           allowed_countries: [
-            "IE", "GB", "ES", "FR", "DE", "IT", "PT", "NL", "BE",
+            destinationCountry as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry,
           ],
         },
+        // The delivery line the client asked to be shown separately. Zero is
+        // still sent when it is free, so the customer sees "Free" spelled out
+        // rather than no line at all.
+        shipping_options: [
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              display_name: shipping.free
+                ? "Free shipping — tracked"
+                : "Tracked shipping",
+              fixed_amount: {
+                amount: shipping.amountCents,
+                currency,
+              },
+              delivery_estimate: {
+                minimum: {
+                  unit: "business_day",
+                  value: DELIVERY_ESTIMATE_BUSINESS_DAYS.minimum,
+                },
+                maximum: {
+                  unit: "business_day",
+                  value: DELIVERY_ESTIMATE_BUSINESS_DAYS.maximum,
+                },
+              },
+            },
+          },
+        ],
         phone_number_collection: { enabled: true },
         // Lets Stripe's own coupons and promotion codes be redeemed at checkout,
         // so the team can run a discount without a deploy.

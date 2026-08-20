@@ -6,6 +6,7 @@
 
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
+import { usdCentsTo, supplierCostUsdCents } from "@/lib/shipping";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
 import { CASE_COLORS } from "@/lib/product-options";
@@ -84,7 +85,9 @@ async function handleCompletedSession(
     include: { product: true },
   });
   if (variants.length !== variantIds.length) {
-    throw new UnprocessableEventError("Some purchased variants no longer exist");
+    throw new UnprocessableEventError(
+      "Some purchased variants no longer exist",
+    );
   }
   const byId = new Map(variants.map((v) => [v.id, v]));
 
@@ -101,6 +104,19 @@ async function handleCompletedSession(
       productName: variant.product.name,
       variantName: variant.colorName,
       caseColor: item.caseColor,
+      // The cost side of the same snapshot, in the order's currency.
+      //
+      // Frozen for exactly the reason the price above is: the catalogue moves
+      // on. The difference is that a price can at least be recovered from an
+      // old invoice, while nobody anywhere writes down what a thing used to
+      // cost. Miss it now and last quarter's margin can never be answered.
+      //
+      // Null when the product has no cost recorded, which reads as "unknown"
+      // in reporting. Zero would read as "free" and quietly inflate the margin.
+      unitCostCents: usdCentsTo(
+        variant.product.supplierCostUsdCents,
+        session.currency || "eur",
+      ),
     };
   });
 
@@ -134,6 +150,71 @@ async function handleCompletedSession(
   // billing address on customer_details can be a different place entirely.
   const shipping = session.collected_information?.shipping_details ?? null;
   const shippingAddress = shipping?.address ?? null;
+
+  // ── The cost side, frozen with the rest ─────────────────────────────────
+  //
+  // What the parcel costs us, which is NOT what the customer paid for it: from
+  // two pairs up delivery is free to them and absorbed whole by Allternativ.
+  const pairs = orderItems.reduce((n, i) => n + i.quantity, 0);
+  const destination = shippingAddress?.country?.toUpperCase() ?? null;
+  const shippingCostCents = destination
+    ? (usdCentsTo(
+        // The tier for THIS many pairs, not the one-pair rate: a two-pair
+        // parcel genuinely costs more to send, and costing it at the single
+        // rate would flatter the free-shipping rule by understating it.
+        supplierCostUsdCents(destination, pairs),
+        session.currency || "eur",
+      ) ?? 0)
+    : 0;
+
+  // Stripe's cut, read from the balance transaction. Best-effort on purpose:
+  // this is a reporting nicety and must never be the reason an order fails to
+  // be recorded. Null means "not read", which reporting can tell from zero.
+  //
+  // Captured now rather than looked up later because it is only cheaply
+  // available while the payment is fresh, and because a margin that ignores the
+  // processor's fee flatters itself by two or three per cent.
+  let paymentFeeCents: number | null = null;
+  try {
+    if (typeof session.payment_intent === "string") {
+      const intent = await stripe.paymentIntents.retrieve(
+        session.payment_intent,
+        { expand: ["latest_charge.balance_transaction"] },
+      );
+      const charge = intent.latest_charge;
+      if (charge && typeof charge !== "string") {
+        const balance = charge.balance_transaction;
+        if (balance && typeof balance !== "string") {
+          paymentFeeCents = balance.fee;
+        }
+      }
+    }
+  } catch {
+    paymentFeeCents = null;
+  }
+
+  // ⚠️ The floor that did not exist. Discount codes are created straight in the
+  // Stripe dashboard, without passing through this codebase and without any
+  // minimum, and delivery is absorbed from two pairs up. A deep enough code
+  // therefore sells below cost, and nothing anywhere would have said so.
+  //
+  // This only shouts; it does not refuse a payment that has already happened.
+  // Refusing belongs at the checkout, before the money moves.
+  const goodsCostCents = orderItems.reduce(
+    (sum, i) => sum + (i.unitCostCents ?? 0) * i.quantity,
+    0,
+  );
+  const netCents =
+    totalCents - goodsCostCents - shippingCostCents - (paymentFeeCents ?? 0);
+  if (netCents < 0) {
+    console.error(
+      `[margin] Order from session ${session.id} closes NEGATIVE: ` +
+        `revenue ${totalCents}, goods ${goodsCostCents}, shipping ${shippingCostCents}, ` +
+        `fee ${paymentFeeCents ?? "?"} → ${netCents} ${session.currency?.toUpperCase()}` +
+        (promotionCode ? `. Promotion code: ${promotionCode}` : "") +
+        (pairs >= 2 ? ". Delivery was absorbed (2+ pairs)." : ""),
+    );
+  }
 
   let reservationHeld = false;
 
@@ -169,6 +250,8 @@ async function handleCompletedSession(
         status: "PAID",
         subtotalCents,
         shippingCents,
+        shippingCostCents,
+        paymentFeeCents,
         discountCents,
         promotionCode,
         totalCents,

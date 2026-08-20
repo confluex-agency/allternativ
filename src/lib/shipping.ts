@@ -12,12 +12,16 @@
 // markup on top. The margin lives in the eyewear, which costs about USD 5.70 to
 // put in the box and sells for EUR 39.
 //
-// ── Why there is only one column of figures ─────────────────────────────────
+// ── Only one column is ever CHARGED. All three are needed to COST ───────────
 // The supplier quotes three prices per country, for one, two and three pairs in
-// the same parcel. Free shipping from two pairs means the second and third
-// columns are never charged to anybody: they are a cost Allternativ absorbs to
-// lift the basket. So the only figure that can ever reach a checkout is the
-// one-pair rate, and that is all this file holds.
+// the same parcel. Free shipping from two pairs means the second and third are
+// never charged to anybody, so the only figure that can reach a checkout is the
+// one-pair rate.
+//
+// They are still real money going out. A two-pair parcel to Malta costs 18.63
+// and not the 14.64 of a single pair, and costing it at the one-pair rate would
+// understate what the free-shipping rule is really spending — which is the one
+// number it exists to justify. `quoteShipping` charges; `supplierCostUsd` costs.
 //
 // ── Why the exchange rate is frozen ─────────────────────────────────────────
 // The supplier quotes in dollars and the shop charges in euros, so somebody has
@@ -38,46 +42,47 @@
 import { STORE_CURRENCY } from "@/lib/utils";
 
 /**
- * The supplier's cost to deliver ONE pair, in USD.
+ * The supplier's cost in USD, as `[one pair, two pairs, three pairs]`.
  *
- * Straight from `Quot-260717.xlsx` (Shenzhen Hongyu, 2026-07-16), first price
- * column. Kept as the quoted dollars rather than as converted euros on purpose:
- * this table can be checked line by line against the document the supplier
- * sent, and no arithmetic of ours sits between the two.
+ * Straight from `Quot-260717.xlsx` (Shenzhen Hongyu, 2026-07-16), transcribed
+ * from the spreadsheet rather than typed by hand. Kept as the quoted dollars
+ * rather than as converted euros on purpose: this table can be checked line by
+ * line against the document the supplier sent, with no arithmetic of ours in
+ * between.
  *
  * Carrier is YunExpress for every country below.
  */
-export const SUPPLIER_SHIPPING_USD: Record<string, number> = {
+export const SUPPLIER_SHIPPING_USD: Record<string, [number, number, number]> = {
   // ── European Union ──
-  AT: 11.31,
-  BE: 11.72,
-  BG: 11.23,
-  CY: 14.05,
-  CZ: 10.93,
-  DE: 11.03,
-  DK: 12.66,
-  EE: 11.39,
-  ES: 10.41,
-  FI: 12.09,
-  FR: 10.73,
-  GR: 11.06,
-  HR: 13.15,
-  HU: 11.31,
-  IE: 12.09,
-  IT: 11.59,
-  LT: 10.93,
-  LU: 13.29,
-  LV: 11.0,
-  MT: 14.64,
-  NL: 12.21,
-  PL: 10.68,
-  PT: 11.51,
-  RO: 11.72,
-  SE: 11.52,
-  SI: 13.03,
-  SK: 11.89,
+  AT: [11.31, 13.1, 14.88], // Austria
+  BE: [11.72, 13.92, 16.11], // Belgium
+  BG: [11.23, 13.74, 16.25], // Bulgaria
+  CY: [14.05, 17.6, 21.14], // Cyprus
+  CZ: [10.93, 12.81, 14.68], // Czechia
+  DE: [11.03, 12.69, 14.35], // Germany
+  DK: [12.66, 15.63, 18.6], // Denmark
+  EE: [11.39, 13.72, 16.06], // Estonia
+  ES: [10.41, 12.1, 13.78], // Spain
+  FI: [12.09, 14.16, 16.23], // Finland
+  FR: [10.73, 12.42, 14.1], // France
+  GR: [11.06, 13.4, 15.74], // Greece
+  HR: [13.15, 16.29, 19.43], // Croatia
+  HU: [11.31, 13.4, 15.5], // Hungary
+  IE: [12.09, 14.64, 17.2], // Ireland
+  IT: [11.59, 13.32, 15.06], // Italy
+  LT: [10.93, 12.81, 14.68], // Lithuania
+  LU: [13.29, 16.4, 19.52], // Luxembourg
+  LV: [11.0, 12.95, 14.9], // Latvia
+  MT: [14.64, 18.63, 22.61], // Malta
+  NL: [12.21, 14.89, 17.56], // Netherlands
+  PL: [10.68, 13.11, 15.55], // Poland
+  PT: [11.51, 13.97, 16.43], // Portugal
+  RO: [11.72, 14.4, 17.08], // Romania
+  SE: [11.52, 13.84, 16.15], // Sweden
+  SI: [13.03, 16.05, 19.06], // Slovenia
+  SK: [11.89, 14.74, 17.59], // Slovakia
   // ── United Kingdom ──
-  GB: 6.15,
+  GB: [6.15, 7.76, 9.37],
 };
 
 /**
@@ -99,6 +104,26 @@ export const FX = {
     NZD: 1.6828,
   } as Record<string, number>,
 };
+
+/**
+ * Convert US cents into another currency's minor units, at the frozen rate.
+ *
+ * Lives here because `FX` does, and `FX` lives here because delivery was the
+ * first thing that had to cross currencies. The supplier bills everything in
+ * dollars, so the product cost needs the same conversion.
+ *
+ * Returns null for an unknown amount or currency rather than zero: in a margin
+ * report a null reads as "we do not know", and a zero reads as "it was free".
+ */
+export function usdCentsTo(
+  usdCents: number | null | undefined,
+  currency: string,
+): number | null {
+  if (usdCents === null || usdCents === undefined) return null;
+  const rate = FX.perUsd[currency.toUpperCase()];
+  if (rate === undefined) return null;
+  return Math.round(usdCents * rate);
+}
 
 /** Two or more pairs ship free. The client's rule, and their AOV lever. */
 export const FREE_SHIPPING_FROM_PAIRS = 2;
@@ -131,8 +156,8 @@ export function quoteShipping(
   pairs: number,
   currency: string = STORE_CURRENCY,
 ): ShippingQuote | null {
-  const usd = SUPPLIER_SHIPPING_USD[country];
-  if (usd === undefined) return null;
+  const tiers = SUPPLIER_SHIPPING_USD[country];
+  if (tiers === undefined) return null;
 
   const rate = FX.perUsd[currency.toUpperCase()];
   if (rate === undefined) return null;
@@ -140,11 +165,32 @@ export function quoteShipping(
   const free = pairs >= FREE_SHIPPING_FROM_PAIRS;
   return {
     country,
-    amountCents: free ? 0 : Math.round(usd * rate * 100),
+    // Only ever the one-pair tier: anything bigger ships free, so no other
+    // tier can reach a customer.
+    amountCents: free ? 0 : Math.round(tiers[0] * rate * 100),
     currency,
     free,
     pairsToFree: Math.max(0, FREE_SHIPPING_FROM_PAIRS - pairs),
   };
+}
+
+/**
+ * What the parcel actually costs Allternativ, in US cents. The other half of
+ * the sum: `quoteShipping` is what comes in, this is what goes out.
+ *
+ * ⚠️ Above three pairs the quotation runs out. Rather than repeat the
+ * three-pair figure, which would understate every large order, the cost is
+ * extended by the marginal step between the last two tiers — the supplier's
+ * own increments are flat (Germany: +1.66, +1.66), so this is a reasonable
+ * estimate and not a guess pulled from nowhere. It stays an ESTIMATE until
+ * Daniel answers question 6 of the supplier document, which asks exactly this.
+ */
+export function supplierCostUsdCents(country: string, pairs: number): number {
+  const tiers = SUPPLIER_SHIPPING_USD[country];
+  if (tiers === undefined || pairs <= 0) return 0;
+  if (pairs <= 3) return Math.round(tiers[pairs - 1] * 100);
+  const marginalStep = tiers[2] - tiers[1];
+  return Math.round((tiers[2] + (pairs - 3) * marginalStep) * 100);
 }
 
 /**

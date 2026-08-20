@@ -22,12 +22,7 @@
 
 /** What a photo shows. Mirrors `ImageType` and the client's file-name prefixes. */
 export type SourceImageType =
-  | "PRODUCT"
-  | "MODEL"
-  | "DETAIL"
-  | "CASE"
-  | "LIFESTYLE"
-  | "PACKAGING";
+  "PRODUCT" | "MODEL" | "DETAIL" | "CASE" | "LIFESTYLE" | "PACKAGING";
 
 export type SourceImage = { url: string; type: SourceImageType };
 
@@ -56,11 +51,27 @@ export type SourceColorway = {
   stock: number;
 };
 
+/**
+ * What every unit carries on top of the frame itself, in US cents.
+ *
+ * From the same invoice: a pouch and cleaning cloth at 0.60, a leather case at
+ * 0.95, a hard box at 1.20, and 0.30 of logo work. Every pair ships with all
+ * four, so it is one constant rather than four columns.
+ */
+export const PACKAGING_COST_USD_CENTS = 60 + 95 + 120 + 30;
+
 export type SourceProduct = {
   slug: string;
   name: string;
   /** The supplier's model code, printed on the invoice. */
   code: string;
+  /**
+   * The frame's own unit price in US cents, from invoice YM20260716.
+   *
+   * NOT what a pair costs: add `PACKAGING_COST_USD_CENTS` for that, which is
+   * what `packedCostUsdCents()` below does and what the database stores.
+   */
+  frameCostUsdCents: number;
   /**
    * The opening line of the client's own "THE FEELING" copy, reused as the
    * short line under the name. Their words, not ours.
@@ -142,6 +153,7 @@ const PRICE_CENTS = 3900;
 export const catalogueProducts: SourceProduct[] = [
   {
     slug: "the-corinthian",
+    frameCostUsdCents: 278,
     name: "The Corinthian",
     code: "89310",
     tagline: "Structured, timeless, slightly untouchable.",
@@ -152,13 +164,35 @@ export const catalogueProducts: SourceProduct[] = [
     status: "LIVE",
     placeholderImages: shots("prisma", 9),
     colorways: [
-      { key: "olive-green", name: "Olive Green", sku: "89310-OLV", supplierSku: null, swatch: "#7d7a45", stock: 17 },
-      { key: "black-black", name: "Black / Black", sku: "89310-BLK", supplierSku: null, swatch: "#16171a", stock: 17 },
-      { key: "black-double-grey", name: "Black / Double Grey", sku: "89310-BDG", supplierSku: null, swatch: "#3f4247", stock: 16 },
+      {
+        key: "olive-green",
+        name: "Olive Green",
+        sku: "89310-OLV",
+        supplierSku: null,
+        swatch: "#7d7a45",
+        stock: 17,
+      },
+      {
+        key: "black-black",
+        name: "Black / Black",
+        sku: "89310-BLK",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 17,
+      },
+      {
+        key: "black-double-grey",
+        name: "Black / Double Grey",
+        sku: "89310-BDG",
+        supplierSku: null,
+        swatch: "#3f4247",
+        stock: 16,
+      },
     ],
   },
   {
     slug: "orbital",
+    frameCostUsdCents: 250,
     name: "Orbital",
     // ⚠️ 5119JT, NOT 5312JT. We carried the wrong code from May until the
     // client corrected it in writing on 2026-08-20.
@@ -174,13 +208,35 @@ export const catalogueProducts: SourceProduct[] = [
       ...shots("orbital-black", 8),
     ],
     colorways: [
-      { key: "mercury-black", name: "Mercury Black", sku: "5119JT-C03", supplierSku: null, swatch: "#b9bdc2", stock: 17 },
-      { key: "sand-black", name: "Sand Black", sku: "5119JT-C09", supplierSku: null, swatch: "#b9a68a", stock: 17 },
-      { key: "black-black", name: "Black Black", sku: "5119JT-C07", supplierSku: null, swatch: "#16171a", stock: 16 },
+      {
+        key: "mercury-black",
+        name: "Mercury Black",
+        sku: "5119JT-C03",
+        supplierSku: null,
+        swatch: "#b9bdc2",
+        stock: 17,
+      },
+      {
+        key: "sand-black",
+        name: "Sand Black",
+        sku: "5119JT-C09",
+        supplierSku: null,
+        swatch: "#b9a68a",
+        stock: 17,
+      },
+      {
+        key: "black-black",
+        name: "Black Black",
+        sku: "5119JT-C07",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 16,
+      },
     ],
   },
   {
     slug: "neon-shift",
+    frameCostUsdCents: 260,
     name: "Neon Shift",
     code: "862JT",
     tagline: "Day fades. The frequency changes.",
@@ -191,13 +247,35 @@ export const catalogueProducts: SourceProduct[] = [
     status: "LIVE",
     placeholderImages: shots("vortex", 8),
     colorways: [
-      { key: "red-black", name: "Red / Black", sku: "862JT-RED", supplierSku: null, swatch: "#b4322b", stock: 17 },
-      { key: "black-black", name: "Black / Black", sku: "862JT-BLK", supplierSku: null, swatch: "#16171a", stock: 17 },
-      { key: "black-blue", name: "Black / Blue", sku: "862JT-BLU", supplierSku: null, swatch: "#2a3f6b", stock: 16 },
+      {
+        key: "red-black",
+        name: "Red / Black",
+        sku: "862JT-RED",
+        supplierSku: null,
+        swatch: "#b4322b",
+        stock: 17,
+      },
+      {
+        key: "black-black",
+        name: "Black / Black",
+        sku: "862JT-BLK",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 17,
+      },
+      {
+        key: "black-blue",
+        name: "Black / Blue",
+        sku: "862JT-BLU",
+        supplierSku: null,
+        swatch: "#2a3f6b",
+        stock: 16,
+      },
     ],
   },
   {
     slug: "sync",
+    frameCostUsdCents: 298,
     name: "SYNC",
     code: "826JT",
     tagline: "Right place. Right people. Right frequency.",
@@ -208,13 +286,35 @@ export const catalogueProducts: SourceProduct[] = [
     status: "LIVE",
     placeholderImages: [...shots("halo", 9), ...HALO_LIFESTYLE],
     colorways: [
-      { key: "gold-black", name: "Gold / Black", sku: "826JT-GLD", supplierSku: null, swatch: "#c6a765", stock: 17 },
-      { key: "silver-black", name: "Silver Black", sku: "826JT-SLV", supplierSku: null, swatch: "#c7cace", stock: 17 },
-      { key: "black-black", name: "Black Black", sku: "826JT-BLK", supplierSku: null, swatch: "#16171a", stock: 16 },
+      {
+        key: "gold-black",
+        name: "Gold / Black",
+        sku: "826JT-GLD",
+        supplierSku: null,
+        swatch: "#c6a765",
+        stock: 17,
+      },
+      {
+        key: "silver-black",
+        name: "Silver Black",
+        sku: "826JT-SLV",
+        supplierSku: null,
+        swatch: "#c7cace",
+        stock: 17,
+      },
+      {
+        key: "black-black",
+        name: "Black Black",
+        sku: "826JT-BLK",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 16,
+      },
     ],
   },
   {
     slug: "amplify",
+    frameCostUsdCents: 235,
     name: "Amplify",
     code: "2037JT",
     tagline: "Turn everything up.",
@@ -225,8 +325,22 @@ export const catalogueProducts: SourceProduct[] = [
     status: "LIVE",
     placeholderImages: shots("nocturne", 9),
     colorways: [
-      { key: "black-black", name: "Black / Black", sku: "2037JT-C01", supplierSku: null, swatch: "#16171a", stock: 25 },
-      { key: "hawksbill-brown", name: "Hawksbill / Brown", sku: "2037JT-C05", supplierSku: null, swatch: "#7b4a26", stock: 25 },
+      {
+        key: "black-black",
+        name: "Black / Black",
+        sku: "2037JT-C01",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 25,
+      },
+      {
+        key: "hawksbill-brown",
+        name: "Hawksbill / Brown",
+        sku: "2037JT-C05",
+        supplierSku: null,
+        swatch: "#7b4a26",
+        stock: 25,
+      },
     ],
   },
   {
@@ -236,6 +350,7 @@ export const catalogueProducts: SourceProduct[] = [
     // colourways and fifty units are recorded all the same, so the launch
     // inventory is complete and flipping it to LIVE is one field.
     slug: "prism",
+    frameCostUsdCents: 235,
     name: "Prism",
     code: "3980",
     tagline: "Same light. Different perspective.",
@@ -246,11 +361,36 @@ export const catalogueProducts: SourceProduct[] = [
     status: "DRAFT",
     placeholderImages: [],
     colorways: [
-      { key: "black-black", name: "Black / Black", sku: "3980-C1", supplierSku: null, swatch: "#16171a", stock: 25 },
-      { key: "demi-black", name: "Demi / Black", sku: "3980-C6", supplierSku: null, swatch: "#6b4423", stock: 25 },
+      {
+        key: "black-black",
+        name: "Black / Black",
+        sku: "3980-C1",
+        supplierSku: null,
+        swatch: "#16171a",
+        stock: 25,
+      },
+      {
+        key: "demi-black",
+        name: "Demi / Black",
+        sku: "3980-C6",
+        supplierSku: null,
+        swatch: "#6b4423",
+        stock: 25,
+      },
     ],
   },
 ];
+
+/**
+ * What one PACKED pair costs, in US cents: the frame plus everything that ships
+ * with it. This is the figure the database stores and the figure a margin is
+ * worked out against.
+ *
+ * Ranges from 540 (Amplify, Prism) to 603 (SYNC) against a EUR 39 sale.
+ */
+export function packedCostUsdCents(product: SourceProduct): number {
+  return product.frameCostUsdCents + PACKAGING_COST_USD_CENTS;
+}
 
 /**
  * Slugs the seed must retire. These were placeholder models invented while the

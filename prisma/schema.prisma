@@ -145,6 +145,14 @@ model Product {
   //   anything left null is simply not shown on the product page. ─
   // Published as written. The frameMaterial enum above stays for filtering, but
   // it cannot express a real spec line like "Injected matte nylon".
+  // ─ What one packed pair costs Allternativ, in US CENTS, from the supplier's
+  //   commercial invoice: the frame plus the pouch, cloth, leather case, hard
+  //   box and logo work that ship with every unit. Held in dollars because that
+  //   is the currency it is actually paid in.
+  //
+  //   Nothing customer-facing ever reads this. It exists so the margin of a
+  //   sale can be worked out, which is impossible from the selling price alone.
+  supplierCostUsdCents  Int?           @map("supplier_cost_usd_cents")
   frameDetail           String?        @map("frame_detail")
   origin                String?
   lensMaterial          String?        @map("lens_material")
@@ -455,6 +463,16 @@ model Order {
   //   the order records it: the coupon itself lives in Stripe and can change. ─
   discountCents     Int         @default(0) @map("discount_cents")
   promotionCode     String?     @map("promotion_code")
+  // ─ The other side of the sum, frozen at sale time like everything above. ─
+  //
+  // `shippingCents` above is what the CUSTOMER paid for delivery. This is what
+  // the parcel actually costs Allternativ, and the two differ every time an
+  // order ships free: from two pairs up the customer pays nothing and the whole
+  // cost is absorbed.
+  shippingCostCents Int         @default(0) @map("shipping_cost_cents")
+  // Stripe's cut. Nullable because the lookup is deliberately best-effort: a
+  // hiccup reading the fee must never cost us the order itself.
+  paymentFeeCents   Int?        @map("payment_fee_cents")
   totalCents        Int         @map("total_cents")
   refundedCents     Int         @default(0) @map("refunded_cents")
   currency          String      @default("USD")
@@ -497,6 +515,16 @@ model OrderItem {
   sku            String?
   productName    String? @map("product_name")
   variantName    String? @map("variant_name")
+  // What this pair COST, frozen the same way and for the same reason the price
+  // above is. In the order's currency, converted from the supplier's dollars at
+  // the rate held in `src/lib/shipping.ts` on the day of the sale.
+  //
+  // ⚠️ Without this, margin can only ever be worked out against TODAY's cost
+  // table. The day the supplier raises a price, every past order silently
+  // reprices backwards and the answer to "what did we make last quarter" turns
+  // wrong without turning into an error. It cannot be backfilled either: nobody
+  // writes down what a thing used to cost.
+  unitCostCents  Int?    @map("unit_cost_cents")
   // Case colour is an option of the purchase, not a variant of the product:
   // choosing white does not create a different SKU. It has to survive to the
   // supplier, who ships it (sections 07, 10 and 13).

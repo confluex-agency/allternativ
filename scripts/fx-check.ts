@@ -27,6 +27,7 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import {
   FX,
   SUPPLIER_SHIPPING_USD,
+  supplierCostUsdCents,
   FREE_SHIPPING_FROM_PAIRS,
 } from "../src/lib/shipping";
 
@@ -118,18 +119,17 @@ async function main() {
 
   for (const order of orders) {
     const country = order.shippingCountry!.toUpperCase();
-    const usd = SUPPLIER_SHIPPING_USD[country];
     // A country we no longer quote, or never did. Skipped rather than guessed.
-    if (usd === undefined) continue;
+    if (SUPPLIER_SHIPPING_USD[country] === undefined) continue;
     const rateNow = spot[order.currency.toUpperCase()];
     if (rateNow === undefined) continue;
 
     const pairs = order.items.reduce((n, i) => n + i.quantity, 0);
-    const costNow = Math.round(usd * rateNow * 100);
+    // The tier for this parcel's size, at TODAY's rate.
+    const costNow = Math.round(supplierCostUsdCents(country, pairs) * rateNow);
 
     if (pairs >= FREE_SHIPPING_FROM_PAIRS) {
-      // Free to the customer by design. The whole cost is absorbed, and the
-      // one-pair rate understates it, so this is a floor and not the true bill.
+      // Free to the customer by design, so the whole cost is absorbed.
       absorbedNow += costNow;
       absorbedCount++;
       continue;
@@ -161,7 +161,7 @@ async function main() {
     `\n  Net: ${gapTotal >= 0 ? "+" : ""}${money(gapTotal, currency)} across ${single.size} ${single.size === 1 ? "country" : "countries"}`,
   );
   console.log(
-    `  Absorbed on ${absorbedCount} free-shipping orders: at least ${money(absorbedNow, currency)}`,
+    `  Absorbed on ${absorbedCount} free-shipping orders: ${money(absorbedNow, currency)}`,
   );
 
   console.log(

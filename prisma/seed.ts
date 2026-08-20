@@ -5,6 +5,7 @@ import { hash } from "bcryptjs";
 import {
   CASE_OPENING_STOCK,
   catalogueProducts,
+  packedCostUsdCents,
   RETIRED_SLUGS,
 } from "../src/lib/catalogue-source";
 
@@ -188,6 +189,7 @@ async function main() {
       update: {
         name: sp.name,
         code: sp.code,
+        supplierCostUsdCents: packedCostUsdCents(sp),
         tagline: sp.tagline,
         feeling: sp.feeling,
         priceCents: sp.priceCents,
@@ -200,6 +202,7 @@ async function main() {
         name: sp.name,
         slug: sp.slug,
         code: sp.code,
+        supplierCostUsdCents: packedCostUsdCents(sp),
         tagline: sp.tagline,
         feeling: sp.feeling,
         priceCents: sp.priceCents,

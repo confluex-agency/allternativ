@@ -261,6 +261,54 @@ units are recorded all the same, so the launch inventory is complete.
 - `allow_promotion_codes` is on, so discount codes created in the Stripe
   dashboard work without a deploy.
 
+### Delivery, and the two sides of its price
+
+`src/lib/shipping.ts` holds both halves and they are not the same number.
+
+- **What the customer pays** (`quoteShipping`) is the supplier's one-pair rate,
+  at cost with no markup, and only ever on a single-pair order. The client asked
+  for exactly this: shown separately, calculated by destination, *"no queremos
+  incorporar artificialmente el shipping dentro del retail price"*.
+- **What it costs us** (`supplierCostUsdCents`) uses the tier for the parcel's
+  actual size. A two-pair parcel to Malta costs 18.63 and not the 14.64 of one
+  pair; costing it at the single rate understates what the free-shipping rule is
+  really spending, which is the one number that rule has to justify.
+
+**From two pairs up, delivery is free and absorbed whole.** That is the client's
+AOV lever, and the copy in the cart is theirs word for word.
+
+**The destination is chosen in the cart, before the Stripe session exists.** Not
+a preference — Stripe's documentation is explicit that *"the hosted page
+integration in Stripe Checkout does not support dynamically customizing shipping
+options"*, and we use the hosted page. `allowed_countries` is then pinned to that
+one country so the quoted price and the delivered address cannot disagree.
+
+**The exchange rate is frozen**, with its date, because the supplier bills in
+dollars and the shop charges in euros. The client already made this same choice
+for the far larger number (bought in dollars, sold at a fixed EUR 39), and a
+floating delivery price beside a fixed product price would be incoherent. There
+is no cushion, so drift lands straight on the bottom line: `npm run fx:check`
+reports it, weighted by the orders that actually shipped. Worth a look monthly.
+
+### An order records what it cost, not just what it sold for
+
+`OrderItem` freezes the SKU, the names and the price paid so the catalogue can
+change without rewriting history. It now freezes `unitCostCents` too, and the
+order carries `shippingCostCents` and `paymentFeeCents` beside them.
+
+Without those, margin could only ever be computed against *today's* supplier
+prices, so the first time the supplier raises one, every past order silently
+reprices backwards and "what did we make last quarter" starts returning a wrong
+number that looks right. It cannot be backfilled: nobody writes down what a
+thing used to cost.
+
+⚠️ **`allow_promotion_codes` has no floor.** Codes are created straight in the
+Stripe dashboard, without passing through this codebase and without a minimum.
+Combined with absorbed delivery, a deep enough code sells below cost — for a
+two-pair order to Malta the break-even sits near 66%. The webhook now shouts
+when an order closes negative, naming the code. **Shouting is not refusing**;
+refusing belongs in the checkout and is not built yet.
+
 ### Why the shop cannot oversell
 
 Stock is taken when the **checkout opens**, not when payment lands. Otherwise

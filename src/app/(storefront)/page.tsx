@@ -3,7 +3,10 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { getLiveProducts } from "@/lib/catalog";
 import { ProductCard } from "@/components/storefront/product-card";
-import { HeroScenes, type HeroScene } from "@/components/storefront/hero-scenes";
+import {
+  HeroScenes,
+  type HeroScene,
+} from "@/components/storefront/hero-scenes";
 
 // The chosen hero direction. Three frames from one rooftop shoot at golden
 // hour: the prism, the light it throws, and the sky it is held against.
@@ -29,10 +32,34 @@ const LIFESTYLE_MOMENTS = [
   "Moments you don't want to forget",
 ];
 
+// Section 03. Each pillar now shows the quality it names instead of asserting
+// it over a flat colour: the slim metal temple for lightweight, the bare shield
+// and its laser mark for minimal, the tortoise cat-eye throwing a spectrum for
+// expressive.
+//
+// The brand colour survives as a veil over the photograph rather than being
+// replaced by it, and the veil thins on hover so the frame comes forward. Both
+// opacities are written out in full because Tailwind reads these strings
+// literally; a template would not be picked up.
 const PRODUCT_PILLARS = [
-  { label: "Lightweight", tint: "bg-brand-mint" },
-  { label: "Minimal", tint: "bg-brand-sky" },
-  { label: "Expressive", tint: "bg-brand-rose" },
+  {
+    label: "Lightweight",
+    veil: "bg-brand-mint/80 group-hover:bg-brand-mint/45",
+    src: "/campaign/identity-lightweight.webp",
+    alt: "Slim gold metal frame worn in low sun, the Allternativ wordmark on the temple",
+  },
+  {
+    label: "Minimal",
+    veil: "bg-brand-sky/75 group-hover:bg-brand-sky/40",
+    src: "/campaign/identity-minimal.webp",
+    alt: "Macro of a black shield lens carrying nothing but the etched Allternativ mark",
+  },
+  {
+    label: "Expressive",
+    veil: "bg-brand-rose/80 group-hover:bg-brand-rose/45",
+    src: "/campaign/identity-expressive.webp",
+    alt: "Tortoise cat-eye frame in sunlight, throwing a small spectrum onto the cheek",
+  },
 ];
 
 // The catalogue is editable from the admin, so the page cannot be frozen at
@@ -180,12 +207,18 @@ export default async function HomePage() {
             href="/about"
             className="group relative md:col-span-5 aspect-[4/5] overflow-hidden rounded-[1.5rem] md:rounded-[2rem]"
           >
+            {/* The copy beside this says the brand is a shift in perception, and
+                the frame is what does the shifting. An abstract iridescent
+                texture stood here and illustrated the words with a mood; this
+                shows the thing itself: low sun on a rooftop, and the spectrum
+                the lens throws across a white shirt. Object position sits right
+                so the crop keeps the model when the slot goes portrait. */}
             <Image
-              src="/brand/liquid-iridescent.png"
-              alt="Iridescent liquid texture"
+              src="/campaign/brand-world.webp"
+              alt="Rooftop at golden hour, a spectrum thrown across a white shirt"
               fill
               sizes="(max-width: 768px) 100vw, 40vw"
-              className="object-cover fluid-transition group-hover:scale-[1.04]"
+              className="object-cover object-right fluid-transition group-hover:scale-[1.04]"
             />
             <span className="absolute bottom-4 left-4 inline-flex items-center gap-1 eyebrow text-white opacity-0 fluid-transition group-hover:opacity-100 md:bottom-6 md:left-6">
               Read our story
@@ -199,7 +232,9 @@ export default async function HomePage() {
       <section className="bg-white/60 py-20 md:py-32 lg:py-48">
         <div className="mx-auto max-w-[1440px] px-5 md:px-6 lg:px-12">
           <div className="max-w-3xl">
-            <p className="eyebrow text-brand-muted mb-5">03 — product identity</p>
+            <p className="eyebrow text-brand-muted mb-5">
+              03 — product identity
+            </p>
             <h2 className="display text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
               Designed for movement,
               <br />
@@ -219,16 +254,38 @@ export default async function HomePage() {
               <Link
                 key={pillar.label}
                 href="/products"
-                className={`group relative overflow-hidden rounded-[1.25rem] p-6 fluid-transition hover:-translate-y-1 md:rounded-[1.5rem] md:p-10 ${pillar.tint}`}
+                /* Landscape on phones, editorial column on desktop: at 4/5 the
+                   three stacked tiles ran past 1300px on a phone, which is a
+                   lot of scrolling for three words. */
+                className="group relative flex aspect-[3/2] flex-col justify-between overflow-hidden rounded-[1.25rem] p-6 fluid-transition hover:-translate-y-1 md:aspect-[4/5] md:rounded-[1.5rem] md:p-10"
               >
-                <div className="mb-10 flex items-start justify-between md:mb-16">
-                  <p className="eyebrow text-brand-ink/50">0{idx + 1}</p>
+                <Image
+                  src={pillar.src}
+                  alt={pillar.alt}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover fluid-transition group-hover:scale-[1.04]"
+                />
+                <div
+                  aria-hidden="true"
+                  className={`absolute inset-0 fluid-transition ${pillar.veil}`}
+                />
+                {/* The veil thins on hover, and the ink type has to survive that
+                    without turning the tile into a dark card. A short scrim at
+                    the foot carries the label; the number at the top sits over
+                    the thickest part of the veil and needs nothing. */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-brand-beige/80 to-transparent"
+                />
+                <div className="relative flex items-start justify-between">
+                  <p className="eyebrow text-brand-ink/60">0{idx + 1}</p>
                   <ArrowUpRight
                     size={18}
-                    className="text-brand-ink/50 opacity-0 fluid-transition group-hover:translate-x-0.5 group-hover:opacity-100"
+                    className="text-brand-ink/60 opacity-0 fluid-transition group-hover:translate-x-0.5 group-hover:opacity-100"
                   />
                 </div>
-                <h3 className="display text-2xl text-brand-ink md:text-4xl">
+                <h3 className="relative display text-2xl text-brand-ink md:text-4xl">
                   {pillar.label}.
                 </h3>
               </Link>
@@ -245,15 +302,18 @@ export default async function HomePage() {
         >
           <div className="relative aspect-[4/5] sm:aspect-[5/3] lg:aspect-[21/9]">
             <Image
-              src="/brand/holo-trama-1.jpg"
-              alt="Iridescent holographic texture"
+              src="/campaign/lifestyle-after-dark.webp"
+              alt="A crowd dancing in a dark warehouse, one person in silver wraparound frames"
               fill
               sizes="(max-width: 768px) 100vw, 80vw"
               className="object-cover fluid-transition group-hover:scale-[1.02]"
             />
+            {/* Lighter than the scrim the holographic texture needed: this frame
+                is already night, and the old gradient buried it. Just enough to
+                seat the white type. */}
             <div
               aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-br from-brand-ink/30 via-brand-ink/10 to-brand-ink/50"
+              className="absolute inset-0 bg-gradient-to-t from-brand-ink/70 via-brand-ink/15 to-brand-ink/25"
             />
           </div>
 
@@ -297,31 +357,50 @@ export default async function HomePage() {
       </section>
 
       {/* === 05 — CLOSING === */}
-      <section className="relative mx-auto w-full max-w-[1440px] px-5 pb-20 pt-12 md:px-6 md:pb-32 md:pt-20 lg:px-12 lg:pb-48 lg:pt-32">
-        <div className="glass relative mx-auto max-w-4xl rounded-[1.5rem] p-8 text-center md:rounded-[2rem] md:p-16 lg:p-20">
-          <p className="eyebrow text-brand-muted mb-6">05 — closing</p>
-          <h2 className="display chromatic-title text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
-            Not just eyewear —
-            <br />
-            <span className="italic font-light">a shift in frequency.</span>
-          </h2>
-          <div className="mt-10 flex flex-wrap justify-center gap-3 md:mt-12">
-            <Link
-              href="/products"
-              className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
-            >
-              Shop now
-              <ArrowUpRight
-                size={16}
-                className="fluid-transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-              />
-            </Link>
-            <Link
-              href="/frequency"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
-            >
-              Enter the frequency
-            </Link>
+      <section className="mx-auto w-full max-w-[1440px] px-5 pb-20 pt-12 md:px-6 md:pb-32 md:pt-20 lg:px-12 lg:pb-48 lg:pt-32">
+        <div className="relative overflow-hidden rounded-[1.5rem] px-4 py-14 md:rounded-[2rem] md:px-10 md:py-24 lg:py-32">
+          <Image
+            src="/campaign/closing.webp"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+          {/* The card is frosted glass, and frosting needs something behind it.
+              Sitting on the page beige it read as a flat outline; over a
+              photograph it finally does what it was built for. The veil is what
+              keeps the ink type legible without turning this into a dark
+              banner, so it cannot come down much further. */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-brand-beige/65"
+          />
+
+          <div className="glass relative mx-auto max-w-4xl rounded-[1.5rem] p-8 text-center md:rounded-[2rem] md:p-16 lg:p-20">
+            <p className="eyebrow text-brand-muted mb-6">05 — closing</p>
+            <h2 className="display chromatic-title text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
+              Not just eyewear —
+              <br />
+              <span className="italic font-light">a shift in frequency.</span>
+            </h2>
+            <div className="mt-10 flex flex-wrap justify-center gap-3 md:mt-12">
+              <Link
+                href="/products"
+                className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
+              >
+                Shop now
+                <ArrowUpRight
+                  size={16}
+                  className="fluid-transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                />
+              </Link>
+              <Link
+                href="/frequency"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink hover:bg-white/50"
+              >
+                Enter the frequency
+              </Link>
+            </div>
           </div>
         </div>
       </section>

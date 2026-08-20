@@ -45,6 +45,25 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+
+  // Section 02 of the brief: "COLLECTIONS is the main ecommerce entry point."
+  // Two grids used to compete for that job and neither was it.
+  //
+  // `/catalogo` was a hardcoded lookbook: nine tiles and a headline written for
+  // one model, in Spanish on an English site, reachable from exactly one link.
+  // `/products` was a second grid with type filters for categories the brief
+  // says not to create; with every piece a pair of sunglasses the filter row
+  // hid itself, leaving a plain list of everything.
+  //
+  // Permanent, not temporary: these URLs are not coming back, and a 308 is what
+  // tells a search engine that. `/products/<slug>` is untouched — product pages
+  // keep their own URLs.
+  async redirects() {
+    return [
+      { source: "/catalogo", destination: "/collections", permanent: true },
+      { source: "/products", destination: "/collections", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

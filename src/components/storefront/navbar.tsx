@@ -5,11 +5,16 @@ import Link from "next/link";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
-// Only routes that actually have pieces behind them. The Frequency collection
-// is all sunglasses today, so a per-type link would just repeat /products —
-// add them back when a second type ships.
+// Section 02 of the brief, which names COLLECTIONS the main ecommerce entry
+// point and asks for the navigation to stay minimal. It used to say "Shop" and
+// point at a flat grid of everything; the shop is organised by drop, and the
+// word in the nav should be the same word the client uses for it.
+//
+// Search, Account and Cart are the utility half of that section. Only the cart
+// exists so far, and it lives on the right of the bar.
 const NAV_LINKS = [
-  { href: "/products", label: "Shop" },
+  { href: "/collections", label: "Collections" },
+  { href: "/frequency", label: "Frequency" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
@@ -60,7 +65,11 @@ export function StorefrontNavbar() {
             aria-label={`Cart, ${count} item${count === 1 ? "" : "s"}`}
             className="relative grid size-11 place-items-center rounded-full fluid-transition hover:bg-brand-ink/5"
           >
-            <ShoppingBag size={18} className="text-brand-ink" strokeWidth={1.5} />
+            <ShoppingBag
+              size={18}
+              className="text-brand-ink"
+              strokeWidth={1.5}
+            />
             {count > 0 && (
               <span
                 aria-hidden="true"
@@ -113,14 +122,19 @@ export function StorefrontNavbar() {
           </div>
           <ul className="flex flex-col px-6 py-6">
             {NAV_LINKS.map((link) => (
-              <li key={link.href} className="border-b border-brand-ink/5 last:border-0">
+              <li
+                key={link.href}
+                className="border-b border-brand-ink/5 last:border-0"
+              >
                 <Link
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="flex items-center justify-between py-4 text-lg text-brand-ink fluid-transition hover:text-brand-ink-soft"
                 >
                   {link.label}
-                  <span aria-hidden="true" className="text-brand-muted">→</span>
+                  <span aria-hidden="true" className="text-brand-muted">
+                    →
+                  </span>
                 </Link>
               </li>
             ))}

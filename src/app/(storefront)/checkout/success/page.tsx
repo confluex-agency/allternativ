@@ -18,7 +18,7 @@ export default function CheckoutSuccessPage() {
         shortly.
       </p>
       <Link
-        href="/products"
+        href="/collections"
         className="mt-8 inline-block bg-black text-white px-8 py-3 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors"
       >
         CONTINUE SHOPPING

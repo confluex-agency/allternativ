@@ -1,6 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
-import { cardImages, fillsFrame, type CatalogProduct } from "@/lib/catalog";
+import {
+  cardImages,
+  fillsFrame,
+  isSoldOut,
+  type CatalogProduct,
+} from "@/lib/catalog";
 import { formatPrice } from "@/lib/utils";
 
 // One card, used by the home grid and by the catalogue. It used to be copied in
@@ -28,6 +33,7 @@ export function ProductCard({
 }: Props) {
   const { base, hover } = cardImages(product);
   if (!base) return null;
+  const soldOut = isSoldOut(product);
 
   // A studio shot sits inside the card with air around it; a photo of a person
   // wearing them fills the frame instead.
@@ -88,16 +94,12 @@ export function ProductCard({
           />
         )}
 
-        {product.variants.length > 1 && (
-          <div className="absolute bottom-2 right-2 flex gap-1 rounded-full bg-brand-beige/80 px-2 py-1 backdrop-blur md:bottom-3 md:right-3">
-            {product.variants.map((v) => (
-              <span
-                key={v.id}
-                className="size-2.5 rounded-full ring-1 ring-brand-ink/15"
-                style={{ backgroundColor: v.swatch ?? "#ccc" }}
-              />
-            ))}
-          </div>
+        {/* Sold out stays on the grid, marked. The client asked for this
+            explicitly: a piece that vanishes takes its demand signal with it. */}
+        {soldOut && (
+          <span className="absolute left-2 top-2 rounded-full bg-brand-ink/85 px-2.5 py-1 eyebrow text-[9px] text-brand-beige backdrop-blur md:left-3 md:top-3">
+            Sold out
+          </span>
         )}
       </div>
 
@@ -114,6 +116,30 @@ export function ProductCard({
             <p className="mt-1 truncate text-xs text-brand-muted">
               {product.tagline}
             </p>
+          )}
+
+          {/* Under the name, which is where section 05 puts them. They used to
+              float over the photo's bottom corner, where a pale swatch on a
+              pale studio background was close to invisible. A sold-out
+              colourway keeps its dot, hollowed out rather than removed. */}
+          {product.variants.length > 1 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {product.variants.map((v) => (
+                <li
+                  key={v.id}
+                  title={`${v.colorName}${v.inStock ? "" : " — sold out"}`}
+                  className={`size-3 rounded-full ring-1 ring-brand-ink/20 ${
+                    v.inStock ? "" : "opacity-35"
+                  }`}
+                  style={{ backgroundColor: v.swatch ?? "#ccc" }}
+                >
+                  <span className="sr-only">
+                    {v.colorName}
+                    {v.inStock ? "" : " (sold out)"}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">

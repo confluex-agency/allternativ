@@ -13,7 +13,8 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Create admin user. Initial password forces immediate change.
-  const initialPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMe!Now-2026";
+  const initialPassword =
+    process.env.SEED_ADMIN_PASSWORD || "ChangeMe!Now-2026";
   const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@allternativ.com";
   const passwordHash = await hash(initialPassword, 12);
   const admin = await prisma.adminUser.upsert({
@@ -60,7 +61,9 @@ async function main() {
   }
   // Read back rather than echoing the constant: the previous version printed the
   // figure it wanted, while the table still held 100.
-  for (const row of await prisma.caseStock.findMany({ orderBy: { key: "asc" } })) {
+  for (const row of await prisma.caseStock.findMany({
+    orderBy: { key: "asc" },
+  })) {
     console.log(`Case stock ${row.key}: ${row.stockQuantity}`);
   }
 
@@ -109,13 +112,29 @@ async function main() {
   // The launch collection, confirmed by the client: "COLLECTION 01", the six
   // models below. A second drop follows later, which is why this is a real
   // Collection row and not a hardcoded page.
+  //
+  // The editorial introduction is the client's own section 03 copy, reused
+  // here. It is NOT written for this page and is marked as such: they told us
+  // the collection's theme is still to be defined, so borrowing approved copy
+  // beats inventing a drop story they never signed off on.
+  const collectionCopy = {
+    name: "Collection 01",
+    tagline: "A frequency you can wear.",
+    description:
+      "Designed for movement, light, and energy. Every pair is created to be worn in motion, at festivals, sunsets, city nights and moments that don't feel fully real.",
+    // Campaign image asked for by section 05. Placeholder like the rest of the
+    // imagery, and under /campaign/ so the same purge finds it.
+    heroImageUrl: "/campaign/lifestyle-festival.webp",
+    metaTitle: "Collection 01 — Allternativ",
+    metaDescription:
+      "A frequency you can wear. Six models, sixteen colourways.",
+  };
   const collection = await prisma.collection.upsert({
     where: { slug: "collection-01" },
-    update: {},
+    update: collectionCopy,
     create: {
-      name: "Collection 01",
+      ...collectionCopy,
       slug: "collection-01",
-      tagline: "A frequency you can wear.",
       status: "LIVE",
       isFeatured: true,
     },

@@ -24,6 +24,23 @@ const HERO_SCENES: HeroScene[] = [
   { src: "/campaign/hero-03.webp", alt: "" },
 ];
 
+// Spelled out up to the size of a plausible drop; past that the digit reads
+// fine in a headline anyway.
+const SILHOUETTES: Record<number, string> = {
+  1: "One",
+  2: "Two",
+  3: "Three",
+  4: "Four",
+  5: "Five",
+  6: "Six",
+  7: "Seven",
+  8: "Eight",
+  9: "Nine",
+  10: "Ten",
+  11: "Eleven",
+  12: "Twelve",
+};
+
 const LIFESTYLE_MOMENTS = [
   "Summer nights",
   "Raves & festivals",
@@ -118,7 +135,7 @@ export default async function HomePage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/products"
+                href="/collections"
                 className="group inline-flex min-h-12 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
               >
                 Shop the collection
@@ -145,14 +162,18 @@ export default async function HomePage() {
             <p className="eyebrow text-brand-muted mb-3 md:mb-4">
               01 — the collection
             </p>
+            {/* Counted, not written down. It said "Five silhouettes", which is
+                right only while Prism sits in draft: the day it is published
+                the headline becomes a lie nobody thinks to go and edit. */}
             <h2 className="display text-[clamp(1.75rem,5vw,3.5rem)] text-brand-ink">
-              Five silhouettes.
+              {SILHOUETTES[products.length] ?? products.length} silhouette
+              {products.length === 1 ? "" : "s"}.
               <br />
               <span className="italic font-light">One frequency.</span>
             </h2>
           </div>
           <Link
-            href="/products"
+            href="/collections"
             className="inline-flex eyebrow text-brand-ink-soft fluid-transition hover:text-brand-ink"
           >
             Shop all →
@@ -260,7 +281,7 @@ export default async function HomePage() {
             {PRODUCT_PILLARS.map((pillar, idx) => (
               <Link
                 key={pillar.label}
-                href="/products"
+                href="/collections"
                 /* Landscape on phones, editorial column on desktop: at 4/5 the
                    three stacked tiles ran past 1300px on a phone, which is a
                    lot of scrolling for three words. */
@@ -306,7 +327,7 @@ export default async function HomePage() {
       {/* === 04 — EXPERIENCE / LIFESTYLE === */}
       <section className="relative mx-auto my-12 w-full max-w-[1440px] px-5 md:my-20 md:px-6 lg:my-32 lg:px-12">
         <Link
-          href="/catalogo"
+          href="/collections"
           className="group relative block overflow-hidden rounded-[1.5rem] md:rounded-[2rem]"
         >
           <div className="relative aspect-[4/5] sm:aspect-[5/3] lg:aspect-[21/9]">
@@ -404,7 +425,7 @@ export default async function HomePage() {
             </h2>
             <div className="mt-10 flex flex-wrap justify-center gap-3 md:mt-12">
               <Link
-                href="/products"
+                href="/collections"
                 className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
               >
                 Shop now

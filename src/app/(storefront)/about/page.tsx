@@ -129,7 +129,7 @@ export default function AboutPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3 md:mt-10">
               <Link
-                href="/products"
+                href="/collections"
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-ink px-6 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90"
               >
                 Shop the collection

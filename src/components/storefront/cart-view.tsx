@@ -26,7 +26,7 @@ export function CartView() {
       <div className="text-center py-16">
         <p className="text-neutral-500">Your cart is empty.</p>
         <Link
-          href="/products"
+          href="/collections"
           className="mt-4 inline-block text-sm underline hover:text-black"
         >
           Continue shopping

@@ -157,6 +157,88 @@ export async function getProductBySlug(
   return rows[0] ? toCatalogProduct(rows[0]) : null;
 }
 
+// ─── Collections (section 05) ───────────────────────────────────────────────
+// The brief is explicit that collections, not categories, are how the shop is
+// organised, and that COLLECTIONS is the main ecommerce entry point.
+
+export type CatalogCollection = {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string | null;
+  /** Editorial introduction. Null renders nothing rather than a placeholder. */
+  description: string | null;
+  heroImageUrl: string | null;
+  heroVideoUrl: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  /** Live products, in the order the collection puts them in. */
+  products: CatalogProduct[];
+};
+
+/** Every collection the public shop may show, in the order they are pinned. */
+export async function getLiveCollections() {
+  return prisma.collection.findMany({
+    where: { status: "LIVE" },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { slug: true, name: true },
+  });
+}
+
+export async function getCollectionBySlug(
+  slug: string,
+): Promise<CatalogCollection | null> {
+  const collection = await prisma.collection.findFirst({
+    where: { slug, status: "LIVE" },
+    include: {
+      products: {
+        orderBy: { position: "asc" },
+        select: { productId: true },
+      },
+    },
+  });
+  if (!collection) return null;
+
+  // Two queries rather than one, on purpose. The membership rows carry the
+  // hand-set order the client reorders products with, and the products
+  // themselves need the same deep include every other catalogue read uses.
+  // Fetching them separately keeps that include in one place.
+  const ids = collection.products.map((p) => p.productId);
+  const rows = ids.length
+    ? await findProducts({ id: { in: ids }, status: "LIVE" })
+    : [];
+
+  // `findProducts` orders by creation date, so the collection's own order has
+  // to be reapplied here. A product that is no longer live simply drops out.
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const products = ids
+    .map((id) => byId.get(id))
+    .filter((r) => r !== undefined)
+    .map(toCatalogProduct);
+
+  return {
+    id: collection.id,
+    slug: collection.slug,
+    name: collection.name,
+    tagline: collection.tagline,
+    description: collection.description,
+    heroImageUrl: collection.heroImageUrl,
+    heroVideoUrl: collection.heroVideoUrl,
+    metaTitle: collection.metaTitle,
+    metaDescription: collection.metaDescription,
+    products,
+  };
+}
+
+/** Slugs for generating static collection pages. */
+export async function getLiveCollectionSlugs(): Promise<string[]> {
+  const rows = await prisma.collection.findMany({
+    where: { status: "LIVE" },
+    select: { slug: true },
+  });
+  return rows.map((r) => r.slug);
+}
+
 /** Slugs for generating static product pages. */
 export async function getLiveProductSlugs(): Promise<string[]> {
   const rows = await prisma.product.findMany({
@@ -197,6 +279,18 @@ export async function getCaseOptions(): Promise<CaseOption[]> {
 }
 
 // ─── Helpers shared by the storefront ───────────────────────────────────────
+
+/**
+ * True when nothing on this model can be bought.
+ *
+ * The client asked for sold-out pieces to stay on the grid rather than
+ * disappear from it: "cuando un colourway llegue a stock 0 no queremos
+ * ocultarlo, queremos que siga visible pero marcado SOLD OUT". Hiding them also
+ * throws away the demand signal of people still clicking on one.
+ */
+export function isSoldOut(product: CatalogProduct): boolean {
+  return product.variants.every((v) => !v.inStock);
+}
 
 /** The variant shown before the visitor picks a colour. */
 export function defaultVariant(product: CatalogProduct): CatalogVariant | null {

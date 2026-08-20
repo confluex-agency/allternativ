@@ -46,7 +46,7 @@ export default function RevealTestPage() {
           Wear the whole spectrum.
         </h2>
         <Link
-          href="/products"
+          href="/collections"
           className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-brand-ink/20 px-6 py-3 eyebrow text-brand-ink fluid-transition hover:border-brand-ink"
         >
           Ver catálogo ↗

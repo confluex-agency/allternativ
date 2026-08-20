@@ -55,7 +55,10 @@ export default async function ProductPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-12 pb-28 md:px-6 md:py-20 md:pb-20 lg:px-12 lg:py-28">
       <nav className="mb-8 eyebrow text-brand-muted md:mb-14">
-        <Link href="/products" className="fluid-transition hover:text-brand-ink">
+        <Link
+          href="/collections"
+          className="fluid-transition hover:text-brand-ink"
+        >
           ← Back to catalogue
         </Link>
       </nav>

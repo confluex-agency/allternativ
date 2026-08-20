@@ -134,7 +134,7 @@ export default function FrequencyPage() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/products"
+              href="/collections"
               className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-beige px-6 py-3 eyebrow text-brand-ink fluid-transition hover:bg-white"
             >
               Shop the collection

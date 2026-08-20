@@ -7,7 +7,7 @@ const COLUMNS = [
     // Built from the catalogue so the column can't outlive its pieces. The old
     // per-type links (Optical, Blue Light) pointed at empty collections.
     links: [
-      { href: "/products", label: "All eyewear" },
+      { href: "/collections", label: "Collections" },
       // LIVE only: a model still in draft has no page, so linking to it from
       // every footer on the site is a 404 in the most visible place there is.
       ...catalogueProducts

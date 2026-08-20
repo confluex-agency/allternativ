@@ -20,9 +20,13 @@ export default function DemoPage() {
           </h1>
           <p className="mt-4 text-2xl">$249.00</p>
 
+          {/* No spec copy here on purpose. This page is a harness for the 3D
+              viewer, not a product, and it is routable at /demo — the text that
+              used to sit here described a titanium frame with polarised lenses,
+              which is not something anyone has confirmed about any Allternativ
+              product. */}
           <p className="mt-6 text-neutral-600 leading-relaxed">
-            Handcrafted titanium frame with polarized lenses. Lightweight,
-            durable, and designed to stand out.
+            Placeholder record for the 3D viewer harness. Not a real product.
           </p>
 
           <dl className="mt-8 space-y-3 text-sm">

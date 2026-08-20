@@ -57,6 +57,13 @@ export type CatalogProduct = {
     origin: string | null;
   };
   variants: CatalogVariant[];
+  /**
+   * Images that belong to the model rather than to one colourway
+   * (`ProductImage.variantId` is null). A photo attached to a colourway is a
+   * statement about what that colourway looks like; a shared one is not, which
+   * is where the stand-in imagery lives until the real shoot is delivered.
+   */
+  sharedImages: CatalogImage[];
 };
 
 // Gallery order defined by section 07 of the brief: the clean studio shot first,
@@ -82,11 +89,21 @@ function findProducts(where: Record<string, unknown>) {
         orderBy: { position: "asc" },
         include: { images: { orderBy: { position: "asc" } } },
       },
-      images: { orderBy: { position: "asc" } },
+      // Only the ones no colourway claims: the rest arrive under their variant
+      // above, and including them twice would duplicate every gallery.
+      images: { where: { variantId: null }, orderBy: { position: "asc" } },
     },
     orderBy: { createdAt: "asc" },
   });
 }
+
+const toCatalogImage = (i: ProductRow["images"][number]): CatalogImage => ({
+  id: i.id,
+  url: i.url,
+  altText: i.altText,
+  type: i.type,
+  isPrimary: i.isPrimary,
+});
 
 function toCatalogProduct(row: ProductRow): CatalogProduct {
   return {
@@ -121,14 +138,9 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
       priceCents: v.priceCents ?? row.priceCents,
       stockQuantity: v.stockQuantity,
       inStock: v.stockQuantity > 0,
-      images: v.images.map((i) => ({
-        id: i.id,
-        url: i.url,
-        altText: i.altText,
-        type: i.type,
-        isPrimary: i.isPrimary,
-      })),
+      images: v.images.map(toCatalogImage),
     })),
+    sharedImages: row.images.map(toCatalogImage),
   };
 }
 
@@ -191,13 +203,23 @@ export function defaultVariant(product: CatalogProduct): CatalogVariant | null {
   return product.variants[0] ?? null;
 }
 
+/**
+ * Every image the product can show, colourway ones first.
+ *
+ * The fallback to shared images is what keeps a model with no per-colourway
+ * photography from rendering as an empty card.
+ */
+function allImages(product: CatalogProduct): CatalogImage[] {
+  return [
+    ...product.variants.flatMap((v) => v.images),
+    ...product.sharedImages,
+  ];
+}
+
 /** The one image that represents a product in a grid. */
 export function heroImage(product: CatalogProduct): CatalogImage | null {
-  for (const variant of product.variants) {
-    const primary = variant.images.find((i) => i.isPrimary);
-    if (primary) return primary;
-  }
-  return product.variants[0]?.images[0] ?? null;
+  const all = allImages(product);
+  return all.find((i) => i.isPrimary) ?? all[0] ?? null;
 }
 
 /**
@@ -219,7 +241,7 @@ export function cardImages(product: CatalogProduct): {
   base: CatalogImage | null;
   hover: CatalogImage | null;
 } {
-  const all = product.variants.flatMap((v) => v.images);
+  const all = allImages(product);
   const base =
     all.find((i) => i.isPrimary && i.type === "PRODUCT") ??
     all.find((i) => i.type === "PRODUCT") ??
@@ -231,9 +253,18 @@ export function cardImages(product: CatalogProduct): {
   return { base, hover: hover?.id === base?.id ? null : hover };
 }
 
-/** Product gallery in the order the brief asks for. */
-export function galleryFor(variant: CatalogVariant): CatalogImage[] {
-  return [...variant.images].sort(
+/**
+ * Product gallery in the order the brief asks for.
+ *
+ * A colourway with no photography of its own falls back to the model's shared
+ * images, so the page never renders a blank gallery.
+ */
+export function galleryFor(
+  product: CatalogProduct,
+  variant: CatalogVariant,
+): CatalogImage[] {
+  const images = variant.images.length ? variant.images : product.sharedImages;
+  return [...images].sort(
     (a, b) => IMAGE_TYPE_ORDER[a.type] - IMAGE_TYPE_ORDER[b.type],
   );
 }

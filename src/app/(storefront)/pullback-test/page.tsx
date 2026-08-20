@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PullbackStage } from "@/components/storefront/pullback-stage";
 import { StudioStrip } from "@/components/storefront/studio-strip";
-import { mockProducts } from "@/lib/mock-data";
+import { catalogueProducts } from "@/lib/catalogue-source";
 
 export const metadata = {
   title: "Pull-back — prototype",
@@ -14,13 +14,27 @@ export const metadata = {
 // layout (rotated subtitle, framed head) isn't reproduced here — judge the
 // motion and the sequence, not the hero's composition.
 export default function PullbackTestPage() {
-  const orbital = mockProducts.find((p) => p.slug === "orbital");
+  const orbital = catalogueProducts.find((p) => p.slug === "orbital");
   if (!orbital) notFound();
+
+  // One strip of the model's stand-in imagery. The colourways no longer carry
+  // galleries of their own: there is no real photography yet, so no photo may
+  // claim to be a particular colourway.
+  const strip = {
+    name: orbital.name,
+    colorways: [
+      {
+        key: "placeholder",
+        name: "Placeholder imagery",
+        gallery: orbital.placeholderImages.map((i) => i.url),
+      },
+    ],
+  };
 
   return (
     <div>
       <PullbackStage />
-      <StudioStrip product={orbital} />
+      <StudioStrip product={strip} />
 
       {/* Collection stub — the payoff after the strip */}
       <section className="mx-auto max-w-[1240px] px-5 py-24 text-center md:px-12 md:py-32">

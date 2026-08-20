@@ -45,7 +45,7 @@ export default async function ProductPage({ params }: Props) {
   // Sorting happens on the server so the client component receives the gallery
   // already in the order section 07 defines.
   const galleries: Record<string, CatalogImage[]> = Object.fromEntries(
-    product.variants.map((v) => [v.id, galleryFor(v)]),
+    product.variants.map((v) => [v.id, galleryFor(product, v)]),
   );
 
   // Cases are a shared pool across every model, so their availability is read

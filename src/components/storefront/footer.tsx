@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockProducts } from "@/lib/mock-data";
+import { catalogueProducts } from "@/lib/catalogue-source";
 
 const COLUMNS = [
   {
@@ -8,10 +8,14 @@ const COLUMNS = [
     // per-type links (Optical, Blue Light) pointed at empty collections.
     links: [
       { href: "/products", label: "All eyewear" },
-      ...mockProducts.map((p) => ({
-        href: `/products/${p.slug}`,
-        label: p.name,
-      })),
+      // LIVE only: a model still in draft has no page, so linking to it from
+      // every footer on the site is a 404 in the most visible place there is.
+      ...catalogueProducts
+        .filter((p) => p.status === "LIVE")
+        .map((p) => ({
+          href: `/products/${p.slug}`,
+          label: p.name,
+        })),
     ],
   },
   {

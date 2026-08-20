@@ -2,7 +2,18 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import type { MockProduct } from "@/lib/mock-data";
+// Its own prop shape on purpose: this is a prototype, and tying it to the
+// catalogue's types means every catalogue change drags it along.
+export type StripProduct = {
+  name: string;
+  colorways: {
+    key: string;
+    name: string;
+    /** CSS colour for the pill's dot. */
+    swatch?: string;
+    gallery: string[];
+  }[];
+};
 
 // "Studio Strip" — the shoot's 8-9 angles as a snap-scrolling filmstrip.
 //
@@ -17,7 +28,7 @@ import type { MockProduct } from "@/lib/mock-data";
 // Los frames no llevan color de fondo: cada foto ya trae el suyo, y pintar el
 // contenedor dejaba un segundo rectangulo a la vista.
 
-export function StudioStrip({ product }: { product: MockProduct }) {
+export function StudioStrip({ product }: { product: StripProduct }) {
   const [colorwayKey, setColorwayKey] = useState(product.colorways[0].key);
   const [active, setActive] = useState(0);
   const railRef = useRef<HTMLDivElement>(null);

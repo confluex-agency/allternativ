@@ -163,9 +163,19 @@ reads the datasource out of `prisma.config.ts`.
 binary JSON type. Fine for our five JSON columns, which are written and read
 whole, but do not expect to index inside them.
 
-**The seed refreshes product copy on every run** while `mock-data.ts` is still
-the catalogue's source of truth. When the admin CRUD ships, `prisma/seed.ts`
+**The seed refreshes product copy on every run** while `catalogue-source.ts` is
+still the catalogue's source of truth. When the admin CRUD ships, `prisma/seed.ts`
 must go back to `update: {}` or it will overwrite what the client edits.
+
+**It deliberately does not refresh stock.** Opening quantities are written on
+create only. Re-seeding a shop that has sold something must not put the sold
+units back on the shelf.
+
+**Retired rows are DISCONTINUED, never deleted.** Five of the six original models
+were placeholders that do not exist, and `Orbital` had two invented colourways
+alongside its three real ones. An `OrderItem` may already point at any of them,
+and an order must never lose what it was for, so they are deactivated and drop
+out of `getLiveProducts()` instead.
 
 ## Conventions
 
@@ -181,8 +191,11 @@ must go back to `update: {}` or it will overwrite what the client edits.
 the database's language: a product has `variants`, a variant has `images`, an
 image has a `type`. There is deliberately no second set of names.
 
-- **No page imports `mock-data.ts`.** It survives only as the seed's input while
-  the client's real catalogue is assembled.
+- **`src/lib/catalogue-source.ts` is the seed's input, and it holds real
+  commercial data**: the six model codes, the sixteen colourways and the opening
+  stock, taken from the supplier's commercial invoice and the client's written
+  answers of 2026-08-20. It used to be called `mock-data.ts`, which invited
+  someone to treat three hundred real pairs of stock as sample content.
 - `ProductCard` is shared by the home grid and the catalogue. It used to be
   copied into both, which is how they drifted.
 - How a card frames its image is **derived** from the image type
@@ -190,6 +203,45 @@ image has a `type`. There is deliberately no second set of names.
   from a hand-set flag.
 - Storefront pages use `revalidate = 60`. The catalogue is editable from the
   admin, so it cannot be frozen at build time.
+
+### Never invent a specification
+
+The client is explicit: *"no queremos que se infiera ni se invente ninguna
+especificación que no esté confirmada por el proveedor. Si alguna especificación
+no aparece confirmada, preferimos leave it unpublished."*
+
+Every published spec field is therefore **null** right now, and the seed writes
+null on both the create and the update branch so a re-run scrubs anything left
+over. `Spec` in `product-purchase.tsx` renders nothing for a null value, so the
+product page simply omits the row.
+
+This is not pedantry. The catalogue this replaced carried a frame material, a
+lens material, a lens type and **"Handcrafted · LATAM"** on goods manufactured in
+Yiwu and Shenzhen. A null field renders as nothing; a wrong field renders as a
+claim, and a false origin on a shop that takes money is not a copy problem.
+
+Fill these in only from the supplier documentation the client sends.
+
+### All product photography is a placeholder
+
+There is **no real photography of any Allternativ product yet**, for any of the
+six models. Everything under `public/catalog/` is stand-in imagery, and which
+folder stands in for which model is arbitrary.
+
+Two rules follow:
+
+1. **Placeholders attach to the product, never to a colourway**
+   (`ProductImage.variantId` is null). A photo hung on "Black / Blue" asserts
+   that this is what Black / Blue looks like. Hung on the model, it is set
+   dressing. `catalog.ts` exposes them as `sharedImages` and every image helper
+   falls back to them.
+2. **They are all under `/catalog/`, and the real photography will not be**, so
+   purging them is one query:
+   `DELETE FROM product_images WHERE url LIKE '/catalog/%';`
+
+`Prism` ships as `DRAFT` for this reason: the stand-in folders ran out, and the
+only one left was already standing in for `SYNC`. Its codes, colourways and fifty
+units are recorded all the same, so the launch inventory is complete.
 
 ### Buying something
 

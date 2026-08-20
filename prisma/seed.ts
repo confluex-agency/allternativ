@@ -124,7 +124,13 @@ async function main() {
       "Designed for movement, light, and energy. Every pair is created to be worn in motion, at festivals, sunsets, city nights and moments that don't feel fully real.",
     // Campaign image asked for by section 05. Placeholder like the rest of the
     // imagery, and under /campaign/ so the same purge finds it.
-    heroImageUrl: "/campaign/lifestyle-festival.webp",
+    //
+    // Named per collection rather than by mood: a second drop brings its own
+    // campaign image and this stays readable. The frame it replaced was a
+    // stronger picture but a worse advert, because the temple of the pair on
+    // the woman in front ran out of shot. On the page that sells the eyewear,
+    // the eyewear has to be whole.
+    heroImageUrl: "/campaign/collection-01-campaign.webp",
     metaTitle: "Collection 01 — Allternativ",
     metaDescription:
       "A frequency you can wear. Six models, sixteen colourways.",

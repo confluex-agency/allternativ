@@ -65,21 +65,28 @@ export const STRIPE_FEE = {
 };
 
 /**
- * The currency Allternativ's bank account is held in, which is what every
- * payout is converted into.
+ * The currencies Stripe pays out WITHOUT converting, because there is an account
+ * waiting in each one.
  *
- * ⚠️ NOT DECIDED. There is no bank account yet: "final payment/bank
- * configuration" is item 11 of the client's own pending list, and question A3
- * of the build plan. EUR is assumed because the European Union is the largest
- * market and the return hub is in Ireland.
+ * The plan, decided 2026-08-21: settle in more than one currency through the
+ * Revolut Business account the team already has, so a sale in pounds arrives as
+ * pounds instead of being converted into euros on the way. Every currency in
+ * this set costs the plain processing rate; every currency outside it also
+ * pays `conversionPercent`.
  *
- * It is not a detail. Settling in EUR means every sale in the other five
- * markets pays a conversion, which is five of the six. If they open accounts in
- * more than one currency, Stripe can settle each in its own and this cost goes
- * away for those markets. Worth knowing before the account is opened rather
- * than after.
+ * ⚠️ THREE, NOT SIX, AND THAT IS NOT AN OVERSIGHT. Which currencies Stripe will
+ * actually pay out depends on the country the Stripe account is registered in,
+ * and Allternativ is not registered anywhere yet. EUR, GBP and USD are the ones
+ * a European account can normally settle. CAD, AUD and NZD are the doubtful
+ * ones: having a Revolut account that can HOLD a currency is not the same as
+ * Stripe being willing to PAY OUT in it.
+ *
+ * So this is the honest middle, not a promise. Confirm it against the real
+ * Stripe account the day it exists, and move currencies across in either
+ * direction — it is one line, and the webhook records what Stripe actually
+ * charged on every order, so the guess becomes checkable rather than permanent.
  */
-export const SETTLEMENT_CURRENCY = "eur";
+export const SETTLEMENT_CURRENCIES = new Set(["eur", "gbp", "usd"]);
 
 export function estimatePaymentFeeCents(
   chargedCents: number,
@@ -88,7 +95,7 @@ export function estimatePaymentFeeCents(
   if (chargedCents <= 0) return 0;
   const code = currency.toLowerCase();
   const fixed = STRIPE_FEE.fixedCents[code] ?? 25;
-  const converts = code !== SETTLEMENT_CURRENCY;
+  const converts = !SETTLEMENT_CURRENCIES.has(code);
   const percent =
     STRIPE_FEE.percent + (converts ? STRIPE_FEE.conversionPercent : 0);
   return Math.round((chargedCents * percent) / 100) + fixed;

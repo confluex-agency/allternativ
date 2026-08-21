@@ -50,7 +50,9 @@ import { STORE_CURRENCY } from "@/lib/utils";
  * line against the document the supplier sent, with no arithmetic of ours in
  * between.
  *
- * Carrier is YunExpress for every country below.
+ * Carrier is YunExpress for every country below. Two countries in the wider
+ * quotation use a different one (Iceland via SYPOST, Hong Kong via SF Express)
+ * and neither is a market of ours, so the statement holds for this table.
  */
 export const SUPPLIER_SHIPPING_USD: Record<string, [number, number, number]> = {
   // ── European Union ──
@@ -83,7 +85,27 @@ export const SUPPLIER_SHIPPING_USD: Record<string, [number, number, number]> = {
   SK: [11.89, 14.74, 17.59], // Slovakia
   // ── United Kingdom ──
   GB: [6.15, 7.76, 9.37],
+  // ── The four markets that were missing until 2026-08-21 ──
+  // The client set a retail price for the United States, Canada, Australia and
+  // New Zealand, and the supplier quoted all four, and neither fact had reached
+  // this table. The shop was telling four of its six markets that it does not
+  // deliver to their country.
+  US: [8.16, 10.98, 13.81],
+  CA: [7.31, 9.29, 11.27],
+  // ⚠️ Australia's three-pair rate is the same as its two-pair rate in the
+  // quotation. Either a real bracket or a typing slip, and it matters because
+  // the estimate for four pairs and up extends the step between the last two
+  // tiers, which here is zero: four pairs would be costed at the three-pair
+  // price and every larger parcel would be understated. Asked of Daniel;
+  // `supplierCostUsdCents` refuses to trust a zero step in the meantime.
+  AU: [9.41, 11.43, 11.43],
+  NZ: [9.03, 11.37, 13.71],
 };
+
+// Countries the supplier also quoted and we deliberately do NOT sell to:
+// Switzerland, Norway, Mexico, Iceland, Hong Kong, Japan, the Philippines and
+// Singapore. Adding a rate is one line; having no retail price for the market
+// and no position on its import tax is the reason they are absent.
 
 /**
  * Frozen exchange rates, base USD. From frankfurter.dev on the date below.
@@ -211,8 +233,16 @@ export function supplierCostUsdCents(country: string, pairs: number): number {
   const tiers = SUPPLIER_SHIPPING_USD[country];
   if (tiers === undefined || pairs <= 0) return 0;
   if (pairs <= 3) return Math.round(tiers[pairs - 1] * 100);
-  const marginalStep = tiers[2] - tiers[1];
-  return Math.round((tiers[2] + (pairs - 3) * marginalStep) * 100);
+
+  // The step between the last two tiers, extended. Australia quotes the same
+  // figure for two and three pairs, which would make the step zero and price a
+  // ten-pair parcel like a three-pair one. A zero or negative step is treated
+  // as unknown and the largest step in the row is used instead: overstating a
+  // cost we are guessing at is the safe direction, because this number decides
+  // both what we absorb and, above the free-shipping window, what we charge.
+  const lastStep = tiers[2] - tiers[1];
+  const step = lastStep > 0 ? lastStep : Math.max(tiers[1] - tiers[0], 0);
+  return Math.round((tiers[2] + (pairs - 3) * step) * 100);
 }
 
 /**

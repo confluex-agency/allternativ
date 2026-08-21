@@ -5,7 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
-import { quoteShipping, DELIVERY_ESTIMATE_BUSINESS_DAYS } from "@/lib/shipping";
+import {
+  quoteShipping,
+  supplierCostUsdCents,
+  usdCentsTo,
+  DELIVERY_ESTIMATE_BUSINESS_DAYS,
+} from "@/lib/shipping";
+import { evaluatePromotionCode } from "@/lib/promotions";
+import {
+  estimatePaymentFeeCents,
+  goodsCostCentsFor,
+  netCents,
+  MINIMUM_NET_CENTS,
+} from "@/lib/margin";
 import type Stripe from "stripe";
 import {
   reserveStock,
@@ -45,6 +57,10 @@ const CheckoutSchema = z.object({
   // country therefore comes from us, and `allowed_countries` below is pinned to
   // it so the two can never disagree.
   destinationCountry: z.string().length(2).toUpperCase(),
+  // Typed in our cart, not on Stripe's page. See src/lib/promotions.ts for why
+  // it had to move: a discount applied on the hosted page cannot be refused,
+  // only regretted.
+  promotionCode: z.string().trim().max(64).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -56,7 +72,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { items, currency, destinationCountry } = parsed.data;
+    const { items, currency, destinationCountry, promotionCode } = parsed.data;
 
     // Refuse a destination we have no quoted rate for rather than guessing one.
     // Shipping something at an invented price is worse than not selling it.
@@ -145,6 +161,82 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    // ── The discount, and the floor under it ────────────────────────────────
+    //
+    // Checked here, with the basket in hand, and not as a rule about the code
+    // itself. The same 70% code can be ruinous on two pairs to Malta and
+    // perfectly healthy on four to Germany, because the parcel costs roughly
+    // the same either way while the sale does not. A blanket cap on the coupon
+    // would refuse both or allow both; only the basket knows.
+    let discount: { id: string; code: string; cents: number } | null = null;
+
+    if (promotionCode) {
+      const subtotalCents = items.reduce((sum, item) => {
+        const variant = byId.get(item.variantId)!;
+        return (
+          sum +
+          (variant.priceCents ?? variant.product.priceCents) * item.quantity
+        );
+      }, 0);
+
+      const evaluated = await evaluatePromotionCode(
+        promotionCode,
+        subtotalCents,
+        currency,
+      );
+
+      if (!evaluated.ok) {
+        await releaseReservationGroup(reservationGroup);
+        console.warn(`[promo] refused "${promotionCode}": ${evaluated.detail}`);
+        return NextResponse.json({ error: evaluated.message }, { status: 400 });
+      }
+
+      const revenueCents =
+        subtotalCents - evaluated.discountCents + shipping.amountCents;
+      const economics = {
+        revenueCents,
+        goodsCostCents: goodsCostCentsFor(
+          items.map((item) => ({
+            supplierCostUsdCents:
+              byId.get(item.variantId)!.product.supplierCostUsdCents,
+            quantity: item.quantity,
+          })),
+          currency,
+        ),
+        // What the parcel costs to send, not what we charged for it. From two
+        // pairs up those two numbers are as far apart as they get: the customer
+        // pays nothing and the whole thing comes out of the margin.
+        shippingCostCents:
+          usdCentsTo(supplierCostUsdCents(destinationCountry, pairs), currency) ??
+          0,
+        paymentFeeCents: estimatePaymentFeeCents(revenueCents, currency),
+      };
+      const net = netCents(economics);
+
+      if (net < MINIMUM_NET_CENTS) {
+        await releaseReservationGroup(reservationGroup);
+        // Loud, and naming the code: a code that can sink an order is a
+        // dashboard mistake somebody has to go and fix, not a customer error.
+        console.error(
+          `[margin] REFUSED at checkout. Code "${evaluated.code}" on ${pairs} ` +
+            `pair(s) to ${destinationCountry} would net ${net} ${currency.toUpperCase()}: ` +
+            `revenue ${economics.revenueCents}, goods ${economics.goodsCostCents}, ` +
+            `shipping ${economics.shippingCostCents}, fee ~${economics.paymentFeeCents}` +
+            (shipping.free ? ". Delivery absorbed." : ""),
+        );
+        return NextResponse.json(
+          { error: "That code is not valid for this order." },
+          { status: 400 },
+        );
+      }
+
+      discount = {
+        id: evaluated.promotionCodeId,
+        code: evaluated.code,
+        cents: evaluated.discountCents,
+      };
+    }
+
     let session;
     try {
       session = await stripe.checkout.sessions.create({
@@ -195,9 +287,18 @@ export async function POST(request: NextRequest) {
           },
         ],
         phone_number_collection: { enabled: true },
-        // Lets Stripe's own coupons and promotion codes be redeemed at checkout,
-        // so the team can run a discount without a deploy.
-        allow_promotion_codes: true,
+        // ⚠️ `allow_promotion_codes` is deliberately absent. It used to be
+        // true, which put the coupon field on Stripe's hosted page, where a
+        // code is applied to a session that already exists and can therefore
+        // only be observed, never refused. The field lives in our cart now and
+        // the code arrives here already checked against the floor, so what
+        // Stripe receives is a decision rather than an invitation. Stripe also
+        // rejects a session that has both.
+        //
+        // The team still creates the codes in the dashboard, with no deploy.
+        ...(discount
+          ? { discounts: [{ promotion_code: discount.id }] }
+          : {}),
         success_url: `${env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${env.NEXT_PUBLIC_APP_URL}/cart`,
         metadata: {

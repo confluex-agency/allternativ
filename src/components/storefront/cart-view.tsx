@@ -50,6 +50,13 @@ export function CartView() {
     if (saved && SHIPPABLE_COUNTRIES.includes(saved)) setShipTo(saved);
   }, []);
 
+  // ── The discount code ─────────────────────────────────────────────────────
+  // It used to be typed on Stripe's hosted page. It moved here because a code
+  // applied over there lands on a session that already exists, so it could only
+  // ever be watched, not refused, and a deep enough code sells below cost. The
+  // field is ours now; the codes are still Stripe's. See src/lib/promotions.ts.
+  const [promoCode, setPromoCode] = useState("");
+
   const pairs = items.reduce((n, i) => n + i.quantity, 0);
   const shipping = shipTo ? quoteShipping(shipTo, pairs) : null;
   const nudge = freeShippingMessage(pairs);
@@ -87,11 +94,20 @@ export function CartView() {
           })),
           currency: STORE_CURRENCY.toLowerCase(),
           destinationCountry: shipTo,
+          ...(promoCode.trim() ? { promotionCode: promoCode.trim() } : {}),
         }),
       });
 
       if (!res.ok) {
-        setError("We could not start the checkout. Please try again.");
+        // The server's own words when it has them. A rejected code, or a
+        // colourway that sold out while the basket sat open, are things the
+        // customer can act on, and "please try again" tells them none of it.
+        const body = await res.json().catch(() => null);
+        setError(
+          typeof body?.error === "string"
+            ? body.error
+            : "We could not start the checkout. Please try again.",
+        );
         return;
       }
 
@@ -219,6 +235,22 @@ export function CartView() {
           </div>
         </div>
 
+        <label className="mt-5 block">
+          <span className="text-xs uppercase tracking-wide text-neutral-500">
+            Discount code
+          </span>
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Optional"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-neutral-400"
+          />
+        </label>
+
         <div className="mt-3 flex justify-between border-t pt-3 text-lg font-medium">
           <span>Total</span>
           <span>
@@ -239,8 +271,8 @@ export function CartView() {
         )}
 
         <p className="mt-2 text-xs text-neutral-500">
-          Tracked delivery, 8–15 business days. Discount codes are applied at
-          the next step.
+          Tracked delivery, 8–15 business days. Any discount is applied to the
+          total on the next step.
         </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-600">

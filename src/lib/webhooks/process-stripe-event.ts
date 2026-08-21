@@ -7,6 +7,7 @@
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { usdCentsTo, supplierCostUsdCents } from "@/lib/shipping";
+import { netCents } from "@/lib/margin";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
 import { CASE_COLORS } from "@/lib/product-options";
@@ -193,24 +194,35 @@ async function handleCompletedSession(
     paymentFeeCents = null;
   }
 
-  // ⚠️ The floor that did not exist. Discount codes are created straight in the
-  // Stripe dashboard, without passing through this codebase and without any
-  // minimum, and delivery is absorbed from two pairs up. A deep enough code
-  // therefore sells below cost, and nothing anywhere would have said so.
+  // ⚠️ The second of two nets, and the one that is true.
   //
-  // This only shouts; it does not refuse a payment that has already happened.
-  // Refusing belongs at the checkout, before the money moves.
+  // The checkout refuses a discount code that would take the order below the
+  // floor, but it has to estimate Stripe's cut, because nobody knows what card
+  // is coming. This one reads the fee Stripe actually charged. So an order that
+  // passed the floor by a few cents on a European card can still arrive here
+  // slightly under on a card from further away.
+  //
+  // It only shouts. Refusing a payment that has already happened is not a
+  // thing; that job belongs at the checkout, and it is done there now.
   const goodsCostCents = orderItems.reduce(
     (sum, i) => sum + (i.unitCostCents ?? 0) * i.quantity,
     0,
   );
-  const netCents =
-    totalCents - goodsCostCents - shippingCostCents - (paymentFeeCents ?? 0);
-  if (netCents < 0) {
+  // The same arithmetic the checkout used to refuse the order, run again on
+  // what actually happened. Shared so the two can never disagree: the checkout
+  // works from an estimated Stripe fee, this one from the real charge, and a
+  // borderline order the estimate let through can still land under.
+  const net = netCents({
+    revenueCents: totalCents,
+    goodsCostCents,
+    shippingCostCents,
+    paymentFeeCents: paymentFeeCents ?? 0,
+  });
+  if (net < 0) {
     console.error(
       `[margin] Order from session ${session.id} closes NEGATIVE: ` +
         `revenue ${totalCents}, goods ${goodsCostCents}, shipping ${shippingCostCents}, ` +
-        `fee ${paymentFeeCents ?? "?"} → ${netCents} ${session.currency?.toUpperCase()}` +
+        `fee ${paymentFeeCents ?? "?"} → ${net} ${session.currency?.toUpperCase()}` +
         (promotionCode ? `. Promotion code: ${promotionCode}` : "") +
         (pairs >= 2 ? ". Delivery was absorbed (2+ pairs)." : ""),
     );

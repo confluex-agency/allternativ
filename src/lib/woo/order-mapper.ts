@@ -9,11 +9,16 @@ import type {
   OrderItem,
   Customer,
   OrderStatus,
+  Product,
 } from "@/generated/prisma/client";
+import { fulfilmentSku } from "@/lib/sku";
 
 export type ExportableOrder = Order & {
   customer: Pick<Customer, "email" | "name" | "phone">;
-  items: OrderItem[];
+  // The model code lives on the product, not on the line item snapshot, and the
+  // packer wants it to cross-check against the invoice. Optional so an older
+  // caller that only selected the items still type-checks and simply omits it.
+  items: (OrderItem & { product?: Pick<Product, "code"> | null })[];
 };
 
 /**
@@ -112,15 +117,26 @@ export function toWooOrder(order: ExportableOrder) {
       product_id: 0,
       variation_id: 0,
       quantity: item.quantity,
-      sku: item.sku ?? "",
+      // Daniel's format, `Model_Colour_Case`, assembled here because the case
+      // colour is only known per line item. His warehouse reads this string and
+      // decides which pair and which box leave the shelf, so it is the single
+      // most load-bearing field in the whole payload.
+      sku: fulfilmentSku(item.sku ?? "", item.caseColor),
       price: money(item.unitPriceCents),
       total: money(item.unitPriceCents * item.quantity),
       // The case colour is an option of the purchase, not a variant, so it has
       // nowhere else to go. WooCommerce shows meta_data on the packing slip,
       // which is exactly where the packer needs to see it.
       meta_data: [
+        // Still sent as its own line even though it is now inside the SKU.
+        // Daniel confirmed order and customer notes are displayed on his side,
+        // and a packing slip that spells out "Case colour: WHITE" cannot be
+        // misread the way a suffix on a long code can.
         ...(item.caseColor
           ? [{ key: "Case colour", value: item.caseColor }]
+          : []),
+        ...(item.product?.code
+          ? [{ key: "Model code", value: item.product.code }]
           : []),
         { key: "_allternativ_product_id", value: item.productId },
         ...(item.variantId

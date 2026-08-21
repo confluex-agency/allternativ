@@ -220,28 +220,47 @@ async function main() {
     });
 
     // One variant per colourway. Opening stock is set on create only.
+    //
+    // Matched on `colorKey` and not on `sku`, even though the SKU is the unique
+    // column. The colourway is the thing that exists; the SKU is a label we put
+    // on it, and on 2026-08-21 every label changed at once when Daniel asked
+    // for `Model_Colour_Case` instead of the invoice codes. Keyed on the SKU,
+    // that rename would have read as sixteen colourways disappearing and
+    // sixteen new ones being born, which would have deactivated rows that
+    // orders point at and handed out the opening stock a second time.
     for (const [cwIndex, cw] of sp.colorways.entries()) {
-      await prisma.productVariant.upsert({
-        where: { sku: cw.sku },
-        update: {
-          colorName: cw.name,
-          swatch: cw.swatch,
-          supplierSku: cw.supplierSku,
-          isActive: true,
-          position: cwIndex,
-        },
-        create: {
-          productId: product.id,
-          sku: cw.sku,
-          colorKey: cw.key,
-          colorName: cw.name,
-          swatch: cw.swatch,
-          supplierSku: cw.supplierSku,
-          stockQuantity: cw.stock,
-          isActive: true,
-          position: cwIndex,
-        },
+      const existing = await prisma.productVariant.findFirst({
+        where: { productId: product.id, colorKey: cw.key },
+        select: { id: true },
       });
+
+      if (existing) {
+        await prisma.productVariant.update({
+          where: { id: existing.id },
+          data: {
+            sku: cw.sku,
+            colorName: cw.name,
+            swatch: cw.swatch,
+            supplierSku: cw.supplierSku,
+            isActive: true,
+            position: cwIndex,
+          },
+        });
+      } else {
+        await prisma.productVariant.create({
+          data: {
+            productId: product.id,
+            sku: cw.sku,
+            colorKey: cw.key,
+            colorName: cw.name,
+            swatch: cw.swatch,
+            supplierSku: cw.supplierSku,
+            stockQuantity: cw.stock,
+            isActive: true,
+            position: cwIndex,
+          },
+        });
+      }
       variantCount++;
     }
 
@@ -252,7 +271,7 @@ async function main() {
     await prisma.productVariant.updateMany({
       where: {
         productId: product.id,
-        sku: { notIn: sp.colorways.map((cw) => cw.sku) },
+        colorKey: { notIn: sp.colorways.map((cw) => cw.key) },
       },
       data: { isActive: false },
     });

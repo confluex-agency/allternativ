@@ -35,7 +35,9 @@ const VISIBLE_STATUSES = [
 
 const ORDER_INCLUDE = {
   customer: { select: { email: true, name: true, phone: true } },
-  items: true,
+  // The product is joined only for its model code, which the packing slip
+  // carries so the warehouse can cross-check the pair against the invoice.
+  items: { include: { product: { select: { code: true } } } },
 } as const;
 
 type Handled = { status: number; body: unknown };

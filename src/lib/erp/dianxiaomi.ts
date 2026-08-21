@@ -16,6 +16,7 @@
 // headers are in Chinese. Once we have the real file, only `ERP_COLUMNS` below
 // changes — the mapping and the routes stay as they are.
 
+import { fulfilmentSku } from "@/lib/sku";
 import type {
   Order,
   OrderItem,
@@ -106,8 +107,11 @@ export function buildErpRows(orders: ErpOrder[]): ErpRow[] {
       orderNumber: order.orderNumber,
       orderDate: formatDate(order.createdAt),
       status: order.status,
-      // Snapshots first: they are what the buyer actually paid for.
-      sku: item.sku ?? item.variant?.sku ?? "",
+      // Snapshots first: they are what the buyer actually paid for. The case
+      // colour is appended because Daniel asked for `Model_Colour_Case` and the
+      // same string has to reach him whichever route the order takes, the file
+      // or the façade. Its own column stays too, for the packer to read.
+      sku: fulfilmentSku(item.sku ?? item.variant?.sku ?? "", item.caseColor),
       supplierSku: item.variant?.supplierSku ?? "",
       productName: item.productName ?? item.product.name,
       variantName: item.variantName ?? item.variant?.colorName ?? "",

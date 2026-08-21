@@ -6,7 +6,7 @@
 //   1. "queremos que el cliente vea el shipping cost separately at checkout,
 //      calculado según destination. No queremos incorporar artificialmente el
 //      shipping dentro del retail price."
-//   2. "FREE SHIPPING ON 2+ PAIRS"
+//   2. "FREE SHIPPING ON 2+ PAIRS", capped at four pairs on 2026-08-21
 //
 // And one confirmed afterwards: the price shown is the supplier's cost, with no
 // markup on top. The margin lives in the eyewear, which costs about USD 5.70 to
@@ -14,9 +14,9 @@
 //
 // ── Only one column is ever CHARGED. All three are needed to COST ───────────
 // The supplier quotes three prices per country, for one, two and three pairs in
-// the same parcel. Free shipping from two pairs means the second and third are
-// never charged to anybody, so the only figure that can reach a checkout is the
-// one-pair rate.
+// the same parcel. Free shipping between two and four pairs means the second
+// and third columns are never charged to anybody: a checkout can only ever see
+// the one-pair rate, or, past the free window, an extrapolation.
 //
 // They are still real money going out. A two-pair parcel to Malta costs 18.63
 // and not the 14.64 of a single pair, and costing it at the one-pair rate would
@@ -128,6 +128,21 @@ export function usdCentsTo(
 /** Two or more pairs ship free. The client's rule, and their AOV lever. */
 export const FREE_SHIPPING_FROM_PAIRS = 2;
 
+/**
+ * ...but only up to four. Manuel and Belu closed this on 2026-08-21: "hasta 4
+ * lentes seria el descuento de envio gratis".
+ *
+ * Their original text said "FREE SHIPPING ON 2+ PAIRS", with no ceiling, which
+ * would have given away delivery on an order of any size. This is the ceiling.
+ *
+ * ⚠️ It creates a step at the fifth pair, and the step is not small: a fifth
+ * pair costs the customer its own price plus the whole parcel's delivery, so
+ * the cart is at its most expensive exactly where the order is at its most
+ * profitable. The numbers, and the alternative reading of their sentence, are
+ * in the vault under "Preguntas a Manuel y Belu". Implemented as written.
+ */
+export const FREE_SHIPPING_MAX_PAIRS = 4;
+
 /** Countries the shop will deliver to, derived from the quote above. */
 export const SHIPPABLE_COUNTRIES = Object.keys(SUPPLIER_SHIPPING_USD).sort();
 
@@ -162,12 +177,19 @@ export function quoteShipping(
   const rate = FX.perUsd[currency.toUpperCase()];
   if (rate === undefined) return null;
 
-  const free = pairs >= FREE_SHIPPING_FROM_PAIRS;
+  const free =
+    pairs >= FREE_SHIPPING_FROM_PAIRS && pairs <= FREE_SHIPPING_MAX_PAIRS;
+
+  // A single pair is charged from the quotation's first column. Above the free
+  // window there is no column left to read - the supplier only quoted one, two
+  // and three - so the same extrapolation the cost side uses is charged, at
+  // cost and with no markup, like every other delivery here.
+  const usdCents =
+    pairs <= 1 ? tiers[0] * 100 : supplierCostUsdCents(country, pairs);
+
   return {
     country,
-    // Only ever the one-pair tier: anything bigger ships free, so no other
-    // tier can reach a customer.
-    amountCents: free ? 0 : Math.round(tiers[0] * rate * 100),
+    amountCents: free ? 0 : Math.round(usdCents * rate),
     currency,
     free,
     pairsToFree: Math.max(0, FREE_SHIPPING_FROM_PAIRS - pairs),
@@ -199,6 +221,7 @@ export function supplierCostUsdCents(country: string, pairs: number): number {
  */
 export function freeShippingMessage(pairs: number): string | null {
   if (pairs <= 0) return null;
+  if (pairs > FREE_SHIPPING_MAX_PAIRS) return null;
   if (pairs >= FREE_SHIPPING_FROM_PAIRS)
     return "You've unlocked free shipping.";
   const missing = FREE_SHIPPING_FROM_PAIRS - pairs;

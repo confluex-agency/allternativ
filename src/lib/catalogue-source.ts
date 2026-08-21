@@ -36,13 +36,33 @@ export type SourceColorway = {
    * the mistake this file exists to stop. Rename when they send the list.
    */
   name: string;
-  /** Ours. Stable, we control it, it is what the shop and the orders carry. */
+  /**
+   * Ours. Stable, we control it, it is what the shop and the orders carry.
+   *
+   * Format `MODEL_COLOUR`, which Daniel asked for on 2026-08-21: "SKUs should
+   * be created on your side... 'Model Name_Sunglass Colour_Case Colour'". The
+   * case colour is missing here on purpose - the customer picks it at checkout,
+   * so the third segment is only appended per line item, by `fulfilmentSku`.
+   *
+   * ⚠️ Written out literally rather than derived from `name`, so that the
+   * editorial pass the client still owes on names like "Black Black" cannot
+   * silently rewrite a code his warehouse has already mapped.
+   *
+   * The supplier's own colourway codes (C03, C09, C01, C1...) are carried
+   * inside the colour segment wherever the invoice had one. The model code
+   * (89310, 5119JT...) is not: it travels beside the SKU, in the line item's
+   * meta, where the packer can cross-check it against the invoice.
+   */
   sku: string;
   /**
-   * Daniel's code for this colourway, which is what his pickers read.
-   * ⚠️ NULL EVERYWHERE ON PURPOSE: he has not sent them yet. Until he does, an
-   * order reaching the ERP identifies the pair by model code plus colour name,
-   * which a human has to interpret. Question 1 of the supplier document.
+   * Daniel's own code for this colourway.
+   *
+   * ⚠️ NULL EVERYWHERE, AND NOW PERMANENTLY SO. Question 1 of the supplier
+   * document asked him for these codes; on 2026-08-21 he answered that there
+   * are none and that we should define the SKU ourselves. The column stays
+   * because a second supplier, or Daniel changing his mind, would need it, and
+   * because null here is the honest record: we do not have his code, and
+   * copying ours into it would look like we did.
    */
   supplierSku: string | null;
   /** CSS colour for the selector dot. A UI affordance, not a product claim. */
@@ -167,7 +187,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "olive-green",
         name: "Olive Green",
-        sku: "89310-OLV",
+        sku: "THE-CORINTHIAN_OLIVE-GREEN",
         supplierSku: null,
         swatch: "#7d7a45",
         stock: 17,
@@ -175,7 +195,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black / Black",
-        sku: "89310-BLK",
+        sku: "THE-CORINTHIAN_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 17,
@@ -183,7 +203,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-double-grey",
         name: "Black / Double Grey",
-        sku: "89310-BDG",
+        sku: "THE-CORINTHIAN_BLACK-DOUBLE-GREY",
         supplierSku: null,
         swatch: "#3f4247",
         stock: 16,
@@ -211,7 +231,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "mercury-black",
         name: "Mercury Black",
-        sku: "5119JT-C03",
+        sku: "ORBITAL_C03-MERCURY-BLACK",
         supplierSku: null,
         swatch: "#b9bdc2",
         stock: 17,
@@ -219,7 +239,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "sand-black",
         name: "Sand Black",
-        sku: "5119JT-C09",
+        sku: "ORBITAL_C09-SAND-BLACK",
         supplierSku: null,
         swatch: "#b9a68a",
         stock: 17,
@@ -227,7 +247,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black Black",
-        sku: "5119JT-C07",
+        sku: "ORBITAL_C07-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 16,
@@ -250,7 +270,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "red-black",
         name: "Red / Black",
-        sku: "862JT-RED",
+        sku: "NEON-SHIFT_RED-BLACK",
         supplierSku: null,
         swatch: "#b4322b",
         stock: 17,
@@ -258,7 +278,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black / Black",
-        sku: "862JT-BLK",
+        sku: "NEON-SHIFT_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 17,
@@ -266,7 +286,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-blue",
         name: "Black / Blue",
-        sku: "862JT-BLU",
+        sku: "NEON-SHIFT_BLACK-BLUE",
         supplierSku: null,
         swatch: "#2a3f6b",
         stock: 16,
@@ -289,7 +309,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "gold-black",
         name: "Gold / Black",
-        sku: "826JT-GLD",
+        sku: "SYNC_GOLD-BLACK",
         supplierSku: null,
         swatch: "#c6a765",
         stock: 17,
@@ -297,7 +317,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "silver-black",
         name: "Silver Black",
-        sku: "826JT-SLV",
+        sku: "SYNC_SILVER-BLACK",
         supplierSku: null,
         swatch: "#c7cace",
         stock: 17,
@@ -305,7 +325,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black Black",
-        sku: "826JT-BLK",
+        sku: "SYNC_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 16,
@@ -328,7 +348,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black / Black",
-        sku: "2037JT-C01",
+        sku: "AMPLIFY_C01-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 25,
@@ -336,7 +356,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "hawksbill-brown",
         name: "Hawksbill / Brown",
-        sku: "2037JT-C05",
+        sku: "AMPLIFY_C05-HAWKSBILL-BROWN",
         supplierSku: null,
         swatch: "#7b4a26",
         stock: 25,
@@ -364,7 +384,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "black-black",
         name: "Black / Black",
-        sku: "3980-C1",
+        sku: "PRISM_C1-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
         stock: 25,
@@ -372,7 +392,7 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "demi-black",
         name: "Demi / Black",
-        sku: "3980-C6",
+        sku: "PRISM_C6-DEMI-BLACK",
         supplierSku: null,
         swatch: "#6b4423",
         stock: 25,

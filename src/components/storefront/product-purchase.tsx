@@ -125,11 +125,24 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
             </p>
           )}
 
-          {/* Colourway */}
+          {/* Colourway.
+              A sold-out colourway stays on the page and says so, which the
+              client asked for in writing and even drew: "queremos que siga
+              visible pero marcado: SOLD OUT". It stays SELECTABLE, though,
+              and that is a deliberate reading of two instructions that pull
+              against each other. They also wrote that keeping sold-out
+              variants visible "nos permitirá entender qué productos siguen
+              teniendo demanda incluso estando agotados" — and a swatch nobody
+              can click produces no demand signal at all, besides hiding that
+              colourway's photographs. Buying is what is blocked: the button
+              below turns into OUT OF STOCK. */}
           {multiColour && (
             <div className="mt-10">
               <p className="eyebrow text-brand-muted mb-3">
                 Colour — {variant.colorName}
+                {!variant.inStock && (
+                  <span className="text-brand-muted"> — SOLD OUT</span>
+                )}
               </p>
               <div className="flex flex-wrap gap-3">
                 {product.variants.map((v) => (
@@ -138,6 +151,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
                     type="button"
                     onClick={() => setVariantId(v.id)}
                     aria-pressed={v.id === variant.id}
+                    title={v.inStock ? v.colorName : `${v.colorName} — sold out`}
                     className="flex items-center gap-2"
                   >
                     <span
@@ -145,7 +159,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
                         v.id === variant.id
                           ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
                           : "ring-1 ring-brand-ink/15 hover:ring-brand-ink/40"
-                      }`}
+                      } ${v.inStock ? "" : "opacity-40"}`}
                     >
                       <span
                         className="size-7 rounded-full"
@@ -154,12 +168,19 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
                     </span>
                     <span
                       className={`text-sm fluid-transition ${
-                        v.id === variant.id
-                          ? "text-brand-ink"
-                          : "text-brand-muted"
+                        !v.inStock
+                          ? "text-brand-muted"
+                          : v.id === variant.id
+                            ? "text-brand-ink"
+                            : "text-brand-muted"
                       }`}
                     >
                       {v.colorName}
+                      {!v.inStock && (
+                        <span className="ml-1 text-[0.6875rem] uppercase tracking-wide">
+                          Sold out
+                        </span>
+                      )}
                     </span>
                   </button>
                 ))}
@@ -197,13 +218,21 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
                   <span
                     className={`text-sm fluid-transition ${
                       !option.available
-                        ? "text-brand-muted line-through"
+                        ? "text-brand-muted"
                         : option.key === caseColor
                           ? "text-brand-ink"
                           : "text-brand-muted"
                     }`}
                   >
                     {caseLabel(option.key)}
+                    {/* Spelled out rather than struck through. Their answer
+                        drew this exact line: "White — SOLD OUT". A strike is
+                        a convention some readers know; the words are not. */}
+                    {!option.available && (
+                      <span className="ml-1 text-[0.6875rem] uppercase tracking-wide">
+                        Sold out
+                      </span>
+                    )}
                   </span>
                 </button>
               ))}

@@ -46,6 +46,26 @@ export const trackingLimiter = redis
     })
   : noopLimiter("trackingLimiter");
 
+/**
+ * Discount code attempts, per visitor.
+ *
+ * The cart's code field is, unavoidably, an oracle: type a string, learn
+ * whether it is a live promotion. That is the price of validating before the
+ * money moves, and it is worth paying, but not at unlimited speed. Ten tries in
+ * ten minutes is far more than a real customer needs to retype a code off a
+ * newsletter, and far too few to walk a dictionary through it.
+ *
+ * Only attempts that CARRY a code are counted. A checkout without one never
+ * touches this, so nothing here can stop somebody from buying.
+ */
+export const promoCodeLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "10 m"),
+      prefix: "rl:promo",
+    })
+  : noopLimiter("promoCodeLimiter");
+
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
   return forwarded?.split(",")[0]?.trim() || "unknown";

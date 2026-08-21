@@ -216,6 +216,26 @@ export function CartView() {
           </select>
         </label>
 
+        {/* Both inputs sit together, ABOVE the money. The discount is NOT
+            reflected in the Total below, because working it out means asking
+            Stripe what the code is worth, and the field would otherwise cut
+            the summary in half with a figure that does not move. */}
+        <label className="mt-5 block">
+          <span className="text-xs uppercase tracking-wide text-neutral-500">
+            Discount code
+          </span>
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Optional"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-neutral-400"
+          />
+        </label>
+
         <div className="mt-5 space-y-2 text-sm">
           <div className="flex justify-between text-neutral-600">
             <span>Subtotal</span>
@@ -234,22 +254,6 @@ export function CartView() {
             </span>
           </div>
         </div>
-
-        <label className="mt-5 block">
-          <span className="text-xs uppercase tracking-wide text-neutral-500">
-            Discount code
-          </span>
-          <input
-            type="text"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-            placeholder="Optional"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-neutral-400"
-          />
-        </label>
 
         <div className="mt-3 flex justify-between border-t pt-3 text-lg font-medium">
           <span>Total</span>
@@ -271,8 +275,10 @@ export function CartView() {
         )}
 
         <p className="mt-2 text-xs text-neutral-500">
-          Tracked delivery, 8–15 business days. Any discount is applied to the
-          total on the next step.
+          Tracked delivery, 8–15 business days.
+          {promoCode.trim()
+            ? " Your code is checked when you continue, and comes off the total on the payment page."
+            : ""}
         </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-600">

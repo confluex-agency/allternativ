@@ -12,6 +12,7 @@ import {
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
 } from "@/lib/shipping";
 import { evaluatePromotionCode } from "@/lib/promotions";
+import { promoCodeLimiter, getClientIp } from "@/lib/rate-limit";
 import {
   estimatePaymentFeeCents,
   goodsCostCentsFor,
@@ -171,6 +172,33 @@ export async function POST(request: NextRequest) {
     let discount: { id: string; code: string; cents: number } | null = null;
 
     if (promotionCode) {
+      // The code field is an oracle by construction: type a string, learn
+      // whether it is a live promotion. Validating before the money moves is
+      // worth that, but not at unlimited speed.
+      //
+      // Fails OPEN on purpose. If the limiter itself is unreachable the shop
+      // keeps selling: a rate limiter that can take the checkout down with it
+      // is a worse problem than the one it guards against, and the codes still
+      // have to be real Stripe promotions either way.
+      try {
+        const { success } = await promoCodeLimiter.limit(
+          `promo:${getClientIp(request.headers)}`,
+        );
+        if (!success) {
+          await releaseReservationGroup(reservationGroup);
+          return NextResponse.json(
+            { error: "Too many code attempts. Please try again shortly." },
+            { status: 429 },
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[promo] rate limiter unavailable, allowing attempt: ${
+            error instanceof Error ? error.message : "unknown"
+          }`,
+        );
+      }
+
       const subtotalCents = items.reduce((sum, item) => {
         const variant = byId.get(item.variantId)!;
         return (

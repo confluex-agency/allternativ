@@ -56,10 +56,91 @@ export function CartView() {
   // ever be watched, not refused, and a deep enough code sells below cost. The
   // field is ours now; the codes are still Stripe's. See src/lib/promotions.ts.
   const [promoCode, setPromoCode] = useState("");
+  const [checkingCode, setCheckingCode] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [applied, setApplied] = useState<{
+    code: string;
+    discountCents: number;
+    /** The basket this figure was worked out for. See below. */
+    signature: string;
+  } | null>(null);
 
   const pairs = items.reduce((n, i) => n + i.quantity, 0);
   const shipping = shipTo ? quoteShipping(shipTo, pairs) : null;
   const nudge = freeShippingMessage(pairs);
+
+  // What a discount is worth depends on the whole basket, not just the code:
+  // the same percentage comes off a different subtotal, and the floor it has to
+  // clear moves with the freight, which moves with the destination. So an
+  // applied figure is only good for the basket it was worked out for.
+  //
+  // Compared rather than cleared in an effect, so adding a pair simply makes
+  // the discount go stale in the same render instead of leaving a stale number
+  // on screen for a frame. The server recomputes regardless: this only decides
+  // what the customer is shown.
+  const basketSignature = [
+    shipTo,
+    ...items.map((i) => `${i.variantId}:${i.caseColor}:${i.quantity}`).sort(),
+  ].join("|");
+  const discount =
+    applied && applied.signature === basketSignature ? applied : null;
+  const staleDiscount = applied !== null && discount === null;
+
+  const subtotalCents = totalCents();
+  const grandTotalCents =
+    subtotalCents - (discount?.discountCents ?? 0) + (shipping?.amountCents ?? 0);
+
+  async function handleApplyCode() {
+    const code = promoCode.trim();
+    if (!code) return;
+    if (!shipTo) {
+      // Not a technicality. The floor a code has to clear depends on what the
+      // parcel costs to send, so there is no answer before there is a country.
+      setPromoError("Choose where it is going first.");
+      return;
+    }
+
+    setPromoError(null);
+    setCheckingCode(true);
+    try {
+      const res = await fetch("/api/promotions/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          items: items.map((i) => ({
+            variantId: i.variantId,
+            quantity: i.quantity,
+            caseColor: i.caseColor,
+          })),
+          currency: STORE_CURRENCY.toLowerCase(),
+          destinationCountry: shipTo,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setApplied(null);
+        setPromoError(
+          typeof body?.error === "string"
+            ? body.error
+            : "That code is not valid for this order.",
+        );
+        return;
+      }
+
+      setApplied({
+        code: body.code,
+        discountCents: body.discountCents,
+        signature: basketSignature,
+      });
+    } catch {
+      setApplied(null);
+      setPromoError("We could not check that code. Please try again.");
+    } finally {
+      setCheckingCode(false);
+    }
+  }
 
   if (items.length === 0) {
     return (
@@ -216,31 +297,71 @@ export function CartView() {
           </select>
         </label>
 
-        {/* Both inputs sit together, ABOVE the money. The discount is NOT
-            reflected in the Total below, because working it out means asking
-            Stripe what the code is worth, and the field would otherwise cut
-            the summary in half with a figure that does not move. */}
-        <label className="mt-5 block">
-          <span className="text-xs uppercase tracking-wide text-neutral-500">
-            Discount code
-          </span>
-          <input
-            type="text"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-            placeholder="Optional"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-neutral-400"
-          />
-        </label>
+        {/* Both inputs sit together, above the money, because both of them
+            change the money underneath. */}
+        <div className="mt-5">
+          <label htmlFor="promo" className="block">
+            <span className="text-xs uppercase tracking-wide text-neutral-500">
+              Discount code
+            </span>
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="promo"
+              type="text"
+              value={promoCode}
+              onChange={(e) => {
+                setPromoCode(e.target.value);
+                // Editing the code retracts whatever was applied. Leaving the
+                // old saving on screen under a different code is the one thing
+                // this field must never do.
+                setApplied(null);
+                setPromoError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleApplyCode();
+                }
+              }}
+              placeholder="Optional"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm uppercase placeholder:normal-case placeholder:text-neutral-400"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCode}
+              disabled={!promoCode.trim() || checkingCode}
+              className="shrink-0 rounded-lg border border-neutral-900 px-4 py-2 text-xs font-medium uppercase tracking-wide text-neutral-900 transition hover:bg-neutral-900 hover:text-white disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-400 disabled:hover:bg-transparent"
+            >
+              {checkingCode ? "Checking…" : "Apply"}
+            </button>
+          </div>
+          {promoError && (
+            <p role="alert" className="mt-2 text-sm text-red-600">
+              {promoError}
+            </p>
+          )}
+          {staleDiscount && (
+            <p className="mt-2 text-sm text-amber-700">
+              Your basket changed. Apply the code again to see the new saving.
+            </p>
+          )}
+        </div>
 
         <div className="mt-5 space-y-2 text-sm">
           <div className="flex justify-between text-neutral-600">
             <span>Subtotal</span>
-            <span>{formatPrice(totalCents())}</span>
+            <span>{formatPrice(subtotalCents)}</span>
           </div>
+          {discount && (
+            <div className="flex justify-between text-emerald-700">
+              <span>Discount ({discount.code})</span>
+              <span>−{formatPrice(discount.discountCents)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-neutral-600">
             <span>Shipping</span>
             <span>
@@ -257,9 +378,7 @@ export function CartView() {
 
         <div className="mt-3 flex justify-between border-t pt-3 text-lg font-medium">
           <span>Total</span>
-          <span>
-            {formatPrice(totalCents() + (shipping?.amountCents ?? 0))}
-          </span>
+          <span>{formatPrice(grandTotalCents)}</span>
         </div>
 
         {/* Their copy, word for word. This is the lever they want to measure,
@@ -276,9 +395,6 @@ export function CartView() {
 
         <p className="mt-2 text-xs text-neutral-500">
           Tracked delivery, 8–15 business days.
-          {promoCode.trim()
-            ? " Your code is checked when you continue, and comes off the total on the payment page."
-            : ""}
         </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-600">

@@ -7,18 +7,10 @@ import { env } from "@/lib/env";
 import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
 import {
   quoteShipping,
-  supplierCostUsdCents,
-  usdCentsTo,
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
 } from "@/lib/shipping";
-import { evaluatePromotionCode } from "@/lib/promotions";
+import { evaluateDiscountForBasket } from "@/lib/promotions";
 import { promoCodeLimiter, getClientIp } from "@/lib/rate-limit";
-import {
-  estimatePaymentFeeCents,
-  goodsCostCentsFor,
-  netCents,
-  MINIMUM_NET_CENTS,
-} from "@/lib/margin";
 import type Stripe from "stripe";
 import {
   reserveStock,
@@ -164,11 +156,16 @@ export async function POST(request: NextRequest) {
 
     // ── The discount, and the floor under it ────────────────────────────────
     //
-    // Checked here, with the basket in hand, and not as a rule about the code
-    // itself. The same 70% code can be ruinous on two pairs to Malta and
-    // perfectly healthy on four to Germany, because the parcel costs roughly
-    // the same either way while the sale does not. A blanket cap on the coupon
-    // would refuse both or allow both; only the basket knows.
+    // Checked with the basket in hand, and not as a rule about the code itself.
+    // The same 70% code can be ruinous on two pairs to Malta and perfectly
+    // healthy on four to Germany, because the parcel costs roughly the same
+    // either way while the sale does not. A blanket cap on the coupon would
+    // refuse both or allow both; only the basket knows.
+    //
+    // The arithmetic lives in src/lib/promotions.ts because the cart's Apply
+    // button runs the very same call. What the browser previews and what this
+    // decides can therefore never disagree. The preview is still advisory: no
+    // number from the request is trusted here, it is all recomputed.
     let discount: { id: string; code: string; cents: number } | null = null;
 
     if (promotionCode) {
@@ -199,63 +196,24 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const subtotalCents = items.reduce((sum, item) => {
-        const variant = byId.get(item.variantId)!;
-        return (
-          sum +
-          (variant.priceCents ?? variant.product.priceCents) * item.quantity
-        );
-      }, 0);
-
-      const evaluated = await evaluatePromotionCode(
-        promotionCode,
-        subtotalCents,
+      const evaluated = await evaluateDiscountForBasket({
+        code: promotionCode,
+        lines: items.map((item) => {
+          const variant = byId.get(item.variantId)!;
+          return {
+            priceCents: variant.priceCents ?? variant.product.priceCents,
+            supplierCostUsdCents: variant.product.supplierCostUsdCents,
+            quantity: item.quantity,
+          };
+        }),
         currency,
-      );
+        destinationCountry,
+      });
 
       if (!evaluated.ok) {
         await releaseReservationGroup(reservationGroup);
         console.warn(`[promo] refused "${promotionCode}": ${evaluated.detail}`);
         return NextResponse.json({ error: evaluated.message }, { status: 400 });
-      }
-
-      const revenueCents =
-        subtotalCents - evaluated.discountCents + shipping.amountCents;
-      const economics = {
-        revenueCents,
-        goodsCostCents: goodsCostCentsFor(
-          items.map((item) => ({
-            supplierCostUsdCents:
-              byId.get(item.variantId)!.product.supplierCostUsdCents,
-            quantity: item.quantity,
-          })),
-          currency,
-        ),
-        // What the parcel costs to send, not what we charged for it. From two
-        // pairs up those two numbers are as far apart as they get: the customer
-        // pays nothing and the whole thing comes out of the margin.
-        shippingCostCents:
-          usdCentsTo(supplierCostUsdCents(destinationCountry, pairs), currency) ??
-          0,
-        paymentFeeCents: estimatePaymentFeeCents(revenueCents, currency),
-      };
-      const net = netCents(economics);
-
-      if (net < MINIMUM_NET_CENTS) {
-        await releaseReservationGroup(reservationGroup);
-        // Loud, and naming the code: a code that can sink an order is a
-        // dashboard mistake somebody has to go and fix, not a customer error.
-        console.error(
-          `[margin] REFUSED at checkout. Code "${evaluated.code}" on ${pairs} ` +
-            `pair(s) to ${destinationCountry} would net ${net} ${currency.toUpperCase()}: ` +
-            `revenue ${economics.revenueCents}, goods ${economics.goodsCostCents}, ` +
-            `shipping ${economics.shippingCostCents}, fee ~${economics.paymentFeeCents}` +
-            (shipping.free ? ". Delivery absorbed." : ""),
-        );
-        return NextResponse.json(
-          { error: "That code is not valid for this order." },
-          { status: 400 },
-        );
       }
 
       discount = {

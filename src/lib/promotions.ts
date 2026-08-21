@@ -20,6 +20,13 @@
 // on THIS basket still leave money on the table.
 
 import { stripe } from "@/lib/stripe";
+import { quoteShipping, supplierCostUsdCents, usdCentsTo } from "@/lib/shipping";
+import {
+  estimatePaymentFeeCents,
+  goodsCostCentsFor,
+  netCents,
+  MINIMUM_NET_CENTS,
+} from "@/lib/margin";
 
 export type PromotionRejection = {
   ok: false;
@@ -142,4 +149,85 @@ export async function evaluatePromotionCode(
     code: promotion.code,
     discountCents,
   };
+}
+
+/** One line of the basket, priced and costed. Both callers build this. */
+export type BasketLine = {
+  priceCents: number;
+  supplierCostUsdCents: number | null;
+  quantity: number;
+};
+
+/**
+ * The whole decision: is this code real, and does it leave money on the table
+ * for THIS basket.
+ *
+ * ⚠️ Deliberately the only place that answers either question. Two callers need
+ * it: the cart's Apply button, which shows the customer what comes off, and the
+ * checkout, which creates the session. If they were separate implementations
+ * they would eventually disagree, and the way that failure looks from outside
+ * is a discount that appears in the cart and vanishes at the payment page,
+ * which reads as the shop having lied.
+ *
+ * The preview is advisory; the checkout is authoritative. Both run this, so
+ * they agree, but the checkout never trusts a number the browser sends.
+ */
+export async function evaluateDiscountForBasket(opts: {
+  code: string;
+  lines: BasketLine[];
+  currency: string;
+  destinationCountry: string;
+}): Promise<PromotionResult> {
+  const { code, lines, currency, destinationCountry } = opts;
+
+  const subtotalCents = lines.reduce(
+    (sum, line) => sum + line.priceCents * line.quantity,
+    0,
+  );
+  const pairs = lines.reduce((n, line) => n + line.quantity, 0);
+
+  const evaluated = await evaluatePromotionCode(code, subtotalCents, currency);
+  if (!evaluated.ok) return evaluated;
+
+  const shipping = quoteShipping(destinationCountry, pairs, currency);
+  if (!shipping) {
+    return {
+      ok: false,
+      message: "We do not ship to that country yet.",
+      detail: `no quoted rate for ${destinationCountry}`,
+    };
+  }
+
+  const revenueCents =
+    subtotalCents - evaluated.discountCents + shipping.amountCents;
+  const economics = {
+    revenueCents,
+    goodsCostCents: goodsCostCentsFor(lines, currency),
+    // What the parcel COSTS, not what was charged for it. Between two and four
+    // pairs those two numbers are as far apart as they get: the customer pays
+    // nothing and the whole thing comes out of the margin.
+    shippingCostCents:
+      usdCentsTo(supplierCostUsdCents(destinationCountry, pairs), currency) ?? 0,
+    paymentFeeCents: estimatePaymentFeeCents(revenueCents, currency),
+  };
+  const net = netCents(economics);
+
+  if (net < MINIMUM_NET_CENTS) {
+    // Loud, and naming the code. A code that can sink an order is a mistake in
+    // the Stripe dashboard that somebody has to go and fix, not a customer
+    // error, and nobody will find it unless it is said here.
+    console.error(
+      `[margin] REFUSED. Code "${evaluated.code}" on ${pairs} pair(s) to ` +
+        `${destinationCountry} would net ${net} ${currency.toUpperCase()}: ` +
+        `revenue ${economics.revenueCents}, goods ${economics.goodsCostCents}, ` +
+        `shipping ${economics.shippingCostCents}, fee ~${economics.paymentFeeCents}` +
+        (shipping.free ? ". Delivery absorbed." : ""),
+    );
+    return {
+      ...NOT_VALID,
+      detail: `net ${net} below floor ${MINIMUM_NET_CENTS}`,
+    };
+  }
+
+  return evaluated;
 }

@@ -1,10 +1,13 @@
 import { GlassesViewerLazy } from "@/components/storefront/glasses-viewer-lazy";
+import { devOnlyRoute } from "@/lib/dev-only";
 
 export const metadata = {
   title: "3D Viewer Demo",
 };
 
 export default function DemoPage() {
+  devOnlyRoute();
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">

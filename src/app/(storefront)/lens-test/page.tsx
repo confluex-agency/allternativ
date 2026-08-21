@@ -1,4 +1,5 @@
 import { ModelInspectorLazy } from "@/components/storefront/model-inspector-lazy";
+import { devOnlyRoute } from "@/lib/dev-only";
 
 export const metadata = {
   title: "Lens 3D — test",
@@ -7,6 +8,8 @@ export const metadata = {
 // Throwaway page to eyeball freshly generated 3D lenses before wiring them
 // into the real product pages. Not linked from the nav.
 export default function LensTestPage() {
+  devOnlyRoute();
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-12 md:px-6 md:py-16">
       <p className="eyebrow text-brand-muted mb-3">test · lentes 1</p>

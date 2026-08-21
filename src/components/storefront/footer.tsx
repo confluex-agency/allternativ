@@ -30,8 +30,8 @@ const COLUMNS = [
   {
     title: "Support",
     links: [
-      { href: "#", label: "Shipping" },
-      { href: "#", label: "Returns" },
+      { href: "/shipping", label: "Shipping" },
+      { href: "/returns", label: "Returns" },
       { href: "#", label: "Care" },
       { href: "#", label: "FAQ" },
     ],

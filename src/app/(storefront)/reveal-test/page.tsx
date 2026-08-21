@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LensReveal } from "@/components/storefront/lens-reveal";
+import { devOnlyRoute } from "@/lib/dev-only";
 
 export const metadata = {
   title: "Lens reveal — prototype",
@@ -8,6 +9,8 @@ export const metadata = {
 // Throwaway page to feel Direction A in a real scroll context: a hero stub on
 // top, the scroll-pinned lens reveal, then a collection stub below. Not linked.
 export default function RevealTestPage() {
+  devOnlyRoute();
+
   return (
     <div>
       {/* Hero stub (stands in for the real hero) */}

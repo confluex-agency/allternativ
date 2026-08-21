@@ -1,5 +1,6 @@
 import { OrbitalColorDemoLazy } from "@/components/storefront/orbital-color-demo-lazy";
 import { OrbitalSpin } from "@/components/storefront/orbital-spin";
+import { devOnlyRoute } from "@/lib/dev-only";
 
 export const metadata = {
   title: "Orbital — color test",
@@ -8,6 +9,8 @@ export const metadata = {
 // Throwaway page: proof of concept for the colourway selector driving both the
 // 3D model and the product photo at once. Not linked from the nav.
 export default function OrbitalTestPage() {
+  devOnlyRoute();
+
   return (
     <div className="mx-auto max-w-6xl px-5 py-12 md:px-6 md:py-16">
       <p className="eyebrow text-brand-muted mb-3">test · orbital</p>

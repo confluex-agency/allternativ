@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PullbackStage } from "@/components/storefront/pullback-stage";
 import { StudioStrip } from "@/components/storefront/studio-strip";
 import { catalogueProducts } from "@/lib/catalogue-source";
+import { devOnlyRoute } from "@/lib/dev-only";
 
 export const metadata = {
   title: "Pull-back — prototype",
@@ -14,6 +15,8 @@ export const metadata = {
 // layout (rotated subtitle, framed head) isn't reproduced here — judge the
 // motion and the sequence, not the hero's composition.
 export default function PullbackTestPage() {
+  devOnlyRoute();
+
   const orbital = catalogueProducts.find((p) => p.slug === "orbital");
   if (!orbital) notFound();
 

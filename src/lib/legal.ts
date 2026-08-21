@@ -28,8 +28,15 @@ export const COMPANY = {
   vatNumber: null as string | null,
   /** IOSS number. Without it, EU customers can be billed duty on delivery. */
   iossNumber: null as string | null,
-  /** Where customer questions go. */
-  contactEmail: "hello@allternativ.com",
+  /**
+   * Where customer questions go.
+   *
+   * ⚠️ NOT CONFIRMED. This is the address the contact page has always shown,
+   * kept as the single source so the site cannot end up quoting two different
+   * ones. It is question D2 of the build plan; change it here and it changes
+   * everywhere at once.
+   */
+  contactEmail: "hola@allternativ.com",
 };
 
 /** True once the policies can be presented as final. */

@@ -23,8 +23,10 @@ const COLUMNS = [
     links: [
       { href: "/about", label: "About" },
       { href: "/contact", label: "Contact" },
-      { href: "#", label: "Stockists" },
-      { href: "#", label: "Journal" },
+      // Stockists and Journal pointed at "#". Removed rather than left
+      // hanging: a link that goes nowhere costs more trust than a shorter
+      // column, and this is the footer, where somebody looks precisely because
+      // they could not find something. They return when a page exists.
     ],
   },
   {
@@ -32,19 +34,15 @@ const COLUMNS = [
     links: [
       { href: "/shipping", label: "Shipping" },
       { href: "/returns", label: "Returns" },
-      { href: "#", label: "Care" },
-      { href: "#", label: "FAQ" },
+      { href: "/contact", label: "Contact us" },
+      // Care and FAQ: same reason. No content written for either yet.
     ],
   },
-  {
-    title: "Follow",
-    links: [
-      { href: "#", label: "Instagram" },
-      { href: "#", label: "TikTok" },
-      { href: "#", label: "Spotify" },
-      { href: "#", label: "Newsletter" },
-    ],
-  },
+  // The "Follow" column held Instagram, TikTok, Spotify and Newsletter, all
+  // pointing at "#". We do not have the accounts. A social icon that does
+  // nothing reads as a brand that abandoned its accounts, which is worse than a
+  // brand that has not opened them. Send the handles and the column returns;
+  // the newsletter is question D4 of the build plan.
 ];
 
 export function StorefrontFooter() {

@@ -1,4 +1,7 @@
-import { Instagram, Mail, MapPin } from "lucide-react";
+import { Mail } from "lucide-react";
+import { COMPANY } from "@/lib/legal";
+
+const CONTACT_EMAIL = COMPANY.contactEmail;
 
 export const metadata = {
   title: "Contact",
@@ -6,24 +9,30 @@ export const metadata = {
     "Write to us. Collaborations, special orders, distribution or conversations about frequency.",
 };
 
+// ⚠️ Two entries were removed from this list on 2026-08-21, and they are worth
+// naming so nobody puts them back by accident.
+//
+// "Studio — Buenos Aires, visits by appointment" was invented. Allternativ is
+// not registered as a company anywhere yet; that is item 1 of the client's own
+// pending list. An address on a contact page is not decoration, it is an
+// invitation to turn up somewhere, and there is nowhere to turn up to. It is
+// the same class of claim as the "Handcrafted · LATAM" line that came off the
+// product pages in August, on goods made in Yiwu and Shenzhen.
+//
+// "Instagram — @allternativ" linked to "#". Printing a handle asserts that the
+// account exists, and an icon that does nothing when clicked reads as a brand
+// that abandoned its accounts. Send the real handles and it comes back.
+//
+// The address below is the one already published on this page. It is not
+// confirmed either — it is question D2 of the build plan — but it is what the
+// site has always said, and inventing a SECOND unconfirmed address would be
+// worse than keeping one.
 const CHANNELS = [
   {
     icon: Mail,
     label: "Mail",
-    value: "hola@allternativ.com",
-    href: "mailto:hola@allternativ.com",
-  },
-  {
-    icon: Instagram,
-    label: "Instagram",
-    value: "@allternativ",
-    href: "#",
-  },
-  {
-    icon: MapPin,
-    label: "Studio",
-    value: "Buenos Aires — visits by appointment",
-    href: null,
+    value: CONTACT_EMAIL,
+    href: `mailto:${CONTACT_EMAIL}`,
   },
 ];
 

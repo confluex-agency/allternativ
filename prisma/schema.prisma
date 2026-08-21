@@ -17,24 +17,24 @@ datasource db {
 
 // Roles as named by the client brief (section 18).
 enum AdminRole {
-  OWNER             // full access: settings, users, commercial data
-  ECOMMERCE_ADMIN   // products, prices, variants, inventory, promotions, orders
-  CONTENT_ADMIN     // images, copy, collections, homepage, editorial content
-  ANALYTICS_VIEWER  // dashboards and reports, no editing
+  OWNER // full access: settings, users, commercial data
+  ECOMMERCE_ADMIN // products, prices, variants, inventory, promotions, orders
+  CONTENT_ADMIN // images, copy, collections, homepage, editorial content
+  ANALYTICS_VIEWER // dashboards and reports, no editing
 }
 
 model AdminUser {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  passwordHash        String    @map("password_hash")
-  name                String
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  name               String
   // Least-privileged default on purpose: a row created without an explicit role
   // can read dashboards and nothing else.
-  role                AdminRole @default(ANALYTICS_VIEWER)
-  mustChangePassword  Boolean   @default(true) @map("must_change_password")
-  passwordChangedAt   DateTime  @default(now()) @map("password_changed_at")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  role               AdminRole @default(ANALYTICS_VIEWER)
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  passwordChangedAt  DateTime  @default(now()) @map("password_changed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@map("admin_users")
 }
@@ -46,7 +46,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   adminUserId String?  @map("admin_user_id")
   adminEmail  String   @map("admin_email")
-  action      String   // "update" | "create" | "delete" | "publish" ...
+  action      String // "update" | "create" | "delete" | "publish" ...
   entityType  String   @map("entity_type") // "product" | "price" | "promotion" ...
   entityId    String?  @map("entity_id")
   entityLabel String?  @map("entity_label") @db.VarChar(255) // human name at the time
@@ -118,29 +118,33 @@ enum ImageType {
 }
 
 model Product {
-  id                    String         @id @default(cuid())
-  name                  String
-  slug                  String         @unique
+  id                   String         @id @default(cuid())
+  name                 String
+  slug                 String         @unique
   // The client's own model code, printed in the brief as "ORBITAL — 5312JT".
   // Distinct from ProductVariant.sku, which identifies a buyable colourway.
-  code                  String?        @unique
-  tagline               String?        @db.VarChar(255)
-  description           String?        @db.Text
-  priceCents            Int            @map("price_cents")
-  compareAtPriceCents   Int?           @map("compare_at_price_cents")
-  stockQuantity         Int            @default(0) @map("stock_quantity")
-  status                ProductStatus  @default(DRAFT)
-  launchDate            DateTime?      @map("launch_date")
-  isFeatured            Boolean        @default(false) @map("is_featured")
-  type                  ProductType
-  frameShape            FrameShape?    @map("frame_shape")
-  frameMaterial         FrameMaterial? @map("frame_material")
-  lensType              String?        @map("lens_type")
-  frameColor            String?        @map("frame_color")
-  gender                Gender         @default(UNISEX)
+  code                 String?        @unique
+  tagline              String?        @db.VarChar(255)
+  description          String?        @db.Text
+  // The euro price, and the fallback for any market with no row in
+  // `marketPrices`. Kept rather than replaced: a product with no market price
+  // yet still has to be sellable, and a null here would be a page that cannot
+  // render a figure.
+  priceCents           Int            @map("price_cents")
+  compareAtPriceCents  Int?           @map("compare_at_price_cents")
+  stockQuantity        Int            @default(0) @map("stock_quantity")
+  status               ProductStatus  @default(DRAFT)
+  launchDate           DateTime?      @map("launch_date")
+  isFeatured           Boolean        @default(false) @map("is_featured")
+  type                 ProductType
+  frameShape           FrameShape?    @map("frame_shape")
+  frameMaterial        FrameMaterial? @map("frame_material")
+  lensType             String?        @map("lens_type")
+  frameColor           String?        @map("frame_color")
+  gender               Gender         @default(UNISEX)
   // ─ "The Feeling" (section 09): editorial copy, deliberately separate from
   //   the technical description. Written by the client, not by us. ─
-  feeling               String?        @db.Text
+  feeling              String?        @db.Text
   // ─ Published specs (section 08). Only confirmed values should be filled in;
   //   anything left null is simply not shown on the product page. ─
   // Published as written. The frameMaterial enum above stays for filtering, but
@@ -152,27 +156,65 @@ model Product {
   //
   //   Nothing customer-facing ever reads this. It exists so the margin of a
   //   sale can be worked out, which is impossible from the selling price alone.
-  supplierCostUsdCents  Int?           @map("supplier_cost_usd_cents")
-  frameDetail           String?        @map("frame_detail")
-  origin                String?
-  lensMaterial          String?        @map("lens_material")
-  uvProtection          String?        @map("uv_protection")   // e.g. "UV400"
-  lensCategory          Int?           @map("lens_category")   // 0-4, the standard scale
-  dimensionsMm          String?        @map("dimensions_mm")   // e.g. "50-22-145"
-  weightGrams           Int?           @map("weight_grams")
-  fit                   String?
-  metaTitle             String?        @map("meta_title")
-  metaDescription       String?        @map("meta_description") @db.VarChar(255)
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
+  supplierCostUsdCents Int?           @map("supplier_cost_usd_cents")
+  frameDetail          String?        @map("frame_detail")
+  origin               String?
+  lensMaterial         String?        @map("lens_material")
+  uvProtection         String?        @map("uv_protection") // e.g. "UV400"
+  lensCategory         Int?           @map("lens_category") // 0-4, the standard scale
+  dimensionsMm         String?        @map("dimensions_mm") // e.g. "50-22-145"
+  weightGrams          Int?           @map("weight_grams")
+  fit                  String?
+  metaTitle            String?        @map("meta_title")
+  metaDescription      String?        @map("meta_description") @db.VarChar(255)
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
 
-  images      ProductImage[]
-  variants    ProductVariant[]
-  collections ProductsOnCollections[]
-  orderItems  OrderItem[]
+  images        ProductImage[]
+  variants      ProductVariant[]
+  collections   ProductsOnCollections[]
+  orderItems    OrderItem[]
   wishlistItems WishlistItem[]
+  marketPrices  MarketPrice[]
 
   @@map("products")
+}
+
+// What a product costs in one market.
+//
+// The client rejected daily conversion outright: "no queremos simplemente hacer
+// una conversión automática del EUR price cada día... esto nos permite controlar
+// exactamente cómo se posiciona el producto en cada mercado." So these are six
+// chosen numbers, not one number and an exchange rate, and nothing here is ever
+// derived from anything else.
+//
+// It lives in the database rather than in a constant because the checkout
+// prices against the database — the basket is in the visitor's browser and can
+// be edited — and because section 21 of the brief asks for a per-market price
+// the client edits themselves, without a deploy.
+//
+// One row per product per market, even though every model and colourway
+// currently shares a price inside a market. That is a fact about today's
+// catalogue, not about the shape of the problem, and a single global number
+// would have to be taken apart the first time one model costs more.
+model MarketPrice {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  // "EU", "GB", "US", "CA", "AU", "NZ". Matches MarketKey in src/lib/markets.ts.
+  market     String   @db.VarChar(8)
+  // The currency this market is charged in, stored alongside the amount rather
+  // than looked up. An amount without its currency is not a price, and a row
+  // that outlives a change to the market table would otherwise be unreadable.
+  currency   String   @db.VarChar(3)
+  priceCents Int      @map("price_cents")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, market])
+  @@index([market])
+  @@map("market_prices")
 }
 
 // A buyable colourway of a product (Orbital black / Orbital silver).
@@ -182,9 +224,9 @@ model ProductVariant {
   id            String   @id @default(cuid())
   productId     String   @map("product_id")
   sku           String   @unique
-  colorKey      String   @map("color_key")  // "black" — matches mock-data Colorway.key
+  colorKey      String   @map("color_key") // "black" — matches mock-data Colorway.key
   colorName     String   @map("color_name") // "Negro" — shown in the selector
-  swatch        String?                     // CSS colour for the selector dot
+  swatch        String? // CSS colour for the selector dot
   priceCents    Int?     @map("price_cents") // null = inherit the product price
   stockQuantity Int      @default(0) @map("stock_quantity")
   isActive      Boolean  @default(true) @map("is_active")
@@ -236,13 +278,19 @@ model StockReservation {
   // per pair. Riding on the eyewear reservation rather than having its own row
   // means the expiry, the sweep and the release already cover it.
   caseKey         String?   @map("case_key")
-  /** Groups every line of one checkout attempt, so they release together. */
+  /**
+   * Groups every line of one checkout attempt, so they release together.
+   */
   groupId         String    @map("group_id")
   stripeSessionId String?   @map("stripe_session_id")
   expiresAt       DateTime  @map("expires_at")
-  /** Set when the reservation becomes a sale or is handed back. */
+  /**
+   * Set when the reservation becomes a sale or is handed back.
+   */
   releasedAt      DateTime? @map("released_at")
-  /** True when released because it was paid for, false when it timed out. */
+  /**
+   * True when released because it was paid for, false when it timed out.
+   */
   consumed        Boolean   @default(false)
   createdAt       DateTime  @default(now()) @map("created_at")
 
@@ -284,21 +332,21 @@ enum CollectionStatus {
 }
 
 model Collection {
-  id            String           @id @default(cuid())
-  name          String
-  slug          String           @unique
-  tagline       String?          @db.VarChar(255)
-  description   String?          @db.Text
-  heroImageUrl  String?          @map("hero_image_url") @db.VarChar(500)
-  heroVideoUrl  String?          @map("hero_video_url") @db.VarChar(500)
-  status        CollectionStatus @default(DRAFT)
-  launchDate    DateTime?        @map("launch_date")
-  isFeatured    Boolean          @default(false) @map("is_featured")
-  position      Int              @default(0)
-  metaTitle     String?          @map("meta_title")
-  metaDescription String?        @map("meta_description") @db.VarChar(255)
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  tagline         String?          @db.VarChar(255)
+  description     String?          @db.Text
+  heroImageUrl    String?          @map("hero_image_url") @db.VarChar(500)
+  heroVideoUrl    String?          @map("hero_video_url") @db.VarChar(500)
+  status          CollectionStatus @default(DRAFT)
+  launchDate      DateTime?        @map("launch_date")
+  isFeatured      Boolean          @default(false) @map("is_featured")
+  position        Int              @default(0)
+  metaTitle       String?          @map("meta_title")
+  metaDescription String?          @map("meta_description") @db.VarChar(255)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   products ProductsOnCollections[]
 
@@ -335,7 +383,9 @@ model WebhookEvent {
   id            String             @id @default(cuid())
   stripeEventId String             @unique @map("stripe_event_id")
   type          String
-  /** The raw event, kept so a failed one can be reprocessed as it arrived. */
+  /**
+   * The raw event, kept so a failed one can be reprocessed as it arrived.
+   */
   payload       Json
   status        WebhookEventStatus @default(PENDING)
   attempts      Int                @default(0)
@@ -360,7 +410,9 @@ model WooRequestLog {
   query          String?  @db.Text
   body           String?  @db.Text
   authenticated  Boolean  @default(false)
-  /** False when the route is one we have not implemented — the interesting ones. */
+  /**
+   * False when the route is one we have not implemented — the interesting ones.
+   */
   matched        Boolean  @default(false)
   responseStatus Int
   userAgent      String?  @map("user_agent") @db.VarChar(500)
@@ -377,29 +429,29 @@ model WooRequestLog {
 // on purpose, because most subscribers never buy and most buyers never opt in.
 
 enum SubscriberStatus {
-  PENDING      // double opt-in email sent, not confirmed yet
+  PENDING // double opt-in email sent, not confirmed yet
   SUBSCRIBED
   UNSUBSCRIBED
 }
 
 model NewsletterSubscriber {
-  id             String           @id @default(cuid())
-  email          String           @unique
-  status         SubscriberStatus @default(PENDING)
-  source         String?          // "popup" | "footer" | "checkout"
+  id               String           @id @default(cuid())
+  email            String           @unique
+  status           SubscriberStatus @default(PENDING)
+  source           String? // "popup" | "footer" | "checkout"
   // Proof of consent. Selling into the EU, the timestamp and where it came from
   // are the record that matters if the consent is ever challenged.
-  consentAt      DateTime?        @map("consent_at")
-  consentIpHash  String?          @map("consent_ip_hash") // hashed, never raw
-  confirmedAt    DateTime?        @map("confirmed_at")
-  unsubscribedAt DateTime?        @map("unsubscribed_at")
+  consentAt        DateTime?        @map("consent_at")
+  consentIpHash    String?          @map("consent_ip_hash") // hashed, never raw
+  confirmedAt      DateTime?        @map("confirmed_at")
+  unsubscribedAt   DateTime?        @map("unsubscribed_at")
   // Every marketing email must carry a working one-click unsubscribe link.
   // Generated up front so no backfill is ever needed.
-  unsubscribeToken String         @unique @map("unsubscribe_token") @default(cuid())
+  unsubscribeToken String           @unique @default(cuid()) @map("unsubscribe_token")
   // Which welcome code this person was handed, so it is not given twice.
-  discountCode   String?          @map("discount_code")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  discountCode     String?          @map("discount_code")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   @@index([status])
   @@map("newsletter_subscribers")
@@ -408,26 +460,26 @@ model NewsletterSubscriber {
 // ─── Customers & Orders ─────────────────────────────────────────────────────
 
 model Customer {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  name              String?
-  phone             String?
-  country           String?
-  city              String?
-  stripeCustomerId  String?  @unique @map("stripe_customer_id")
-  totalSpentCents   Int      @default(0) @map("total_spent_cents")
-  orderCount        Int      @default(0) @map("order_count")
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String?
+  phone              String?
+  country            String?
+  city               String?
+  stripeCustomerId   String?   @unique @map("stripe_customer_id")
+  totalSpentCents    Int       @default(0) @map("total_spent_cents")
+  orderCount         Int       @default(0) @map("order_count")
   // ─ Account (the ACCOUNT entry in the nav, section 02). Null means the person
   //   bought as a guest and the record was created by the Stripe webhook. ─
-  passwordHash      String?  @map("password_hash")
-  emailVerifiedAt   DateTime? @map("email_verified_at")
+  passwordHash       String?   @map("password_hash")
+  emailVerifiedAt    DateTime? @map("email_verified_at")
   // ─ Section 25 is explicit: having an account is NOT marketing consent. These
   //   are stored separately and the timestamp is the proof of when it was given. ─
-  marketingConsent  Boolean  @default(false) @map("marketing_consent")
+  marketingConsent   Boolean   @default(false) @map("marketing_consent")
   marketingConsentAt DateTime? @map("marketing_consent_at")
-  notes             String?  @db.Text
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   orders        Order[]
   wishlistItems WishlistItem[]
@@ -553,23 +605,23 @@ model WishlistItem {
 // ─── Analytics & Tracking ───────────────────────────────────────────────────
 
 model Session {
-  id              String    @id @default(cuid())
-  visitorId       String    @map("visitor_id")
-  customerId      String?   @map("customer_id")
-  referrer        String?   @db.VarChar(500)
-  utmSource       String?   @map("utm_source")
-  utmMedium       String?   @map("utm_medium")
-  utmCampaign     String?   @map("utm_campaign")
-  userAgent       String?   @map("user_agent") @db.VarChar(500)
-  deviceType      String?   @map("device_type")
+  id              String   @id @default(cuid())
+  visitorId       String   @map("visitor_id")
+  customerId      String?  @map("customer_id")
+  referrer        String?  @db.VarChar(500)
+  utmSource       String?  @map("utm_source")
+  utmMedium       String?  @map("utm_medium")
+  utmCampaign     String?  @map("utm_campaign")
+  userAgent       String?  @map("user_agent") @db.VarChar(500)
+  deviceType      String?  @map("device_type")
   browser         String?
   os              String?
   country         String?
   city            String?
-  ipHash          String?   @map("ip_hash")
-  pageCount       Int       @default(0) @map("page_count")
-  durationSeconds Int       @default(0) @map("duration_seconds")
-  landedAt        DateTime  @default(now()) @map("landed_at")
+  ipHash          String?  @map("ip_hash")
+  pageCount       Int      @default(0) @map("page_count")
+  durationSeconds Int      @default(0) @map("duration_seconds")
+  landedAt        DateTime @default(now()) @map("landed_at")
 
   customer Customer?       @relation(fields: [customerId], references: [id])
   events   TrackingEvent[]
@@ -596,20 +648,20 @@ model TrackingEvent {
 }
 
 model DailyAnalytics {
-  id                  String   @id @default(cuid())
-  date                DateTime @unique @db.Date
-  totalSessions       Int      @default(0) @map("total_sessions")
-  uniqueVisitors      Int      @default(0) @map("unique_visitors")
-  pageViews           Int      @default(0) @map("page_views")
-  avgSessionDuration  Float    @default(0) @map("avg_session_duration")
-  bounceRate          Float    @default(0) @map("bounce_rate")
-  totalOrders         Int      @default(0) @map("total_orders")
-  totalRevenueCents   Int      @default(0) @map("total_revenue_cents")
-  conversionRate      Float    @default(0) @map("conversion_rate")
-  topSources          Json?    @map("top_sources")
-  topCountries        Json?    @map("top_countries")
-  topProductsViewed   Json?    @map("top_products_viewed")
-  topSearchTerms      Json?    @map("top_search_terms")
+  id                 String   @id @default(cuid())
+  date               DateTime @unique @db.Date
+  totalSessions      Int      @default(0) @map("total_sessions")
+  uniqueVisitors     Int      @default(0) @map("unique_visitors")
+  pageViews          Int      @default(0) @map("page_views")
+  avgSessionDuration Float    @default(0) @map("avg_session_duration")
+  bounceRate         Float    @default(0) @map("bounce_rate")
+  totalOrders        Int      @default(0) @map("total_orders")
+  totalRevenueCents  Int      @default(0) @map("total_revenue_cents")
+  conversionRate     Float    @default(0) @map("conversion_rate")
+  topSources         Json?    @map("top_sources")
+  topCountries       Json?    @map("top_countries")
+  topProductsViewed  Json?    @map("top_products_viewed")
+  topSearchTerms     Json?    @map("top_search_terms")
 
   @@map("daily_analytics")
 }

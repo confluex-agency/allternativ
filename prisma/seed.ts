@@ -8,6 +8,7 @@ import {
   packedCostUsdCents,
   RETIRED_SLUGS,
 } from "../src/lib/catalogue-source";
+import { MARKETS, MARKET_PRICE_CENTS } from "../src/lib/markets";
 
 const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
@@ -262,6 +263,27 @@ async function main() {
         });
       }
       variantCount++;
+    }
+
+    // Prices per market. Six rows per product, upserted so a figure the client
+    // has already edited in the admin is not overwritten on the next seed —
+    // only markets that have no row at all are created.
+    //
+    // ⚠️ `update` is deliberately EMPTY. Re-seeding must not undo a price
+    // change: the source file is where a price STARTS, and the database is
+    // where it lives once somebody has touched it. Writing the source value
+    // back on every run would make the admin's price editor silently temporary.
+    for (const market of Object.keys(MARKETS) as (keyof typeof MARKETS)[]) {
+      await prisma.marketPrice.upsert({
+        where: { productId_market: { productId: product.id, market } },
+        update: {},
+        create: {
+          productId: product.id,
+          market,
+          currency: MARKETS[market].currency,
+          priceCents: MARKET_PRICE_CENTS[market],
+        },
+      });
     }
 
     // Colourways this model used to have and no longer does. Same reasoning as

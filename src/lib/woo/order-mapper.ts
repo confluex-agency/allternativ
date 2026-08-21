@@ -67,6 +67,34 @@ function splitName(full: string | null): { first: string; last: string } {
   return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
 }
 
+/**
+ * The packing instruction, written out in plain words.
+ *
+ * Daniel answered on 2026-08-21 that "order note and customer notes can be
+ * displayed here", and that is the only place in the whole payload he has
+ * confirmed his team actually reads. Line item `meta_data` is where the case
+ * colour belongs structurally, and it stays there, but nobody has told us
+ * Dianxiaomi renders it. So the same fact is said twice, in two different
+ * shapes, and the cheap one is the one we know gets read.
+ *
+ * ⚠️ NOT built from `Order.notes`. That column is the admin's internal note
+ * (brief section 24) and it is nobody's business outside this company. A
+ * supplier-facing field must be assembled from facts about the goods, never
+ * piped from a free-text box somebody on our side typed into.
+ */
+function packingNote(items: ExportableOrder["items"]): string {
+  const lines = items
+    .filter((item) => item.caseColor)
+    .map((item) => {
+      const what = [item.productName, item.variantName]
+        .filter(Boolean)
+        .join(" - ");
+      return `${what}: ${item.caseColor} case x${item.quantity}`;
+    });
+  if (lines.length === 0) return "";
+  return `CASE COLOURS - ${lines.join(" | ")}`;
+}
+
 export function toWooOrder(order: ExportableOrder) {
   const name = splitName(order.shippingName ?? order.customer.name);
 
@@ -92,6 +120,9 @@ export function toWooOrder(order: ExportableOrder) {
     currency: order.currency,
     date_created: order.createdAt.toISOString(),
     date_modified: order.updatedAt.toISOString(),
+    // WooCommerce's field for what the buyer wrote at checkout. We have no such
+    // box, so it carries the one instruction the warehouse cannot get wrong.
+    customer_note: packingNote(order.items),
     discount_total: money(order.discountCents),
     shipping_total: money(order.shippingCents),
     total: money(order.totalCents),

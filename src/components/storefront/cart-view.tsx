@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/hooks/useCart";
-import { formatPrice, STORE_CURRENCY } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
+import { priceIn, useMarket } from "@/components/storefront/price";
+import { useDestination } from "@/hooks/useDestination";
+import { MARKETS } from "@/lib/markets";
 import { caseLabel } from "@/lib/product-options";
 import { Button } from "@/components/ui/button";
 import { trackCheckoutStart } from "@/lib/tracking";
@@ -13,8 +16,6 @@ import {
   quoteShipping,
   freeShippingMessage,
 } from "@/lib/shipping";
-
-const SHIP_TO_KEY = "allternativ:ship-to";
 
 // English country names without shipping a list of our own. Falls back to the
 // code on the rare browser that cannot do this.
@@ -44,11 +45,12 @@ export function CartView() {
   // whatever is chosen here is BOTH the price charged and the only country the
   // payment page will accept. A wrong default would not merely misprice the
   // parcel, it would lock the customer out of entering their real address.
-  const [shipTo, setShipTo] = useState("");
-  useEffect(() => {
-    const saved = window.localStorage.getItem(SHIP_TO_KEY);
-    if (saved && SHIPPABLE_COUNTRIES.includes(saved)) setShipTo(saved);
-  }, []);
+  // The same store the header's picker writes to. One destination for the whole
+  // site: choosing in either place settles the price AND the delivery.
+  const shipTo = useDestination((s) => s.country);
+  const setShipTo = useDestination((s) => s.setCountry);
+  const market = useMarket();
+  const currency = MARKETS[market].currency;
 
   // ── The discount code ─────────────────────────────────────────────────────
   // It used to be typed on Stripe's hosted page. It moved here because a code
@@ -66,7 +68,7 @@ export function CartView() {
   } | null>(null);
 
   const pairs = items.reduce((n, i) => n + i.quantity, 0);
-  const shipping = shipTo ? quoteShipping(shipTo, pairs) : null;
+  const shipping = shipTo ? quoteShipping(shipTo, pairs, currency) : null;
   const nudge = freeShippingMessage(pairs);
 
   // What a discount is worth depends on the whole basket, not just the code:
@@ -80,13 +82,22 @@ export function CartView() {
   // what the customer is shown.
   const basketSignature = [
     shipTo,
+    market,
     ...items.map((i) => `${i.variantId}:${i.caseColor}:${i.quantity}`).sort(),
   ].join("|");
   const discount =
     applied && applied.signature === basketSignature ? applied : null;
   const staleDiscount = applied !== null && discount === null;
 
-  const subtotalCents = totalCents();
+  // Priced from each line's own market table rather than from the figure
+  // stored when it was added, so a basket assembled in euros reprices whole
+  // when somebody changes where it is going.
+  const lineCents = (i: (typeof items)[number]) =>
+    priceIn(i.prices, market, i.priceCents).cents;
+  const subtotalCents = items.reduce(
+    (sum, i) => sum + lineCents(i) * i.quantity,
+    0,
+  );
   const grandTotalCents =
     subtotalCents - (discount?.discountCents ?? 0) + (shipping?.amountCents ?? 0);
 
@@ -113,7 +124,7 @@ export function CartView() {
             quantity: i.quantity,
             caseColor: i.caseColor,
           })),
-          currency: STORE_CURRENCY.toLowerCase(),
+          currency,
           destinationCountry: shipTo,
         }),
       });
@@ -173,7 +184,7 @@ export function CartView() {
             quantity: i.quantity,
             caseColor: i.caseColor,
           })),
-          currency: STORE_CURRENCY.toLowerCase(),
+          currency,
           destinationCountry: shipTo,
           ...(promoCode.trim() ? { promotionCode: promoCode.trim() } : {}),
         }),
@@ -237,7 +248,7 @@ export function CartView() {
                 {item.variantName} · Case: {caseLabel(item.caseColor)}
               </p>
               <p className="text-sm text-neutral-500 mt-1">
-                {formatPrice(item.priceCents)}
+                {formatPrice(lineCents(item), currency)}
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <button
@@ -259,7 +270,7 @@ export function CartView() {
             </div>
             <div className="text-right">
               <p className="text-sm font-medium">
-                {formatPrice(item.priceCents * item.quantity)}
+                {formatPrice(lineCents(item) * item.quantity, currency)}
               </p>
               <button
                 onClick={() => removeItem(item.lineId)}
@@ -282,10 +293,7 @@ export function CartView() {
           </span>
           <select
             value={shipTo}
-            onChange={(e) => {
-              setShipTo(e.target.value);
-              window.localStorage.setItem(SHIP_TO_KEY, e.target.value);
-            }}
+            onChange={(e) => setShipTo(e.target.value)}
             className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">Select a country…</option>
@@ -354,12 +362,12 @@ export function CartView() {
         <div className="mt-5 space-y-2 text-sm">
           <div className="flex justify-between text-neutral-600">
             <span>Subtotal</span>
-            <span>{formatPrice(subtotalCents)}</span>
+            <span>{formatPrice(subtotalCents, currency)}</span>
           </div>
           {discount && (
             <div className="flex justify-between text-emerald-700">
               <span>Discount ({discount.code})</span>
-              <span>−{formatPrice(discount.discountCents)}</span>
+              <span>−{formatPrice(discount.discountCents, currency)}</span>
             </div>
           )}
           <div className="flex justify-between text-neutral-600">
@@ -378,7 +386,7 @@ export function CartView() {
 
         <div className="mt-3 flex justify-between border-t pt-3 text-lg font-medium">
           <span>Total</span>
-          <span>{formatPrice(grandTotalCents)}</span>
+          <span>{formatPrice(grandTotalCents, currency)}</span>
         </div>
 
         {/* Their copy, word for word. This is the lever they want to measure,

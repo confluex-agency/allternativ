@@ -10,6 +10,7 @@ import {
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
 } from "@/lib/shipping";
 import { evaluateDiscountForBasket } from "@/lib/promotions";
+import { marketForCountry, MARKETS } from "@/lib/markets";
 import { promoCodeLimiter, getClientIp } from "@/lib/rate-limit";
 import type Stripe from "stripe";
 import {
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         product: { status: "LIVE" },
       },
-      include: { product: true },
+      include: { product: { include: { marketPrices: true } } },
     });
 
     if (variants.length !== variantIds.length) {
@@ -138,6 +139,38 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // ── What a pair costs, in the currency of where it is going ─────────────
+    //
+    // Read from the database, never from the request. The basket lives in the
+    // visitor's browser and can be edited freely, so a cart claiming its pairs
+    // cost twenty euros would otherwise be honoured.
+    //
+    // The market is derived from the destination country rather than sent
+    // alongside it. Sending both would let a basket ask for the cheapest
+    // market's price and the dearest market's delivery.
+    const market = marketForCountry(destinationCountry);
+    if (!market || MARKETS[market].currency !== currency) {
+      // The currency has to be the one that destination is priced in. Anything
+      // else is a basket that was tampered with, or a stale tab from before a
+      // market changed, and neither should be charged.
+      return NextResponse.json(
+        { error: "That currency is not available for this destination." },
+        { status: 400 },
+      );
+    }
+
+    const unitPriceFor = (variantId: string): number => {
+      const variant = byId.get(variantId)!;
+      // A colourway that sets its own price keeps it; that is a per-variant
+      // fact and the market table is a per-product one. None do today.
+      if (variant.priceCents !== null) return variant.priceCents;
+      const row = variant.product.marketPrices.find((p) => p.market === market);
+      // Falling back to the euro price rather than refusing: a product created
+      // in the admin before its six prices are set still has to be sellable,
+      // and a missing row is a to-do rather than a broken checkout.
+      return row?.priceCents ?? variant.product.priceCents;
+    };
+
     const lineItems = items.map((item) => {
       const variant = byId.get(item.variantId)!;
       return {
@@ -147,8 +180,7 @@ export async function POST(request: NextRequest) {
             name: `${variant.product.name} — ${variant.colorName}`,
             description: `Case: ${caseLabel(item.caseColor)}`,
           },
-          // Variant price when it has one, otherwise the product's.
-          unit_amount: variant.priceCents ?? variant.product.priceCents,
+          unit_amount: unitPriceFor(item.variantId),
         },
         quantity: item.quantity,
       };
@@ -201,7 +233,7 @@ export async function POST(request: NextRequest) {
         lines: items.map((item) => {
           const variant = byId.get(item.variantId)!;
           return {
-            priceCents: variant.priceCents ?? variant.product.priceCents,
+            priceCents: unitPriceFor(item.variantId),
             supplierCostUsdCents: variant.product.supplierCostUsdCents,
             quantity: item.quantity,
           };

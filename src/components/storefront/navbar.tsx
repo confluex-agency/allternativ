@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
+import { DestinationPicker } from "@/components/storefront/destination-picker";
 
 // Section 02 of the brief, which names COLLECTIONS the main ecommerce entry
 // point and asks for the navigation to stay minimal. It used to say "Shop" and
@@ -20,15 +21,20 @@ const NAV_LINKS = [
 ];
 
 export function StorefrontNavbar() {
-  const totalItems = useCart((s) => s.totalItems);
   const [open, setOpen] = useState(false);
 
-  // The cart lives in localStorage (Zustand persist), which the server can't
-  // read. Render 0 until mounted so SSR and the first client render match,
-  // then reveal the real count — avoids a hydration mismatch on the badge.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const count = mounted ? totalItems() : 0;
+  // The cart lives in localStorage (Zustand persist), which the server cannot
+  // read, so the badge has to render 0 on the server and the real count after.
+  //
+  // `useSyncExternalStore` with an explicit server snapshot, rather than a
+  // `mounted` flag flipped in an effect. Same result, and it is the mechanism
+  // React provides for precisely this: setting state in an effect schedules a
+  // second render of everything below, which React's compiler rules refuse.
+  const count = useSyncExternalStore(
+    useCart.subscribe,
+    () => useCart.getState().items.reduce((n, i) => n + i.quantity, 0),
+    () => 0,
+  );
 
   return (
     <header className="sticky top-0 z-50 glass border-b-0">
@@ -60,6 +66,10 @@ export function StorefrontNavbar() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Hidden on the narrowest screens, where the basket already carries
+              the same control and the header has no room for it. */}
+          <DestinationPicker className="hidden sm:inline-flex" />
+
           <Link
             href="/cart"
             aria-label={`Cart, ${count} item${count === 1 ? "" : "s"}`}

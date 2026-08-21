@@ -33,7 +33,22 @@ export type CartItem = {
   variantName: string;
   slug: string;
   caseColor: CaseColor;
+  /**
+   * The euro price, and the fallback for a line added before market pricing
+   * existed. A basket persists in localStorage across deploys, so a line
+   * written by yesterday's build has to keep rendering under today's.
+   */
   priceCents: number;
+  /**
+   * Every market's price for this line, carried in the basket rather than
+   * looked up again.
+   *
+   * A visitor can change where the parcel is going while the basket is open,
+   * and the whole basket has to reprice. Storing one figure would leave a cart
+   * quoting euros next to a product page quoting pounds. Optional because
+   * baskets written before this existed do not have it.
+   */
+  prices?: Record<string, { currency: string; cents: number }>;
   quantity: number;
   imageUrl: string;
 };

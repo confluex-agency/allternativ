@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Price } from "@/components/storefront/price";
 import Image from "next/image";
 import {
   cardImages,
@@ -143,7 +144,9 @@ export function ProductCard({
           )}
         </div>
         <p className="whitespace-nowrap text-xs text-brand-ink md:text-sm">
-          {formatPrice(product.priceCents)}
+          {/* A client island inside a server-rendered card. The card stays
+              static; only the figure knows where the parcel is going. */}
+          <Price prices={product.prices} fallbackCents={product.priceCents} />
           {product.compareAtPriceCents && (
             <span className="ml-1 hidden text-xs text-brand-muted line-through md:inline">
               {formatPrice(product.compareAtPriceCents)}

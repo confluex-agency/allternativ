@@ -3,12 +3,14 @@
 // Everything the shop renders comes from here, and it speaks ONE vocabulary:
 // the database's. A product has `variants` (the buyable colourways), a variant
 // has `images`, and an image has a `type`. There is deliberately no second set
-// of names — `mock-data.ts` still exists, but only as the seed's input while the
-// client's real catalogue is being assembled. No page should import it.
+// of names — `catalogue-source.ts` still exists, but only as the seed's input.
+// No page should import it.
 
 import { prisma } from "@/lib/prisma";
 import type { ImageType, ProductType } from "@/generated/prisma/client";
 import { CASE_COLORS, caseLabel, type CaseColor } from "@/lib/product-options";
+import { MARKETS, DEFAULT_MARKET, type MarketKey } from "@/lib/markets";
+import type { SupportedCurrency } from "@/lib/stripe";
 
 export type CatalogImage = {
   id: string;
@@ -26,9 +28,25 @@ export type CatalogVariant = {
   swatch: string | null;
   /** Resolved price: the variant's own if it has one, otherwise the product's. */
   priceCents: number;
+  /**
+   * The variant's OWN price, or null when it simply inherits.
+   *
+   * ⚠️ The resolved figure above cannot answer "does this colourway override
+   * the price?", because it has already fallen back to the product's euro
+   * price. Anything that needs to choose between a variant override and a
+   * market price has to know the difference, or every market silently reverts
+   * to euros. No colourway sets one today: "no hay ningún colourway premium ni
+   * diferencia de precio entre modelos."
+   */
+  ownPriceCents: number | null;
   stockQuantity: number;
   inStock: boolean;
   images: CatalogImage[];
+};
+
+export type MarketPriceView = {
+  currency: SupportedCurrency;
+  cents: number;
 };
 
 export type CatalogProduct = {
@@ -41,7 +59,21 @@ export type CatalogProduct = {
   description: string | null;
   /** "The Feeling" — editorial copy, section 09 of the client brief. */
   feeling: string | null;
+  /**
+   * The euro price. Still here because a great deal of the site only needs one
+   * figure, and because it is the fallback for a market with no row.
+   */
   priceCents: number;
+  /**
+   * What a pair costs in every market, ready to render without another query.
+   *
+   * All six travel to the browser together, which is the point: the product
+   * pages are statically generated, and the visitor's market is a choice their
+   * browser holds. Shipping every price lets one small client component pick
+   * the right one on mount without a fetch and without giving up static
+   * rendering. Six short numbers is a cheap thing to send.
+   */
+  prices: Record<MarketKey, MarketPriceView>;
   compareAtPriceCents: number | null;
   isFeatured: boolean;
   /** Published specs. Anything null is simply not rendered. */
@@ -92,6 +124,7 @@ function findProducts(where: Record<string, unknown>) {
       // Only the ones no colourway claims: the rest arrive under their variant
       // above, and including them twice would duplicate every gallery.
       images: { where: { variantId: null }, orderBy: { position: "asc" } },
+      marketPrices: true,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -105,6 +138,29 @@ const toCatalogImage = (i: ProductRow["images"][number]): CatalogImage => ({
   isPrimary: i.isPrimary,
 });
 
+/**
+ * Every market's price for one product.
+ *
+ * A market with no row falls back to the euro price rather than disappearing.
+ * A product that has just been created in the admin, before anyone has set its
+ * six prices, still has to render a figure and still has to be sellable; a
+ * missing price would otherwise be a broken page rather than a to-do.
+ */
+function pricesFor(row: ProductRow): Record<MarketKey, MarketPriceView> {
+  const byMarket = new Map(row.marketPrices.map((p) => [p.market, p]));
+  const out = {} as Record<MarketKey, MarketPriceView>;
+  for (const market of Object.keys(MARKETS) as MarketKey[]) {
+    const stored = byMarket.get(market);
+    out[market] = stored
+      ? {
+          currency: stored.currency as SupportedCurrency,
+          cents: stored.priceCents,
+        }
+      : { currency: MARKETS[DEFAULT_MARKET].currency, cents: row.priceCents };
+  }
+  return out;
+}
+
 function toCatalogProduct(row: ProductRow): CatalogProduct {
   return {
     id: row.id,
@@ -116,6 +172,7 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
     description: row.description,
     feeling: row.feeling,
     priceCents: row.priceCents,
+    prices: pricesFor(row),
     compareAtPriceCents: row.compareAtPriceCents,
     isFeatured: row.isFeatured,
     specs: {
@@ -136,6 +193,7 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
       colorName: v.colorName,
       swatch: v.swatch,
       priceCents: v.priceCents ?? row.priceCents,
+      ownPriceCents: v.priceCents,
       stockQuantity: v.stockQuantity,
       inStock: v.stockQuantity > 0,
       images: v.images.map(toCatalogImage),

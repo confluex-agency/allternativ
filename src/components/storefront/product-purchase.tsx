@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { CatalogProduct, CaseOption } from "@/lib/catalog";
 import {
   CASE_SWATCH,
@@ -10,6 +10,7 @@ import {
   type CaseColor,
 } from "@/lib/product-options";
 import { formatPrice } from "@/lib/utils";
+import { priceIn, useMarket } from "@/components/storefront/price";
 import { useCart } from "@/hooks/useCart";
 import { trackAddToCart } from "@/lib/tracking";
 import { ProductGallery } from "@/components/storefront/product-gallery";
@@ -44,10 +45,18 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
   const variant =
     product.variants.find((v) => v.id === variantId) ?? product.variants[0];
 
-  const images = useMemo(
-    () => (variant ? (galleries[variant.id] ?? variant.images) : []),
-    [variant, galleries],
-  );
+  // What this pair costs where it is going. The variant's own price still wins
+  // when it has one, because a premium colourway is a per-variant fact and the
+  // market table is a per-product one; today no colourway sets one.
+  const market = useMarket();
+  const marketPrice = priceIn(product.prices, market, product.priceCents);
+  const unitPriceCents = variant?.ownPriceCents ?? marketPrice.cents;
+  const unitCurrency = marketPrice.currency;
+
+  // Plain, not memoised. The React Compiler memoises this for us and refuses
+  // to keep a hand-written useMemo it cannot prove equivalent, which is what it
+  // started reporting once a hook was added above. One array lookup either way.
+  const images = variant ? (galleries[variant.id] ?? variant.images) : [];
 
   if (!variant) {
     return (
@@ -69,7 +78,10 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
       variantName: variant.colorName,
       slug: product.slug,
       caseColor,
-      priceCents: variant.priceCents,
+      priceCents: variant.ownPriceCents ?? product.priceCents,
+      // Every market's figure travels with the line, so changing the
+      // destination reprices a basket that is already full.
+      prices: product.prices,
       quantity: 1,
       imageUrl: image,
     });
@@ -111,7 +123,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
           )}
 
           <p className="mt-8 text-2xl text-brand-ink md:mt-10">
-            {formatPrice(variant.priceCents)}
+            {formatPrice(unitPriceCents, unitCurrency)}
             {product.compareAtPriceCents && (
               <span className="ml-3 text-base text-brand-muted line-through">
                 {formatPrice(product.compareAtPriceCents)}
@@ -295,7 +307,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
               {product.name} · {variant.colorName} · {caseLabel(caseColor)}
             </p>
             <p className="text-base text-brand-ink">
-              {formatPrice(variant.priceCents)}
+              {formatPrice(unitPriceCents, unitCurrency)}
             </p>
           </div>
           <div className="w-40 shrink-0">

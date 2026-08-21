@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { CASE_COLORS } from "@/lib/product-options";
 import { evaluateDiscountForBasket } from "@/lib/promotions";
+import { marketForCountry, MARKETS } from "@/lib/markets";
 import { promoCodeLimiter, getClientIp } from "@/lib/rate-limit";
 
 const PreviewSchema = z.object({
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         product: { status: "LIVE" },
       },
-      include: { product: true },
+      include: { product: { include: { marketPrices: true } } },
     });
 
     if (variants.length !== variantIds.length) {
@@ -89,12 +90,27 @@ export async function POST(request: NextRequest) {
     }
     const byId = new Map(variants.map((v) => [v.id, v]));
 
+    // Same rule the checkout applies: the market comes from the destination,
+    // and a mismatched currency is a basket that was tampered with. The preview
+    // has to agree with the checkout or it advertises a saving that vanishes.
+    const market = marketForCountry(destinationCountry);
+    if (!market || MARKETS[market].currency !== currency) {
+      return NextResponse.json(
+        { error: "That currency is not available for this destination." },
+        { status: 400 },
+      );
+    }
+
     const evaluated = await evaluateDiscountForBasket({
       code,
       lines: items.map((item) => {
         const variant = byId.get(item.variantId)!;
+        const row = variant.product.marketPrices.find(
+          (p) => p.market === market,
+        );
         return {
-          priceCents: variant.priceCents ?? variant.product.priceCents,
+          priceCents:
+            variant.priceCents ?? row?.priceCents ?? variant.product.priceCents,
           supplierCostUsdCents: variant.product.supplierCostUsdCents,
           quantity: item.quantity,
         };

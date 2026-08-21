@@ -27,9 +27,12 @@ import { usdCentsTo } from "@/lib/shipping";
  * afterwards by the webhook, which reads the true fee from Stripe's balance
  * transaction and says so. Two nets, one before and one after, on purpose.
  *
- * TODO confirm against the live Stripe account once it exists: the rate depends
- * on the country the business is registered in, and Allternativ is not
- * registered yet.
+ * TODO confirm every figure here against the live Stripe account once it
+ * exists. The rates depend on the country the business is registered in, and
+ * Allternativ is not registered yet, so these are the usual European numbers
+ * and not quoted ones. The webhook records what Stripe actually charged on
+ * every order, so the day the account exists these become checkable rather
+ * than assumed.
  */
 export const STRIPE_FEE = {
   percent: 1.5,
@@ -38,19 +41,57 @@ export const STRIPE_FEE = {
     eur: 25,
     gbp: 20,
     usd: 30,
+    cad: 30,
     aud: 30,
-    ars: 0,
-    clp: 0,
+    nzd: 30,
   } as Record<string, number>,
+  /**
+   * What Stripe takes to turn a foreign-currency charge into the currency the
+   * bank account is held in.
+   *
+   * ⚠️ THIS IS WHERE A COMMON ASSUMPTION GOES WRONG. Stripe does not settle
+   * everything in dollars, and it does not settle everything in one currency
+   * either. It charges the card in whatever currency the session asks for, so a
+   * customer in Australia really is billed AUD 64. What happens next is the
+   * part that costs money: unless there is a bank account in that same
+   * currency, Stripe converts the payout, and takes a cut for doing it.
+   *
+   * The consequence for this file is direct: a sale in a market whose currency
+   * is not the settlement currency carries roughly this much more cost than the
+   * headline processing rate, and the discount floor has to know that or it
+   * will approve codes on foreign orders that quietly lose money.
+   */
+  conversionPercent: 2,
 };
+
+/**
+ * The currency Allternativ's bank account is held in, which is what every
+ * payout is converted into.
+ *
+ * ⚠️ NOT DECIDED. There is no bank account yet: "final payment/bank
+ * configuration" is item 11 of the client's own pending list, and question A3
+ * of the build plan. EUR is assumed because the European Union is the largest
+ * market and the return hub is in Ireland.
+ *
+ * It is not a detail. Settling in EUR means every sale in the other five
+ * markets pays a conversion, which is five of the six. If they open accounts in
+ * more than one currency, Stripe can settle each in its own and this cost goes
+ * away for those markets. Worth knowing before the account is opened rather
+ * than after.
+ */
+export const SETTLEMENT_CURRENCY = "eur";
 
 export function estimatePaymentFeeCents(
   chargedCents: number,
   currency: string,
 ): number {
   if (chargedCents <= 0) return 0;
-  const fixed = STRIPE_FEE.fixedCents[currency.toLowerCase()] ?? 25;
-  return Math.round((chargedCents * STRIPE_FEE.percent) / 100) + fixed;
+  const code = currency.toLowerCase();
+  const fixed = STRIPE_FEE.fixedCents[code] ?? 25;
+  const converts = code !== SETTLEMENT_CURRENCY;
+  const percent =
+    STRIPE_FEE.percent + (converts ? STRIPE_FEE.conversionPercent : 0);
+  return Math.round((chargedCents * percent) / 100) + fixed;
 }
 
 export type OrderEconomics = {

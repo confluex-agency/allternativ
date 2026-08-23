@@ -80,10 +80,19 @@ const PRODUCT_PILLARS = [
 ];
 
 // The catalogue is editable from the admin, so the page cannot be frozen at
-// build time: it rebuilds itself at most once a minute. Prices and stock are
-// re-read from the database at checkout regardless, so a stale card can never
-// charge the wrong amount.
-export const revalidate = 60;
+// build time. It used to say that with `revalidate = 60`; it now says it more
+// bluntly, because Hostinger builds the app in a container with no route to
+// MySQL. A pre-rendered home page cannot be produced there at all, and unlike
+// a dynamic route there is no way to defer a static page to first visit: the
+// only options are 'auto' | 'force-dynamic' | 'error' | 'force-static'.
+//
+// The cost is a query per request, not a connection per request. The server is
+// long-lived and reuses its pool, which is the same reason the 500-connections
+// per hour cap is a development problem and not a production one.
+//
+// Prices and stock are re-read from the database at checkout regardless, so a
+// stale card can never charge the wrong amount.
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const products = await getLiveProducts();

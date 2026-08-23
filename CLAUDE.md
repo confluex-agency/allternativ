@@ -201,8 +201,31 @@ image has a `type`. There is deliberately no second set of names.
 - How a card frames its image is **derived** from the image type
   (`MODEL`/`LIFESTYLE` fill the frame, `PRODUCT` sits with air around it), not
   from a hand-set flag.
-- Storefront pages use `revalidate = 60`. The catalogue is editable from the
-  admin, so it cannot be frozen at build time.
+- Storefront pages are **never pre-rendered at build time**, and this is not
+  negotiable on the current hosting. The catalogue is editable from the admin,
+  so it cannot be frozen at build time anyway -- but the binding reason is that
+  **Hostinger builds the app in a container with no route to MySQL**. The port
+  is not reachable from there at all: it is not a remote-access rule that can
+  be opened, and it was verified by elimination (from the runtime host,
+  `localhost:3306` answers; from the build, neither `localhost` nor the
+  external hostname does). Any build that queries the catalogue dies with a
+  Prisma `pool timeout ... active=0 idle=0`, which reads like a busy database
+  and is in fact a missing route.
+
+  So:
+
+  - `products/[slug]` and `collections/[slug]` return an **empty array** from
+    `generateStaticParams`. That is the documented Next.js way to defer every
+    path to its first visit while keeping ISR; `revalidate = 60` still governs
+    freshness and the shop behaves as before.
+  - `/` and `/collections` are `dynamic = "force-dynamic"`. A static route has
+    no equivalent escape hatch -- the options are only `auto`, `force-dynamic`,
+    `error`, `force-static` -- and letting them pre-render empty would show the
+    first visitor a shop with no products.
+
+  ⚠️ **Do not "optimise" this back into build-time pre-rendering.** It will
+  pass locally, where the database is reachable, and break the deploy. If the
+  build ever moves somewhere with database access, this can be reverted.
 
 ### Never invent a specification
 

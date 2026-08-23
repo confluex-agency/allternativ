@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   getProductBySlug,
-  getLiveProductSlugs,
   getCaseOptions,
   galleryFor,
   type CatalogImage,
@@ -18,9 +17,19 @@ type Props = {
 // timer so an edit in the admin reaches the shop without a deploy.
 export const revalidate = 60;
 
+// Deliberately empty: nothing is pre-rendered at build time.
+//
+// Hostinger builds the app in a container that cannot reach MySQL. It is not a
+// firewall rule we can open -- the port is not routable from there at all, and
+// a build that queries the catalogue dies before it finishes.
+//
+// Returning an empty array is the documented way to say "generate every path
+// on the first visit and cache it from then on" (Next.js, generateStaticParams
+// -> "All paths at runtime"). The `revalidate` above still governs freshness,
+// so the shop behaves exactly as before; only the build stops depending on the
+// database.
 export async function generateStaticParams() {
-  const slugs = await getLiveProductSlugs();
-  return slugs.map((slug) => ({ slug }));
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

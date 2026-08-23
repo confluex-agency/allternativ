@@ -11,7 +11,9 @@ import { getLiveCollections } from "@/lib/catalog";
 // its own. Sending everyone to the first drop forever is the kind of shortcut
 // that quietly hides Collection 02 on launch day.
 
-export const revalidate = 60;
+// Rendered per request rather than at build time, for the reason spelled out
+// on the home page: Hostinger's build container cannot reach the database.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Collections",

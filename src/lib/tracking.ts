@@ -1,4 +1,5 @@
 "use client";
+import { analyticsAllowed } from "@/lib/consent";
 
 const VISITOR_COOKIE = "alt_vid";
 const SESSION_KEY = "alt_sid";
@@ -102,6 +103,12 @@ function track(
   eventType: string,
   metadata?: Record<string, unknown>
 ) {
+  // Guarded here as well as in `initTracking`, because every public helper in
+  // this file calls `track` directly. A visitor who withdraws consent mid-visit
+  // stops being measured on the next event rather than on the next page load,
+  // and one guard in one place is the only way that is true of all of them.
+  if (!analyticsAllowed()) return;
+
   lastActivity = Date.now();
   sessionId = getSessionId();
 
@@ -117,6 +124,15 @@ function track(
 
 export function initTracking() {
   if (typeof window === "undefined") return;
+
+  // ⚠️ NOTHING happens without an explicit yes. This used to run on the first
+  // page load and set a 365-day cookie before anyone was asked, which is not
+  // allowed in the market this shop sells into. Silence is a refusal, so the
+  // function simply returns and no cookie, no session and no event exists.
+  //
+  // It is called again by the consent notice the moment somebody accepts, so
+  // agreeing starts measurement immediately rather than on the next page.
+  if (!analyticsAllowed()) return;
 
   // Visitor ID (persistent cookie)
   visitorId = getCookie(VISITOR_COOKIE) || generateId();

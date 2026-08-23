@@ -38,6 +38,14 @@ const COLUMNS = [
       // Care and FAQ: same reason. No content written for either yet.
     ],
   },
+  {
+    title: "Legal",
+    links: [
+      { href: "/terms", label: "Terms" },
+      { href: "/privacy", label: "Privacy" },
+      { href: "/cookies", label: "Cookies" },
+    ],
+  },
   // The "Follow" column held Instagram, TikTok, Spotify and Newsletter, all
   // pointing at "#". We do not have the accounts. A social icon that does
   // nothing reads as a brand that abandoned its accounts, which is worse than a

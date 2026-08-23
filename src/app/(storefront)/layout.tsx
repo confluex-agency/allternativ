@@ -2,6 +2,7 @@ import dynamic from "next/dynamic";
 import { StorefrontNavbar } from "@/components/storefront/navbar";
 import { StorefrontFooter } from "@/components/storefront/footer";
 import { TrackerInit } from "@/components/storefront/tracker-init";
+import { CookieNotice } from "@/components/storefront/cookie-notice";
 
 // The image-framing sliders, development only.
 //
@@ -34,6 +35,7 @@ export default function StorefrontLayout({
       <main className="flex-1">{children}</main>
       <StorefrontFooter />
       <TrackerInit />
+      <CookieNotice />
       {ImageFramingTool && <ImageFramingTool />}
     </>
   );

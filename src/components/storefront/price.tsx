@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useDestination, marketFor } from "@/hooks/useDestination";
+import { useDestination, effectiveMarket } from "@/hooks/useDestination";
 import { formatPrice } from "@/lib/utils";
 import { MARKETS, DEFAULT_MARKET, type MarketKey } from "@/lib/markets";
 
@@ -46,14 +46,13 @@ export function priceIn(
  * render of everything below it, which React's own compiler rules now refuse.
  */
 export function useMarket(): MarketKey {
-  const country = useSyncExternalStore(
+  return useSyncExternalStore(
     useDestination.subscribe,
-    () => useDestination.getState().country,
-    // The server has no browser storage to read, so it always renders the
-    // default market. The client's first pass agrees, then updates.
-    () => "",
+    () => effectiveMarket(useDestination.getState().market),
+    // The server has no browser storage and no time zone to read, so it always
+    // renders the default market. The client's first pass agrees, then updates.
+    () => DEFAULT_MARKET,
   );
-  return marketFor(country);
 }
 
 export function Price({

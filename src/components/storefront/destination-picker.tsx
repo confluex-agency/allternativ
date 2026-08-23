@@ -1,66 +1,70 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useDestination } from "@/hooks/useDestination";
 import { useMarket } from "@/components/storefront/price";
-import { MARKETS, SELLABLE_COUNTRIES, DEFAULT_MARKET } from "@/lib/markets";
+import { MARKETS, type MarketKey } from "@/lib/markets";
 
-// Where the parcel is going, chosen once, in the header.
+// The market, in the header. Six choices, not thirty-two.
 //
-// It sits here rather than only in the basket because it decides the PRICE, and
-// a price has to be right on the first page somebody sees, not corrected three
-// pages later. The basket reads the same store, so choosing in either place
-// settles both.
+// The first version of this listed every country we deliver to, and opening it
+// was a wall. It was also answering the wrong question: what changes in the
+// header is the MONEY, and money has six values here, not thirty-two. Which
+// country in Europe a parcel goes to changes the delivery price, so it belongs
+// in the basket beside the delivery line, and nowhere else.
 //
-// The label shows the market and its currency rather than the country, because
-// what changes visibly is the money: "Europe · EUR" explains why the figure
-// below it is in euros in a way "Germany" does not.
+// Nobody normally has to touch this. The market is guessed from the browser's
+// time zone on the first visit; the control exists for when the guess is wrong,
+// which is the whole reason a guess is allowed to be made at all.
+//
+// ── Why the select is invisible and the label is not ───────────────────────
+// A native <select> cannot be styled to sit in this header, and a hand-built
+// dropdown would have to reimplement keyboard handling, typeahead and the
+// native picker phones show. So the visible part is ordinary markup and the
+// real select lies on top at zero opacity: full native behaviour, nothing
+// reimplemented.
+//
+// An earlier attempt dimmed the select's own text with `text-transparent`
+// instead. That was a trap: on Windows the <option> rows inherit their colour
+// from the select, so the whole dropdown would have opened blank.
 
-const countryName = (code: string) => {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-};
-
-const OPTIONS = SELLABLE_COUNTRIES.map((code) => ({
-  code,
-  name: countryName(code),
-})).sort((a, b) => a.name.localeCompare(b.name));
+const ORDER: MarketKey[] = ["EU", "GB", "US", "CA", "AU", "NZ"];
 
 export function DestinationPicker({ className = "" }: { className?: string }) {
-  const country = useDestination((s) => s.country);
-  const setCountry = useDestination((s) => s.setCountry);
+  const setMarket = useDestination((s) => s.setMarket);
   const market = useMarket();
 
   return (
-    <label className={`relative inline-flex items-center ${className}`}>
-      <span className="sr-only">Deliver to</span>
+    // Intrinsic width: "United Kingdom · GBP" is a third longer than
+    // "Europe · EUR", and a fixed box would clip the longest of the six.
+    <div
+      className={`relative inline-flex h-9 items-center gap-1.5 rounded-full border border-brand-ink/15 px-3 fluid-transition focus-within:border-brand-ink/60 hover:border-brand-ink/40 ${className}`}
+    >
       <span
-        aria-hidden="true"
-        className="eyebrow pointer-events-none absolute left-3 text-brand-ink-soft"
+        className="eyebrow whitespace-nowrap text-brand-ink-soft"
         suppressHydrationWarning
       >
         {MARKETS[market].label} &middot;{" "}
         {MARKETS[market].currency.toUpperCase()}
       </span>
+      <ChevronDown
+        size={14}
+        strokeWidth={1.5}
+        aria-hidden="true"
+        className="shrink-0 text-brand-muted"
+      />
       <select
-        value={country}
-        onChange={(e) => setCountry(e.target.value)}
-        className="h-9 w-[13.5rem] cursor-pointer appearance-none rounded-full border border-brand-ink/15 bg-transparent pr-3 pl-3 text-transparent fluid-transition hover:border-brand-ink/40"
+        aria-label="Shipping destination and currency"
+        value={market}
+        onChange={(e) => setMarket(e.target.value as MarketKey)}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 opacity-0 [&>option]:text-black"
       >
-        {/* Empty stays selectable: somebody who picked the wrong country needs a
-            way back to "not chosen", and the default market is a truthful thing
-            to show while nobody has said where they are. */}
-        <option value="">
-          {MARKETS[DEFAULT_MARKET].label} (default)
-        </option>
-        {OPTIONS.map((o) => (
-          <option key={o.code} value={o.code}>
-            {o.name}
+        {ORDER.map((key) => (
+          <option key={key} value={key}>
+            {MARKETS[key].label} ({MARKETS[key].currency.toUpperCase()})
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }

@@ -4,56 +4,84 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   marketForCountry,
-  currencyForCountry,
   DEFAULT_MARKET,
   MARKETS,
   type MarketKey,
 } from "@/lib/markets";
-import type { SupportedCurrency } from "@/lib/stripe";
+import { detectMarket } from "@/lib/market-detect";
 
-// Where the parcel is going. ONE choice, three consequences.
+// Where the parcel is going. Two fields, and they are not the same question.
 //
-// It decides the delivery price, the currency shown, and the price shown, and
-// that is deliberate rather than convenient. Two controls — "ship to" and
-// "price in" — would let somebody take the cheapest market's price and have it
-// delivered somewhere else. One cannot, because the checkout pins Stripe's
-// allowed countries to this same value and a parcel has to be able to arrive.
+//   market  — decides the PRICE and the CURRENCY. Six values. Guessed on the
+//             first visit from the browser's time zone, changed in the header.
+//   country — decides the DELIVERY PRICE. Thirty-two values, and only ever a
+//             real question inside Europe: the other five markets are one
+//             country each, so choosing the market answers it.
 //
-// It starts EMPTY, not guessed. Nothing here reads an IP or a browser language:
-// a visitor behind a VPN, or an Argentinian in Berlin with a Spanish browser,
-// would be shown a price that is not theirs, and a wrong price is worse than a
-// generic one. Until they choose, everything shows the European market, which
-// is the largest. Adding an IP guess later means writing to this store on first
-// load and changes nothing else.
+// Splitting them is what lets the header offer six choices instead of
+// thirty-two. The first version put all thirty-two in the header and it read
+// as a form to fill in rather than a price to notice.
 //
-// ⚠️ The persisted key is the one the cart already used for the same purpose,
-// so a basket assembled before this existed keeps its destination.
+// ⚠️ They still cannot disagree. Setting a market drops a country that does not
+// belong to it, and setting a country adopts that country's market. Otherwise
+// somebody could hold the cheapest market's price against the dearest market's
+// delivery, and the checkout would have to referee it.
 
-const STORAGE_KEY = "allternativ:ship-to";
+const STORAGE_KEY = "allternativ:destination";
 
 interface DestinationStore {
-  /** ISO-2 country code, or "" when the visitor has not chosen. */
+  /** Null until guessed or chosen. Null shows the default market. */
+  market: MarketKey | null;
+  /** ISO-2 country. "" when the market has more than one and none is picked. */
   country: string;
+  setMarket: (market: MarketKey) => void;
   setCountry: (country: string) => void;
 }
 
 export const useDestination = create<DestinationStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      market: null,
       country: "",
-      setCountry: (country) => set({ country }),
+
+      setMarket: (market) => {
+        const countries = MARKETS[market].countries;
+        set({
+          market,
+          // One-country markets answer the delivery question by themselves.
+          // Europe keeps a country the visitor already chose, and clears one
+          // that belongs somewhere else.
+          country:
+            countries.length === 1
+              ? countries[0]
+              : countries.includes(get().country)
+                ? get().country
+                : "",
+        });
+      },
+
+      setCountry: (country) =>
+        set({
+          country,
+          market: (country && marketForCountry(country)) || get().market,
+        }),
     }),
-    { name: STORAGE_KEY },
+    {
+      name: STORAGE_KEY,
+      // The guess happens HERE, after the browser has said what it remembers,
+      // and only when it remembers nothing. Doing it in a React effect would
+      // schedule a second render of every price on the page; doing it before
+      // rehydration would overwrite a choice somebody already made.
+      onRehydrateStorage: () => (state) => {
+        if (!state || state.market) return;
+        const guessed = detectMarket();
+        if (guessed) state.setMarket(guessed);
+      },
+    },
   ),
 );
 
-/** The market to price in. The default market until a country is chosen. */
-export function marketFor(country: string): MarketKey {
-  return (country && marketForCountry(country)) || DEFAULT_MARKET;
-}
-
-export function currencyFor(country: string): SupportedCurrency {
-  return country
-    ? currencyForCountry(country)
-    : MARKETS[DEFAULT_MARKET].currency;
+/** The market to price in: the chosen or guessed one, or the default. */
+export function effectiveMarket(market: MarketKey | null): MarketKey {
+  return market ?? DEFAULT_MARKET;
 }

@@ -12,7 +12,6 @@ import { caseLabel } from "@/lib/product-options";
 import { Button } from "@/components/ui/button";
 import { trackCheckoutStart } from "@/lib/tracking";
 import {
-  SHIPPABLE_COUNTRIES,
   quoteShipping,
   freeShippingMessage,
 } from "@/lib/shipping";
@@ -51,6 +50,11 @@ export function CartView() {
   const setShipTo = useDestination((s) => s.setCountry);
   const market = useMarket();
   const currency = MARKETS[market].currency;
+  // Sorted by the name shown, not by the code, so the list reads alphabetically
+  // to the person looking at it rather than to the machine.
+  const marketCountries = [...MARKETS[market].countries].sort((a, b) =>
+    countryName(a).localeCompare(countryName(b)),
+  );
 
   // ── The discount code ─────────────────────────────────────────────────────
   // It used to be typed on Stripe's hosted page. It moved here because a code
@@ -287,23 +291,39 @@ export function CartView() {
         {/* The client asked for the delivery cost to be visible here rather
             than folded into the price: "No queremos incorporar artificialmente
             el shipping dentro del retail price." */}
-        <label className="block">
-          <span className="text-xs uppercase tracking-wide text-neutral-500">
-            Ship to
-          </span>
-          <select
-            value={shipTo}
-            onChange={(e) => setShipTo(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">Select a country…</option>
-            {SHIPPABLE_COUNTRIES.map((c) => (
-              <option key={c} value={c}>
-                {countryName(c)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Only the countries of the chosen market, which is why the header's
+            picker can stay at six entries. Outside Europe a market is one
+            country, so there is nothing to ask and asking would be noise: the
+            destination is stated instead, with the header as the way to change
+            it. */}
+        {marketCountries.length === 1 ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-xs uppercase tracking-wide text-neutral-500">
+              Ship to
+            </span>
+            <span className="text-sm text-neutral-800">
+              {countryName(marketCountries[0])}
+            </span>
+          </div>
+        ) : (
+          <label className="block">
+            <span className="text-xs uppercase tracking-wide text-neutral-500">
+              Ship to
+            </span>
+            <select
+              value={shipTo}
+              onChange={(e) => setShipTo(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Select a country…</option>
+              {marketCountries.map((c) => (
+                <option key={c} value={c}>
+                  {countryName(c)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {/* Both inputs sit together, above the money, because both of them
             change the money underneath. */}

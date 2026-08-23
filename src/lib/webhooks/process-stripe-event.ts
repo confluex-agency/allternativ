@@ -7,6 +7,7 @@
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { usdCentsTo, supplierCostUsdCents } from "@/lib/shipping";
+import { marketForCountry } from "@/lib/markets";
 import { netCents } from "@/lib/margin";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
@@ -83,7 +84,7 @@ async function handleCompletedSession(
   const variantIds = [...new Set(items.map((i) => i.variantId))];
   const variants = await prisma.productVariant.findMany({
     where: { id: { in: variantIds } },
-    include: { product: true },
+    include: { product: { include: { marketPrices: true } } },
   });
   if (variants.length !== variantIds.length) {
     throw new UnprocessableEventError(
@@ -92,13 +93,41 @@ async function handleCompletedSession(
   }
   const byId = new Map(variants.map((v) => [v.id, v]));
 
+  // ── Which market this order was priced in ───────────────────────────────
+  //
+  // ⚠️ This was a real bug for the length of one afternoon. The line items were
+  // recorded at `product.priceCents`, which is the EURO price, while the
+  // customer had been charged their own market's. An order from the United
+  // Kingdom went into the books at 39 when 34 had actually been taken, and
+  // nothing failed: the order total is Stripe's own `amount_total` and was
+  // right, so only the per-line figures and the subtotal were wrong. Margin
+  // reporting would have quietly overstated revenue on five of six markets.
+  //
+  // Derived from where the parcel is going, exactly as the checkout derived it,
+  // rather than trusted from anywhere. The address is read early for this;
+  // it is used again further down for the delivery cost.
+  const shippingDetails = session.collected_information?.shipping_details ?? null;
+  const destinationCountry =
+    shippingDetails?.address?.country?.toUpperCase() ?? null;
+  const market = destinationCountry ? marketForCountry(destinationCountry) : null;
+
+  const marketPriceFor = (variant: (typeof variants)[number]): number => {
+    // A colourway with its own price keeps it, as at the checkout.
+    if (variant.priceCents !== null) return variant.priceCents;
+    if (market) {
+      const row = variant.product.marketPrices.find((p) => p.market === market);
+      if (row) return row.priceCents;
+    }
+    return variant.product.priceCents;
+  };
+
   const orderItems = items.map((item) => {
     const variant = byId.get(item.variantId)!;
     return {
       productId: variant.productId,
       variantId: variant.id,
       quantity: item.quantity,
-      unitPriceCents: variant.priceCents ?? variant.product.priceCents,
+      unitPriceCents: marketPriceFor(variant),
       // Snapshots — what the supplier must ship, whatever happens to the
       // catalogue later.
       sku: variant.sku,
@@ -149,7 +178,8 @@ async function handleCompletedSession(
 
   // Shipping address is collected by Checkout and is where the parcel goes; the
   // billing address on customer_details can be a different place entirely.
-  const shipping = session.collected_information?.shipping_details ?? null;
+  // Read above, where the market is worked out from it.
+  const shipping = shippingDetails;
   const shippingAddress = shipping?.address ?? null;
 
   // ── The cost side, frozen with the rest ─────────────────────────────────
@@ -157,7 +187,7 @@ async function handleCompletedSession(
   // What the parcel costs us, which is NOT what the customer paid for it: from
   // two pairs up delivery is free to them and absorbed whole by Allternativ.
   const pairs = orderItems.reduce((n, i) => n + i.quantity, 0);
-  const destination = shippingAddress?.country?.toUpperCase() ?? null;
+  const destination = destinationCountry;
   const shippingCostCents = destination
     ? (usdCentsTo(
         // The tier for THIS many pairs, not the one-pair rate: a two-pair

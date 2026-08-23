@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "fx:check": "tsx scripts/fx-check.ts",
     "sku:list": "tsx scripts/sku-list.ts",
     "demand": "tsx scripts/sold-out-demand.ts",
@@ -62,6 +64,7 @@
     "shadcn": "^4.18.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

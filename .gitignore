@@ -62,3 +62,19 @@ credentials.json
 /public/catalog/Catalogo/
 /public/catalog/**/WhatsApp*
 /raw-lentes/
+
+# MCP server configuration.
+#
+# ⚠️ THESE FILES CARRY API TOKENS. The Hostinger MCP config holds a token that
+# can deploy sites, edit DNS and read billing on the whole hosting account, and
+# it sits in plain text next to the code. Committing one is not a mistake you
+# can undo by deleting the file: it stays in the history, and the token has to
+# be revoked rather than removed.
+#
+# Every spelling is listed because the tools disagree about which one they
+# write, and the one that gets committed will be the one that was not listed.
+claude.json
+.claude.json
+.mcp.json
+mcp.json
+.claude/settings.local.json

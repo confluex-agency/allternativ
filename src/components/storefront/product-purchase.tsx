@@ -18,7 +18,7 @@ import {
 } from "@/lib/shipping";
 import { priceIn, useMarket } from "@/components/storefront/price";
 import { useCart } from "@/hooks/useCart";
-import { trackAddToCart } from "@/lib/tracking";
+import { trackAddToCart, trackSoldOutView } from "@/lib/tracking";
 import { ProductGallery } from "@/components/storefront/product-gallery";
 import { Button } from "@/components/ui/button";
 
@@ -167,7 +167,18 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => setVariantId(v.id)}
+                    onClick={() => {
+                      setVariantId(v.id);
+                      // Only on a deliberate click, and never on mount. Firing
+                      // when the page opens would count every visit to a model
+                      // whose first colourway happens to be sold out, which
+                      // measures the order of the swatches rather than what
+                      // anyone wanted. Choosing a colour that says SOLD OUT is
+                      // the act that means something.
+                      if (!v.inStock) {
+                        trackSoldOutView(product.slug, v.sku, v.colorName);
+                      }
+                    }}
                     aria-pressed={v.id === variant.id}
                     title={v.inStock ? v.colorName : `${v.colorName} — sold out`}
                     className="flex items-center gap-2"

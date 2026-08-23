@@ -54,6 +54,21 @@ export function legalDetailsComplete(): boolean {
  */
 export const RETURNS = {
   windowDays: 14,
+  /**
+   * ⚠️ KEPT AS THE CLIENT WROTE IT, AND DELIBERATELY NOT USED AS THE PAGE'S
+   * WORDING. As an absolute bar, "unused" is stronger than European law
+   * permits: the fourteen-day right of withdrawal lets a buyer examine goods
+   * as they would in a shop, and a trader may REDUCE a refund for value lost
+   * beyond that, not refuse it outright.
+   *
+   * The page describes the line concretely instead — try them on indoors,
+   * wearing them out is not trying them on, a worn pair is refunded at what it
+   * is still worth. That is both lawful and something a person can act on.
+   *
+   * ⬜ OPEN: how much is deducted, and who decides. That is a commercial
+   * decision nobody has made, and the first argument about it will be with a
+   * real customer unless it is made first.
+   */
   condition: "Unused, undamaged, and returned in their original packaging.",
   /** Who pays to send it back when someone simply changed their mind. */
   changeOfMindPostage: "customer" as const,

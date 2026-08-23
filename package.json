@@ -9,6 +9,7 @@
     "lint": "eslint",
     "fx:check": "tsx scripts/fx-check.ts",
     "sku:list": "tsx scripts/sku-list.ts",
+    "demand": "tsx scripts/sold-out-demand.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

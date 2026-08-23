@@ -18,19 +18,37 @@ export default function ReturnsPage() {
       title="If it isn't right."
       standfirst={`${RETURNS.windowDays} days to change your mind, and no time limit on us putting right something we got wrong.`}
     >
+      {/* ⚠️ The client's own wording was "unused, undamaged and returned in
+          their original packaging", and as an absolute bar that is stronger
+          than European law allows. The 14-day right of withdrawal lets a buyer
+          examine goods as they would in a shop, and a trader may REDUCE a
+          refund for value lost beyond that — not refuse it. Writing "unused"
+          and then having to refund anyway is worse than explaining the line, so
+          the line is described concretely instead. "Try them on the way you
+          would in a shop" is a sentence people can act on; "unused" is not. */}
       <PolicySection title="Changed your mind">
         <p>
           You have{" "}
           <strong className="font-medium text-brand-ink">
             {RETURNS.windowDays} days
           </strong>{" "}
-          from the day your order arrives to send eligible items back.
+          from the day your order arrives to send them back, and return postage
+          is yours.
         </p>
-        <p>{RETURNS.condition}</p>
         <p>
-          Return postage is yours on a change-of-mind return. Write to us first
-          and we will tell you where to send it, so nothing goes to the wrong
-          place.
+          Try them on the way you would in a shop: in front of a mirror, for as
+          long as you like, indoors. That is what the {RETURNS.windowDays} days
+          are for, and it is what we expect people to do.
+        </p>
+        <p>
+          Wearing them out is not trying them on. A pair that comes back
+          scratched, sun-bleached, or without the case and box it arrived in has
+          lost value, and we refund what it is still worth rather than the full
+          price. We will always tell you the figure before we process it, and
+          you can have the pair sent back to you instead if you would rather.
+        </p>
+        <p>
+          Write to us before sending anything, so it goes to the right place.
         </p>
       </PolicySection>
 

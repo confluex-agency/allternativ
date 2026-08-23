@@ -187,6 +187,28 @@ export function trackCheckoutStart(itemCount: number, totalCents: number) {
   track("checkout_start", { itemCount, totalCents });
 }
 
+/**
+ * Somebody looked at a colourway that has run out.
+ *
+ * This is the whole reason sold-out variants stay on the page instead of
+ * disappearing. The client asked for it in writing: keeping them visible
+ * "nos permitirá entender qué productos siguen teniendo demanda incluso
+ * estando agotados". Without an event, keeping them visible only makes the
+ * catalogue look complete; with one, it answers what to reorder.
+ *
+ * ⚠️ It counts CONSENTING visitors only, like everything else here, so the
+ * figure is a floor and never a total. Reading it as "42 people wanted this"
+ * is wrong; reading it as "at least 42, and more wanted Olive than Black" is
+ * exactly what it is for, and comparing colourways is the actual question.
+ */
+export function trackSoldOutView(
+  productSlug: string,
+  sku: string,
+  colorName: string,
+) {
+  track("sold_out_view", { productSlug, sku, colorName });
+}
+
 export function trackPurchase(orderId: string, totalCents: number) {
   track("purchase", { orderId, totalCents });
 }

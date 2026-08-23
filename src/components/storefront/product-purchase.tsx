@@ -9,7 +9,13 @@ import {
   cartLineId,
   type CaseColor,
 } from "@/lib/product-options";
+import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
+import {
+  DELIVERY_ESTIMATE_BUSINESS_DAYS,
+  FREE_SHIPPING_FROM_PAIRS,
+  FREE_SHIPPING_MAX_PAIRS,
+} from "@/lib/shipping";
 import { priceIn, useMarket } from "@/components/storefront/price";
 import { useCart } from "@/hooks/useCart";
 import { trackAddToCart } from "@/lib/tracking";
@@ -259,6 +265,23 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
               onAdd={handleAdd}
             />
           </div>
+
+          {/* Delivery, said here rather than only in the basket.
+              A parcel from the far side of the world takes weeks, and that is
+              not a detail to discover after handing over a card. It also
+              carries the free-shipping mechanic to the one page where the
+              second pair can still be added easily. */}
+          <p className="mt-4 max-w-md text-xs text-brand-muted md:mt-5">
+            Tracked delivery, {DELIVERY_ESTIMATE_BUSINESS_DAYS.minimum}&ndash;
+            {DELIVERY_ESTIMATE_BUSINESS_DAYS.maximum} business days. Free on{" "}
+            {FREE_SHIPPING_FROM_PAIRS} to {FREE_SHIPPING_MAX_PAIRS} pairs.{" "}
+            <Link
+              href="/shipping"
+              className="underline underline-offset-2 hover:text-brand-ink"
+            >
+              Where we deliver
+            </Link>
+          </p>
 
           <dl className="mt-10 space-y-3 text-sm md:mt-12">
             <Spec label="Colour" value={variant.colorName} />

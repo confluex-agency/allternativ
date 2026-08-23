@@ -9,18 +9,36 @@ const redis = hasRedis
     })
   : null;
 
-function noopLimiter(label: string) {
+/**
+ * What a limiter does when there is no Redis behind it.
+ *
+ * ⚠️ NOT ALL LIMITERS GUARD THE SAME THING, and treating them alike was making
+ * the shop unnecessarily fragile.
+ *
+ * `critical: true` is for the ones that are a SECURITY control: without them,
+ * an unlimited number of password guesses is a real attack. Those refuse to run
+ * in production at all, loudly, because silently disabling brute-force
+ * protection is worse than an error somebody has to fix.
+ *
+ * `critical: false` is for the ones that are a COST control: they exist so a
+ * busy afternoon cannot run up a bill or exhaust a free tier. Taking the
+ * storefront down to protect a quota is the wrong trade — nobody thanks you for
+ * a shop that will not load because analytics could not be counted. Those warn
+ * once and let the request through.
+ */
+function noopLimiter(label: string, critical: boolean) {
   let warned = false;
   return {
     limit: async () => {
-      if (env.NODE_ENV === "production") {
+      if (critical && env.NODE_ENV === "production") {
         throw new Error(
           `[rate-limit] ${label} cannot run in production without UPSTASH_REDIS_REST_URL/TOKEN`,
         );
       }
       if (!warned) {
         console.warn(
-          `[rate-limit] ${label} disabled (no Upstash Redis configured) — DEV ONLY`,
+          `[rate-limit] ${label} disabled (no Upstash Redis configured)` +
+            (critical ? " — DEV ONLY" : " — failing open, this is a cost guard"),
         );
         warned = true;
       }
@@ -36,7 +54,8 @@ export const loginLimiter = redis
       analytics: true,
       prefix: "rl:login",
     })
-  : noopLimiter("loginLimiter");
+  : // Security: an unlimited number of password guesses is an attack.
+    noopLimiter("loginLimiter", true);
 
 export const trackingLimiter = redis
   ? new Ratelimit({
@@ -44,7 +63,9 @@ export const trackingLimiter = redis
       limiter: Ratelimit.slidingWindow(60, "1 m"),
       prefix: "rl:tracking",
     })
-  : noopLimiter("trackingLimiter");
+  : // Cost: this guards the Upstash free tier, not the shop. A staging
+    // preview with no Redis must still serve pages.
+    noopLimiter("trackingLimiter", false);
 
 /**
  * Discount code attempts, per visitor.
@@ -64,7 +85,8 @@ export const promoCodeLimiter = redis
       limiter: Ratelimit.slidingWindow(10, "10 m"),
       prefix: "rl:promo",
     })
-  : noopLimiter("promoCodeLimiter");
+  : // Cost-shaped, and the checkout already fails open around it by design.
+    noopLimiter("promoCodeLimiter", false);
 
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");

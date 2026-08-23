@@ -13,7 +13,10 @@ const csp = [
   "font-src 'self' data:",
   // blob: + data: let three.js GLTFLoader fetch embedded GLB textures (loaded as
   // blob/ImageBitmap), otherwise 3D models render untextured.
-  "connect-src 'self' blob: data: https://api.stripe.com https://*.supabase.co",
+  // Supabase was removed from this project in August; its host came out of the
+  // policy with it. A connect-src entry for a service nobody calls is a hole
+  // that only widens what a compromised script could reach.
+  "connect-src 'self' blob: data: https://api.stripe.com",
   "frame-src https://js.stripe.com https://hooks.stripe.com",
   "worker-src 'self' blob:",
   "object-src 'none'",

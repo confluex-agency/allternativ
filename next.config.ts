@@ -45,6 +45,25 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The database driver has to reach the deploy as a real module.
+  //
+  // Next bundles server dependencies into its output chunks, and the deployed
+  // node_modules carries only what the dependency tracer could follow.
+  // `@prisma/client` is on Next's own auto-external list, so it survives.
+  // `@prisma/adapter-mariadb` is not on that list, so its code gets inlined
+  // into the chunks -- and `mariadb`, which the adapter requires dynamically,
+  // is invisible to the tracer and never ships at all.
+  //
+  // The deploy that taught us this had 13 packages in node_modules and no
+  // driver. Prisma could not open a single connection and reported
+  // `pool timeout ... active=0 idle=0`, which reads like a saturated database
+  // and was in fact a missing `require`. It cost most of a night, because the
+  // build had already failed once with the identical message for an unrelated
+  // reason (the build container has no route to MySQL). Same words, three
+  // different causes -- so read `active=0` as "never connected", and then work
+  // out why.
+  serverExternalPackages: ["@prisma/adapter-mariadb", "mariadb"],
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

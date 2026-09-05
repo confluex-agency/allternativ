@@ -428,6 +428,48 @@ re-seeded database no longer has those ids, so `processStripeEvent` closes the
 event with `UnprocessableEventError` — which is correct. Test again rather than
 trying to rescue the payment.
 
+### The cart crosses to the webhook as metadata, and metadata has limits
+
+The shopper leaves for Stripe's hosted page and comes back as an event, so the
+order lines are rebuilt from what travelled on the session. That is
+`src/lib/checkout-metadata.ts`, and both sides go through it: the checkout
+encodes, the webhook decodes, and the format has one owner.
+
+It has one owner now because it did not before, and the two halves drifted into
+two failures that nothing caught.
+
+**A cart of five lines could not be paid for at all.** Stripe caps a metadata
+value at **500 characters**, and the whole cart was one value. Measured against
+the real SKUs, four lines came to 448 characters and five to 557: Stripe refused
+the session, the reservation was handed back, and the shopper saw an error. Free
+delivery runs from two to four pairs, so the large cart is precisely the one the
+shop pushes people towards. The payload is now split across `items_0`, `items_1`
+… , which puts the ceiling far past the 32 lines the catalogue can even produce.
+
+Two things make the lines small enough for that to be comfortable. `sku` is no
+longer written: it was on every line and read nowhere, because the webhook
+snapshots `variant.sku` from the database. What remains is the smallest thing
+that cannot be recovered later — which variant, how many, and **which case
+colour**, the case being an option of the purchase rather than a variant, so
+nothing else records it.
+
+⚠️ **A session with no items used to become an order with no lines.** The schema
+was an array with no minimum, so absent metadata parsed happily as `[]` and went
+straight past the check written to stop exactly that. The handler then matched
+zero variants against zero ids, `0 === 0` held, and it wrote a paid order with a
+customer, a total and nothing to ship. It was found by a `stripe trigger`, whose
+synthetic session carries no metadata — which is the shape of the accident, not
+a contrived one. `decodeItemsMetadata` returns null for it, and the event is
+closed as `FAILED`.
+
+The decoder reads the numbered keys **by index and stops at a gap**, rather than
+scanning the object. Closing a gap would yield a shorter cart that still parses,
+and a paid order quietly missing lines is worse than one that fails loudly. For
+the same reason the encoder refuses a cart it cannot fit instead of truncating.
+
+The old single `items` key is still read, so a session created minutes before a
+deploy still becomes an order.
+
 ## Admin roles
 
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,

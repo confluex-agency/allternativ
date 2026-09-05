@@ -1,4 +1,8 @@
 import { PrismaClient } from "@/generated/prisma/client";
+import {
+  encodeItemsMetadata,
+  type CheckoutItem,
+} from "@/lib/checkout-metadata";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import type Stripe from "stripe";
 
@@ -76,7 +80,7 @@ export async function caseStockOf(key: string): Promise<number> {
 export function completedSession(opts: {
   sessionId: string;
   email: string;
-  items: { variantId: string; quantity: number; caseColor: string; sku: string }[];
+  items: CheckoutItem[];
   reservationGroup: string;
   amountTotal: number;
   currency: string;
@@ -111,7 +115,10 @@ export function completedSession(opts: {
           amount_shipping: opts.shippingCents ?? 0,
         },
         metadata: {
-          items: JSON.stringify(opts.items),
+          // Encoded by the same function the checkout route uses, so this test
+          // exercises the format production actually writes. The legacy
+          // single-key shape is covered by tests/checkout-metadata.test.ts.
+          ...encodeItemsMetadata(opts.items),
           reservationGroup: opts.reservationGroup,
         },
       },

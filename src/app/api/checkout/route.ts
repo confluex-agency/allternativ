@@ -10,6 +10,7 @@ import {
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
 } from "@/lib/shipping";
 import { evaluateDiscountForBasket } from "@/lib/promotions";
+import { encodeItemsMetadata } from "@/lib/checkout-metadata";
 import { marketForCountry, MARKETS } from "@/lib/markets";
 import { promoCodeLimiter, getClientIp } from "@/lib/rate-limit";
 import type Stripe from "stripe";
@@ -322,14 +323,12 @@ export async function POST(request: NextRequest) {
         metadata: {
           // What the webhook needs to write the order lines, including the case
           // colour, which is not a variant and cannot be recovered from the SKU.
-          items: JSON.stringify(
-            items.map((i) => ({
-              variantId: i.variantId,
-              quantity: i.quantity,
-              caseColor: i.caseColor,
-              sku: byId.get(i.variantId)!.sku,
-            })),
-          ),
+          //
+          // Split across numbered keys by `encodeItemsMetadata`. Stripe caps a
+          // metadata value at 500 characters, and this used to be one value: a
+          // five-line cart came to 557 and Stripe refused the whole session, so
+          // the shopper simply could not pay.
+          ...encodeItemsMetadata(items),
           reservationGroup,
         },
       });

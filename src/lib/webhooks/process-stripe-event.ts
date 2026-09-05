@@ -11,21 +11,11 @@ import { marketForCountry } from "@/lib/markets";
 import { netCents } from "@/lib/margin";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
-import { CASE_COLORS } from "@/lib/product-options";
+import { decodeItemsMetadata } from "@/lib/checkout-metadata";
 import {
   consumeReservationGroup,
   releaseReservationGroup,
 } from "@/lib/inventory";
-import { z } from "zod";
-
-const ItemsMetadataSchema = z.array(
-  z.object({
-    variantId: z.string().min(1).max(64),
-    quantity: z.number().int().min(1).max(100),
-    caseColor: z.enum(CASE_COLORS),
-    sku: z.string().min(1).max(64),
-  }),
-);
 
 /** Thrown for events that will never succeed, so they are not retried forever. */
 export class UnprocessableEventError extends Error {
@@ -72,13 +62,16 @@ async function handleCompletedSession(
   });
   if (existingOrder) return;
 
-  const itemsParsed = ItemsMetadataSchema.safeParse(
-    JSON.parse(session.metadata?.items || "[]"),
-  );
-  if (!itemsParsed.success) {
+  // ⚠️ This used to be `JSON.parse(session.metadata?.items || "[]")` fed
+  // straight to a schema with no minimum length, which meant a session with no
+  // items at all parsed cleanly as `[]` and sailed past the very check meant to
+  // stop it. The handler then built nothing, matched zero variants against zero
+  // ids, and wrote a PAID ORDER WITH NO LINES. `decodeItemsMetadata` returns
+  // null for that case, and for every other unreadable shape.
+  const items = decodeItemsMetadata(session.metadata);
+  if (items === null) {
     throw new UnprocessableEventError("Session metadata is not readable");
   }
-  const items = itemsParsed.data;
   const reservationGroup = session.metadata?.reservationGroup ?? null;
 
   const variantIds = [...new Set(items.map((i) => i.variantId))];
@@ -342,7 +335,9 @@ async function handleCompletedSession(
     }
     console.error(
       `[stock] Session ${session.id} was paid after its reservation expired. ` +
-        `Stock taken late for: ${items.map((i) => i.sku).join(", ")}. ` +
+        `Stock taken late for: ${items
+          .map((i) => byId.get(i.variantId)!.sku)
+          .join(", ")}. ` +
         `Check for a negative figure on those variants.`,
     );
   }

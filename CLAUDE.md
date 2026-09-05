@@ -399,6 +399,27 @@ npx prisma db seed     # seed the catalogue
 `DATABASE_URL`, `JWT_SECRET` (32+ chars), `STRIPE_SECRET_KEY`,
 `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`.
 
+⚠️ **`NEXT_PUBLIC_APP_URL` is the post-payment address, and it is baked in at
+build time.** It is what `success_url` is built from, so it is where Stripe
+returns a shopper *after* charging their card. Staging shipped once with the
+development value still in it: the money was taken and the browser was sent to
+`http://localhost:3000`, a blank page on the customer's machine. Nothing threw
+and nothing logged — the only trace was in Stripe.
+
+`env.ts` now refuses to load on a loopback or non-https value when
+`NODE_ENV=production`, so the mistake fails the build instead of the checkout.
+Three consequences:
+
+- **Set the variable before deploying**, not after. A deploy with it wrong now
+  fails at "Collecting page data" rather than going live broken.
+- **Correcting it in the host's panel is not enough — the app must be REBUILT.**
+  `NEXT_PUBLIC_` variables are inlined into the bundle at build time, so a
+  restart re-runs the same compiled wrong value. This is the part that sends
+  people hunting for the bug in the wrong place.
+- A **local production build** therefore needs a real address:
+  `NEXT_PUBLIC_APP_URL=https://staging.allternativ.com npm run build`. `npm run
+  dev` is unaffected, because the guard only applies in production.
+
 ⚠️ **Percent-encode the database password.** Hostinger's generator produces
 characters such as `?`, `+`, `;` and `>`, and a `?` inside the password ends the
 URL's authority section: Prisma then reports `invalid port number`, which points

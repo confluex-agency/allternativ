@@ -63,6 +63,43 @@ export async function setCaseStock(key: string, stockQuantity: number) {
   });
 }
 
+/**
+ * Borrow the case-stock table, and give it back.
+ *
+ * ⚠️ `case_stock` is a singleton keyed by colour. Unlike products, the suite
+ * cannot make itself a private row: the purchase path reserves against BLACK
+ * and WHITE, which are the same two rows the development shop sells from. So
+ * `setCaseStock` rewrites real local inventory, and it does it silently.
+ *
+ * That already cost time once. After a five-line test purchase had correctly
+ * taken three black cases and two white ones, a run of this suite put both
+ * pools back to 100, and the next person to look saw stock that had apparently
+ * un-sold itself — a convincing inventory bug that was nothing of the sort.
+ *
+ * Nothing here is a production concern: the shop never runs its own tests. It
+ * is a development concern, and the same one the project already has about
+ * pointing DATABASE_URL at Hostinger.
+ */
+export async function captureCaseStock() {
+  return prisma.caseStock.findMany({ orderBy: { key: "asc" } });
+}
+
+export async function restoreCaseStock(
+  snapshot: Awaited<ReturnType<typeof captureCaseStock>>,
+): Promise<void> {
+  // Any row the suite invented and the shop never had.
+  await prisma.caseStock.deleteMany({
+    where: { key: { notIn: snapshot.map((c) => c.key) } },
+  });
+  for (const row of snapshot) {
+    await prisma.caseStock.upsert({
+      where: { key: row.key },
+      update: { stockQuantity: row.stockQuantity, isActive: row.isActive },
+      create: row,
+    });
+  }
+}
+
 export async function caseStockOf(key: string): Promise<number> {
   const row = await prisma.caseStock.findUnique({ where: { key } });
   return row?.stockQuantity ?? 0;

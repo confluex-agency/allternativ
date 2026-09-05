@@ -1,0 +1,31 @@
+// Type checking for the code that runs OUTSIDE the Next.js app: the cron
+// scripts and the seed.
+//
+// ⚠️ They are excluded from tsconfig.json on purpose and that exclusion stays.
+// `next build` consumes that file, so anything added to it is type-checked on
+// every deploy — and Hostinger rebuilds on every deploy. A script-only mistake
+// would then fail a production build instead of a local command, which is the
+// wrong place to find out.
+//
+// But excluded from the build is not the same as unchecked, and for a while it
+// was. A duplicate `const` in scripts/sweep-orders.ts passed `tsc --noEmit`
+// cleanly and only blew up when the script was actually executed — which, for a
+// script that runs from cron, means finding out in production. These files
+// touch orders, stock and money, so they get checked; just separately.
+//
+// Run both with `npm run typecheck`.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The app's build uses this; a second one writing to the same place would
+    // have them invalidating each other's cache on every run.
+    "incremental": false,
+    // Plain Node programs, not a bundler and not the DOM.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext"]
+  },
+  "include": ["scripts/**/*.ts", "prisma/seed.ts", "prisma.config.ts"],
+  "exclude": ["node_modules"]
+}

@@ -52,16 +52,21 @@ export class PermanentEmailError extends Error {
 //   * `retry`    — this attempt failed, but another might not.
 //   * `giveUp`   — no further attempt will help, or there have been enough.
 
-export type EmailOutcome =
-  | { kind: "sent" }
+// Split from `EmailOutcome` on purpose. A failure can never be `sent`, and
+// saying so in the type is what lets the caller read `.attempts` without
+// narrowing past a case that cannot happen. The wider union kept the caller
+// honest about a branch that did not exist.
+export type EmailFailureOutcome =
   | { kind: "keep"; reason: string }
   | { kind: "retry"; attempts: number; error: string }
   | { kind: "giveUp"; attempts: number; error: string };
 
+export type EmailOutcome = { kind: "sent" } | EmailFailureOutcome;
+
 export function outcomeForFailure(
   attemptsBefore: number,
   error: unknown,
-): EmailOutcome {
+): EmailFailureOutcome {
   const message = error instanceof Error ? error.message : String(error);
 
   // A missing provider is a deployment gap, not a bad order. Burning the

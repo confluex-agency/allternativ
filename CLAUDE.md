@@ -535,10 +535,35 @@ purpose, so a row created without an explicit role can edit nothing.
 ```bash
 npm run dev            # development server
 npm run build          # production build (queries the real database)
+npm run typecheck      # the app AND the scripts -- see below
+npm test               # vitest; borrows the local database, see below
 npx prisma generate    # regenerate the client
 npx prisma migrate deploy  # apply migrations (NOT `migrate dev`, see above)
 npx prisma db seed     # seed the catalogue
 ```
+
+⚠️ **`tsc --noEmit` on its own does not check `scripts/` or `prisma/seed.ts`.**
+They are excluded from `tsconfig.json`, and that exclusion is deliberate:
+`next build` consumes that file, Hostinger rebuilds on every deploy, and a
+mistake in a cron script should not fail a production build. But excluded from
+the build is not the same as unchecked, and for a while it was — a duplicate
+`const` in `sweep-orders.ts` passed the type check and only surfaced when the
+script ran, which for a cron job means finding out in production.
+`tsconfig.scripts.json` covers them, and **`npm run typecheck` runs both**. Use
+it rather than `tsc` directly.
+
+⚠️ **The test suite writes to the database in `DATABASE_URL`.** It makes its own
+products, prefixed per run, and cleans them up. The exception is `case_stock`,
+which is a singleton keyed by colour: the purchase path reserves against BLACK
+and WHITE, the same two rows the shop sells from, so the suite cannot have a
+private copy. It borrows them and puts them back in `afterAll`
+(`captureCaseStock` / `restoreCaseStock` in `tests/helpers.ts`).
+
+Before that, a run of the suite quietly reset both pools to 100. After a test
+purchase had correctly taken three black cases and two white ones, the next
+person to look saw stock that had apparently un-sold itself — a convincing
+inventory bug that was nothing of the sort. One more reason not to point
+`DATABASE_URL` at Hostinger.
 
 ## Environment
 

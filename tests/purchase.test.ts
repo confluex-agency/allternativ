@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { processStripeEvent } from "@/lib/webhooks/process-stripe-event";
 import { reserveStock } from "@/lib/inventory";
@@ -8,6 +8,8 @@ import {
   RUN,
   makeProduct,
   setCaseStock,
+  captureCaseStock,
+  restoreCaseStock,
   caseStockOf,
   completedSession,
   cleanUp,
@@ -28,6 +30,15 @@ import {
 // the same event arriving twice must still produce one order.
 
 describe("a completed checkout becomes an order", () => {
+  // The case pools belong to the development shop, not to this suite. Borrowed
+  // below and handed back in afterAll -- see captureCaseStock in helpers.ts for
+  // what happens when they are not.
+  let caseStockBefore: Awaited<ReturnType<typeof captureCaseStock>> = [];
+
+  beforeAll(async () => {
+    caseStockBefore = await captureCaseStock();
+  });
+
   beforeEach(async () => {
     await cleanUp();
     await setCaseStock("BLACK", 100);
@@ -36,6 +47,7 @@ describe("a completed checkout becomes an order", () => {
 
   afterAll(async () => {
     await cleanUp();
+    await restoreCaseStock(caseStockBefore);
     await prisma.$disconnect();
   });
 

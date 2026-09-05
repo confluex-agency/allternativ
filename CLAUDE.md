@@ -597,7 +597,39 @@ characters such as `?`, `+`, `;` and `>`, and a `?` inside the password ends the
 URL's authority section: Prisma then reports `invalid port number`, which points
 nowhere near the real cause.
 
-Uploaded admin images **cannot live on the app's disk** — it is rebuilt on every
-deploy. Storage provider still to be decided (Cloudinary recommended).
+## Two providers the client still has to choose
+
+Both are blocking something already built. Neither needs code beyond the seam
+that is already there.
+
+**Image storage.** Uploaded admin images **cannot live on the app's disk** — it
+is rebuilt on every deploy. Cloudinary recommended. This blocks more than it
+used to: there is now real product photography waiting to replace the
+placeholders under `/catalog/`.
+
+**Transactional email.** The queue is built and tested (see above); nothing
+sends until a provider is set. Note that **Hostinger email is already configured
+on the domain** — MX to `mx1/mx2.hostinger.com`, its own SPF and DKIM, DMARC at
+`p=none` — but that is *mailbox* hosting, for people writing to people. A
+confirmation for an order that was just charged is a different job: it needs
+per-message logs, bounce and complaint webhooks, and its own reputation, because
+a confirmation in the spam folder reads to the buyer as "my order failed".
+
+Recommended: **Resend, on a subdomain** such as `send.allternativ.com`.
+
+- The strongest argument is infrastructure, not marketing: Resend is an **HTTP
+  API, not SMTP**. Outbound HTTPS from the Hostinger Node container is
+  verified — that is how Stripe is called. Whether outbound SMTP ports are open
+  from there is **unknown and untested**, and an HTTP API never has to find out.
+- **On a subdomain** because the root SPF authorises only Hostinger today.
+  Editing it means touching the record the mailboxes depend on, and SPF has a
+  ten-lookup limit. A subdomain also keeps the two reputations apart.
+
+Hostinger's own SMTP is the alternative: free, already paid for, no DNS changes.
+What it gives up is exactly the list above, plus that unknown about the port.
+
+⚠️ `EMAIL_FROM` must be an address on the verified domain — never a personal
+Gmail — and should be a mailbox somebody reads, because people reply to order
+confirmations.
 
 @AGENTS.md

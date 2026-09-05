@@ -213,8 +213,31 @@ async function handleCompletedSession(
         }
       }
     }
-  } catch {
+  } catch (error) {
     paymentFeeCents = null;
+    // Swallowing this silently cost an afternoon. An end-to-end test order came
+    // back with a null fee even though the balance transaction had existed for
+    // two seconds by the time the webhook ran, and there was nothing anywhere
+    // to say why: no log line, no row, only a null that reads exactly like
+    // "Stripe had not worked it out yet".
+    //
+    // The fee must never cost us the order, so it is still caught. It is no
+    // longer silent.
+    console.error(
+      `[fee] Could not read the processor fee for session ${session.id}: ` +
+        `${error instanceof Error ? error.message : "unknown error"}. ` +
+        `The order is unaffected; its margin is missing the fee.`,
+    );
+  }
+
+  // The same gap, reached the other way: no error, but nothing to read either.
+  // Null is recorded rather than zero, because reporting can tell "not read"
+  // from "cost nothing", and a zero would quietly flatter every margin.
+  if (paymentFeeCents === null) {
+    console.error(
+      `[fee] No processor fee available for session ${session.id}. ` +
+        `Recorded as unknown; margin for this order is incomplete.`,
+    );
   }
 
   // ⚠️ The second of two nets, and the one that is true.

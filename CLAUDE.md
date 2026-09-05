@@ -281,8 +281,8 @@ units are recorded all the same, so the launch inventory is complete.
   frozen copy of what was bought (`sku`, `productName`, `variantName`,
   `caseColor`). The catalogue may change afterwards; the order may not.
 - Stock is decremented on the **variant**, which is what gets shipped.
-- `allow_promotion_codes` is on, so discount codes created in the Stripe
-  dashboard work without a deploy.
+- Discount codes are still created in the Stripe dashboard, with no deploy, but
+  the field the customer types them into is **ours**, in the cart. See below.
 
 ### Delivery, and the two sides of its price
 
@@ -325,12 +325,22 @@ reprices backwards and "what did we make last quarter" starts returning a wrong
 number that looks right. It cannot be backfilled: nobody writes down what a
 thing used to cost.
 
-⚠️ **`allow_promotion_codes` has no floor.** Codes are created straight in the
-Stripe dashboard, without passing through this codebase and without a minimum.
-Combined with absorbed delivery, a deep enough code sells below cost — for a
-two-pair order to Malta the break-even sits near 66%. The webhook now shouts
-when an order closes negative, naming the code. **Shouting is not refusing**;
-refusing belongs in the checkout and is not built yet.
+**A discount code cannot sell below cost, and the check is in the checkout.**
+`allow_promotion_codes` used to be on, which put the coupon field on Stripe's
+hosted page — and a code applied there lands on a session that already exists,
+so it can only be observed, never refused. Combined with absorbed delivery, a
+deep enough code sold below cost; for a two-pair order to Malta the break-even
+sits near 66%.
+
+The field is in our cart now. `evaluateDiscountForBasket` in
+`src/lib/promotions.ts` works out what the order would actually net — revenue
+less goods, less what the parcel really costs us, less the processor's fee —
+and **refuses** the code below `MINIMUM_NET_CENTS`, before any Stripe session
+exists. What Stripe receives is a decision rather than an invitation, and it
+rejects a session carrying both a code and the open coupon field anyway.
+
+⚠️ So `allow_promotion_codes` must stay absent from the session. Turning it
+back on does not add a feature, it removes the floor.
 
 ### Why the shop cannot oversell
 

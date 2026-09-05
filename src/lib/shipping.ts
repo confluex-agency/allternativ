@@ -12,16 +12,17 @@
 // markup on top. The margin lives in the eyewear, which costs about USD 5.70 to
 // put in the box and sells for EUR 39.
 //
-// ── Only one column is ever CHARGED. All three are needed to COST ───────────
-// The supplier quotes three prices per country, for one, two and three pairs in
-// the same parcel. Free shipping between two and four pairs means the second
-// and third columns are never charged to anybody: a checkout can only ever see
-// the one-pair rate, or, past the free window, an extrapolation.
+// ── Two columns are ever CHARGED. All five are needed to COST ─────────────
+// The supplier quotes five prices per country, for one to five pairs in the
+// same parcel. Free shipping between two and four pairs means the middle three
+// columns are never charged to anybody: a checkout can only ever see the
+// one-pair rate, the five-pair rate, or, past that, an extrapolation.
 //
-// They are still real money going out. A two-pair parcel to Malta costs 18.63
-// and not the 14.64 of a single pair, and costing it at the one-pair rate would
-// understate what the free-shipping rule is really spending — which is the one
-// number it exists to justify. `quoteShipping` charges; `supplierCostUsd` costs.
+// The three it never charges are still real money going out. A two-pair parcel
+// to Malta costs 18.63 and not the 14.64 of a single pair, and costing it at
+// the one-pair rate would understate what the free-shipping rule is really
+// spending — which is the one number it exists to justify. `quoteShipping`
+// charges; `supplierCostUsdCents` costs.
 //
 // ── Why the exchange rate is frozen ─────────────────────────────────────────
 // The supplier quotes in dollars and the shop charges in euros, so somebody has
@@ -42,64 +43,87 @@
 import { STORE_CURRENCY } from "@/lib/utils";
 
 /**
- * The supplier's cost in USD, as `[one pair, two pairs, three pairs]`.
+ * The supplier's cost in USD, as `[one pair, two, three, four, five]`.
  *
- * Straight from `Quot-260717.xlsx` (Shenzhen Hongyu, 2026-07-16), transcribed
+ * Straight from `Quot-260825.xlsx` (Shenzhen Hongyu, 2026-08-25), transcribed
  * from the spreadsheet rather than typed by hand. Kept as the quoted dollars
  * rather than as converted euros on purpose: this table can be checked line by
  * line against the document the supplier sent, with no arithmetic of ours in
  * between.
  *
+ * ── What the August quotation changed ──────────────────────────────────────
+ * Two things, and only two. Every one of the thirty-two rates we sell against
+ * was re-quoted at the identical figure except Australia's two-pair rate, and
+ * the columns now run to five pairs instead of three.
+ *
+ * That second half is what matters here. The old table stopped at three, so
+ * four pairs and up were EXTRAPOLATED from the marginal step, and four pairs is
+ * inside the free-shipping window — meaning the number Allternativ absorbs on
+ * its own AOV lever was an estimate. It is now the supplier's own figure.
+ *
+ * ⚠️ Two caveats Daniel attached on 2026-08-25, both of which will move these
+ * numbers and neither of which is in them yet:
+ *
+ *   * They assume a gross weight of 125 g per pair. He weighs the goods when
+ *     they reach his warehouse and re-quotes if the real weight differs
+ *     materially. Nothing has been weighed yet.
+ *   * Between 15 October and 15 January every carrier raises its prices, by
+ *     roughly 15-25% depending on air freight capacity and fuel, and he passes
+ *     that on. The shop's launch sits inside that window, so this table will
+ *     need a seasonal re-read before it goes live rather than after.
+ *
  * Carrier is YunExpress for every country below. Two countries in the wider
  * quotation use a different one (Iceland via SYPOST, Hong Kong via SF Express)
  * and neither is a market of ours, so the statement holds for this table.
  */
-export const SUPPLIER_SHIPPING_USD: Record<string, [number, number, number]> = {
+export const SUPPLIER_SHIPPING_USD: Record<
+  string,
+  [number, number, number, number, number]
+> = {
   // ── European Union ──
-  AT: [11.31, 13.1, 14.88], // Austria
-  BE: [11.72, 13.92, 16.11], // Belgium
-  BG: [11.23, 13.74, 16.25], // Bulgaria
-  CY: [14.05, 17.6, 21.14], // Cyprus
-  CZ: [10.93, 12.81, 14.68], // Czechia
-  DE: [11.03, 12.69, 14.35], // Germany
-  DK: [12.66, 15.63, 18.6], // Denmark
-  EE: [11.39, 13.72, 16.06], // Estonia
-  ES: [10.41, 12.1, 13.78], // Spain
-  FI: [12.09, 14.16, 16.23], // Finland
-  FR: [10.73, 12.42, 14.1], // France
-  GR: [11.06, 13.4, 15.74], // Greece
-  HR: [13.15, 16.29, 19.43], // Croatia
-  HU: [11.31, 13.4, 15.5], // Hungary
-  IE: [12.09, 14.64, 17.2], // Ireland
-  IT: [11.59, 13.32, 15.06], // Italy
-  LT: [10.93, 12.81, 14.68], // Lithuania
-  LU: [13.29, 16.4, 19.52], // Luxembourg
-  LV: [11.0, 12.95, 14.9], // Latvia
-  MT: [14.64, 18.63, 22.61], // Malta
-  NL: [12.21, 14.89, 17.56], // Netherlands
-  PL: [10.68, 13.11, 15.55], // Poland
-  PT: [11.51, 13.97, 16.43], // Portugal
-  RO: [11.72, 14.4, 17.08], // Romania
-  SE: [11.52, 13.84, 16.15], // Sweden
-  SI: [13.03, 16.05, 19.06], // Slovenia
-  SK: [11.89, 14.74, 17.59], // Slovakia
+  AT: [11.31, 13.1, 14.88, 16.98, 18.93], // Austria
+  BE: [11.72, 13.92, 16.11, 18.63, 20.98], // Belgium
+  BG: [11.23, 13.74, 16.25, 19.08, 21.75], // Bulgaria
+  CY: [14.05, 17.6, 21.14, 25.02, 28.72], // Cyprus
+  CZ: [10.93, 12.81, 14.68, 16.89, 18.93], // Czechia
+  DE: [11.03, 12.69, 14.35, 16.34, 18.16], // Germany
+  DK: [12.66, 15.63, 18.6, 21.89, 25.02], // Denmark
+  EE: [11.39, 13.72, 16.06, 18.72, 21.22], // Estonia
+  ES: [10.41, 12.1, 13.78, 15.79, 17.64], // Spain
+  FI: [12.09, 14.16, 16.23, 18.63, 20.86], // Finland
+  FR: [10.73, 12.42, 14.1, 16.11, 17.96], // France
+  GR: [11.06, 13.4, 15.74, 18.4, 20.9], // Greece
+  HR: [13.15, 16.29, 19.43, 22.89, 26.18], // Croatia
+  HU: [11.31, 13.4, 15.5, 17.92, 20.18], // Hungary
+  IE: [12.09, 14.64, 17.2, 20.08, 22.8], // Ireland
+  IT: [11.59, 13.32, 15.06, 17.11, 19.01], // Italy
+  LT: [10.93, 12.81, 14.68, 16.89, 18.93], // Lithuania
+  LU: [13.29, 16.4, 19.52, 22.95, 26.22], // Luxembourg
+  LV: [11, 12.95, 14.9, 17.18, 19.29], // Latvia
+  MT: [14.64, 18.63, 22.61, 26.92, 31.06], // Malta
+  NL: [12.21, 14.89, 17.56, 20.56, 23.4], // Netherlands
+  PL: [10.68, 13.11, 15.55, 18.31, 20.9], // Poland
+  PT: [11.51, 13.97, 16.43, 19.21, 21.83], // Portugal
+  RO: [11.72, 14.4, 17.08, 20.08, 22.92], // Romania
+  SE: [11.52, 13.84, 16.15, 18.79, 21.27], // Sweden
+  SI: [13.03, 16.05, 19.06, 22.4, 25.58], // Slovenia
+  SK: [11.89, 14.74, 17.59, 20.76, 23.77], // Slovakia
   // ── United Kingdom ──
-  GB: [6.15, 7.76, 9.37],
+  GB: [6.15, 7.76, 9.37, 11.31, 13.08],
   // ── The four markets that were missing until 2026-08-21 ──
   // The client set a retail price for the United States, Canada, Australia and
   // New Zealand, and the supplier quoted all four, and neither fact had reached
   // this table. The shop was telling four of its six markets that it does not
   // deliver to their country.
-  US: [8.16, 10.98, 13.81],
-  CA: [7.31, 9.29, 11.27],
-  // ⚠️ Australia's three-pair rate is the same as its two-pair rate in the
-  // quotation. Either a real bracket or a typing slip, and it matters because
-  // the estimate for four pairs and up extends the step between the last two
-  // tiers, which here is zero: four pairs would be costed at the three-pair
-  // price and every larger parcel would be understated. Asked of Daniel;
-  // `supplierCostUsdCents` refuses to trust a zero step in the meantime.
-  AU: [9.41, 11.43, 11.43],
-  NZ: [9.03, 11.37, 13.71],
+  US: [8.16, 10.98, 13.81, 16.95, 19.94],
+  CA: [7.31, 9.29, 11.27, 13.56, 15.7],
+  // Australia used to quote the same figure for two and three pairs, which was
+  // asked of Daniel as either a real bracket or a typing slip. Quot-260825
+  // answers it: a slip. Two pairs is 10.42, not 11.43, and the row now steps
+  // like every other. The zero-step guard in `supplierCostUsdCents` stays as a
+  // net for the next quotation, but nothing in this table trips it today.
+  AU: [9.41, 10.42, 11.43, 12.76, 13.93],
+  NZ: [9.03, 11.37, 13.71, 16.37, 18.87],
 };
 
 // Countries the supplier also quoted and we deliberately do NOT sell to:
@@ -203,9 +227,9 @@ export function quoteShipping(
     pairs >= FREE_SHIPPING_FROM_PAIRS && pairs <= FREE_SHIPPING_MAX_PAIRS;
 
   // A single pair is charged from the quotation's first column. Above the free
-  // window there is no column left to read - the supplier only quoted one, two
-  // and three - so the same extrapolation the cost side uses is charged, at
-  // cost and with no markup, like every other delivery here.
+  // window the quotation still has columns to read as far as five pairs, and
+  // past that the cost side's extrapolation is charged - at cost and with no
+  // markup, like every other delivery here.
   const usdCents =
     pairs <= 1 ? tiers[0] * 100 : supplierCostUsdCents(country, pairs);
 
@@ -222,27 +246,38 @@ export function quoteShipping(
  * What the parcel actually costs Allternativ, in US cents. The other half of
  * the sum: `quoteShipping` is what comes in, this is what goes out.
  *
- * ⚠️ Above three pairs the quotation runs out. Rather than repeat the
- * three-pair figure, which would understate every large order, the cost is
- * extended by the marginal step between the last two tiers — the supplier's
- * own increments are flat (Germany: +1.66, +1.66), so this is a reasonable
- * estimate and not a guess pulled from nowhere. It stays an ESTIMATE until
- * Daniel answers question 6 of the supplier document, which asks exactly this.
+ * Question 6 of the supplier document asked exactly what happens above three
+ * pairs, and Quot-260825 answers it: the quotation now runs to five. Every
+ * parcel the free-shipping window can produce — one to four pairs — is
+ * therefore a quoted figure now, not an estimate. That matters because four
+ * pairs is the most expensive parcel the shop gives away, so it is the number
+ * the whole rule has to justify itself against.
+ *
+ * ⚠️ Six pairs and up is still extrapolated, by the marginal step between the
+ * last two quoted tiers. Those orders are charged, not absorbed, and the
+ * supplier has never quoted one, so the estimate is what the customer pays.
  */
 export function supplierCostUsdCents(country: string, pairs: number): number {
   const tiers = SUPPLIER_SHIPPING_USD[country];
   if (tiers === undefined || pairs <= 0) return 0;
-  if (pairs <= 3) return Math.round(tiers[pairs - 1] * 100);
+  if (pairs <= tiers.length) return Math.round(tiers[pairs - 1] * 100);
 
-  // The step between the last two tiers, extended. Australia quotes the same
-  // figure for two and three pairs, which would make the step zero and price a
-  // ten-pair parcel like a three-pair one. A zero or negative step is treated
-  // as unknown and the largest step in the row is used instead: overstating a
-  // cost we are guessing at is the safe direction, because this number decides
-  // both what we absorb and, above the free-shipping window, what we charge.
-  const lastStep = tiers[2] - tiers[1];
-  const step = lastStep > 0 ? lastStep : Math.max(tiers[1] - tiers[0], 0);
-  return Math.round((tiers[2] + (pairs - 3) * step) * 100);
+  // Beyond the quotation, extend by the step between the last two tiers.
+  //
+  // The zero-step guard is kept even though nothing in the current table trips
+  // it. The July quotation gave Australia the same figure for two and three
+  // pairs, which would have made the step zero and priced a ten-pair parcel
+  // like a three-pair one; August corrected it to a typing slip. The next
+  // quotation can carry the same slip, so a zero or negative step is still
+  // treated as unknown and the largest step in the row used instead:
+  // overstating a cost we are guessing at is the safe direction, because this
+  // number decides both what we absorb and, above the free-shipping window,
+  // what we charge.
+  const last = tiers.length - 1;
+  const lastStep = tiers[last] - tiers[last - 1];
+  const steps = tiers.slice(1).map((t, i) => t - tiers[i]);
+  const step = lastStep > 0 ? lastStep : Math.max(...steps, 0);
+  return Math.round((tiers[last] + (pairs - tiers.length) * step) * 100);
 }
 
 /**

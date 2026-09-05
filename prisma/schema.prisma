@@ -498,6 +498,17 @@ enum OrderStatus {
   REFUNDED
 }
 
+// Where the confirmation email got to. Its own status, separate from the
+// order's: an order is PAID whether or not the mail went out, and conflating
+// the two would make a mail provider's bad afternoon look like a payment
+// problem.
+enum OrderEmailStatus {
+  PENDING // queued, waiting for the sweep to drain it
+  SENT
+  FAILED // given up on: too many attempts, or a permanent refusal
+  SKIPPED // never queued -- predates the queue, or withheld on purpose
+}
+
 model Order {
   id                String      @id @default(cuid())
   orderNumber       String      @unique @map("order_number")
@@ -538,6 +549,19 @@ model Order {
   shippingCountry   String?     @map("shipping_country")
   shippingZip       String?     @map("shipping_zip")
   shippingPhone     String?     @map("shipping_phone")
+  // ─ The confirmation email, queued rather than sent ─
+  //
+  // The success page promises the buyer a confirmation, so this is not
+  // optional. It is deliberately NOT sent from the webhook: a mail provider
+  // that is slow or down would turn a 400ms handler into a timeout, Stripe
+  // would retry a payment that already succeeded, and the event would sit
+  // marked failed for three days over something that has nothing to do with
+  // the money. The order is written synchronously; the mail is queued here and
+  // drained by `scripts/sweep-orders.ts`.
+  emailStatus       OrderEmailStatus @default(PENDING) @map("email_status")
+  emailSentAt       DateTime?        @map("email_sent_at")
+  emailAttempts     Int              @default(0) @map("email_attempts")
+  emailLastError    String?          @map("email_last_error") @db.Text
   // ─ Supplier ERP (Dianxiaomi) round-trip ─
   erpExportedAt     DateTime?   @map("erp_exported_at")
   trackingNumber    String?     @map("tracking_number")
@@ -552,6 +576,8 @@ model Order {
   customer Customer    @relation(fields: [customerId], references: [id])
   items    OrderItem[]
 
+  // The queue query: paid orders whose mail has not gone out yet.
+  @@index([emailStatus])
   @@map("orders")
 }
 

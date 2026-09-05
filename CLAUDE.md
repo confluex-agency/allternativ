@@ -480,6 +480,50 @@ the same reason the encoder refuses a cart it cannot fit instead of truncating.
 The old single `items` key is still read, so a session created minutes before a
 deploy still becomes an order.
 
+### The confirmation email is queued, not sent
+
+The webhook answers Stripe synchronously, and that is what gives the payment
+path its durability: a failure returns 5xx and Stripe retries for three days.
+The same property is a trap. Anything slow inside that handler turns a 400ms
+response into a timeout, and Stripe then retries a payment that **already
+succeeded** — leaving the event marked failed for three days because a mail
+server was having a bad afternoon.
+
+So the order is written synchronously and the mail is queued on it. The database
+is the queue: `Order.emailStatus` is `PENDING`, and `scripts/sweep-orders.ts`
+drains it. No broker, for the same reason there is no broker on the payment
+path — one column and one script answer the whole requirement.
+
+`src/lib/email.ts` holds both halves, content and transport.
+
+- **Four states, not a boolean.** `PENDING` / `SENT` / `FAILED` / `SKIPPED`.
+  `SKIPPED` exists because the migration has to say something about orders that
+  predate the queue, and the honest thing is neither "sent" (nothing was) nor
+  "pending" (nobody is going to). Without it, the first sweep after deploy would
+  mail every historical buyer a confirmation for a purchase made weeks ago.
+- **A missing provider is not a failed order.** `NoEmailProviderError` leaves
+  the row exactly as it was and stops the loop, reporting once. Counting it as
+  an attempt would march the whole queue to `FAILED` before anyone had chosen a
+  provider, and those buyers would then never be mailed even once one existed.
+- **A 4xx that is not 429 is permanent.** An unverified domain or a malformed
+  address says no again tomorrow; retrying it for days buries the real problem
+  inside a queue. Everything else is retried up to `EMAIL_MAX_ATTEMPTS`.
+- **The mail is built from the ORDER, never from the catalogue.** The order
+  froze the product name, the colourway and the case colour for exactly this
+  reason. Reading the live product could describe a different pair.
+- ⚠️ **`formatCurrency`, never `formatPrice`.** `formatPrice` rounds to whole
+  units on purpose — it is for the shop front — and would turn EUR 15.10 of
+  delivery into EUR 15 in a document the buyer holds against a card statement.
+
+⚠️ **No provider is wired yet**, so nothing actually sends. `sendEmail` sketches
+Resend because it is one HTTP call with no SDK, but the account and the verified
+sending domain are the client's to create. Until `RESEND_API_KEY` and
+`EMAIL_FROM` are set, the sweep reports the backlog and changes nothing.
+
+That backlog is a broken promise, not a missing nicety: `/checkout/success`
+tells the buyer a confirmation is coming. The sweep shouts about it every run
+for that reason.
+
 ## Admin roles
 
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,

@@ -377,6 +377,57 @@ A message broker was considered and deliberately not used: overselling is a race
 on one row, which the database settles, and durability is already Stripe's job.
 Revisit if several independent consumers ever need to react to a sale.
 
+### A webhook does not exist until somebody creates one
+
+⚠️ A test payment on 2026-08-24 charged EUR 117 and left no order behind. The
+cause was not in this code. The Stripe account had **no webhook endpoint
+configured at all**: `checkout.session.completed` was emitted with
+`pending_webhooks=0` — there was nowhere to deliver it — and since an order is
+only ever created by the webhook, there was no order, no stock movement and no
+confirmation.
+
+It is silent from both ends. The shopper sees the success page, and
+`webhook_events` stays empty. **An empty table means nothing arrived**, not that
+something failed.
+
+There are two ways to end up with no events, and they look identical from the
+database:
+
+1. No endpoint exists. `stripe.webhookEndpoints.list()` returns an empty list.
+2. An endpoint exists but `STRIPE_WEBHOOK_SECRET` is not its secret. The route
+   answers 400 at signature verification and **writes no row**, because the
+   record is made after `constructEvent`. Stripe shows failed deliveries; the
+   database shows nothing.
+
+**Stripe cannot reach a laptop.** Local development needs the forwarder, and
+without it a local checkout charges the card and stops there:
+
+```bash
+stripe login
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+That command prints a `whsec_...` that is **different** from any endpoint's, and
+that is the one that belongs in `.env`.
+
+**Staging uses a real endpoint**, at
+`https://staging.allternativ.com/api/webhooks/stripe`, subscribed to
+`checkout.session.completed` and `checkout.session.expired` and to nothing else
+— those are the two `process-stripe-event.ts` understands, and subscribing to
+everything just fills `webhook_events` with noise nobody reads. Its secret is a
+different value again, and lives in the Hostinger variables.
+`STRIPE_WEBHOOK_SECRET` is not a `NEXT_PUBLIC_` variable, so **a restart is
+enough**; it does not need a rebuild.
+
+⚠️ **Do not change the Hostinger variables through the API.** That endpoint
+replaces the whole set and reads back masked values, so sending one variable
+deletes the other thirteen. Edit the single field in the panel.
+
+An old event cannot always be replayed. The metadata freezes `variantId`, and a
+re-seeded database no longer has those ids, so `processStripeEvent` closes the
+event with `UnprocessableEventError` — which is correct. Test again rather than
+trying to rescue the payment.
+
 ## Admin roles
 
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,

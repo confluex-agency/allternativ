@@ -20,9 +20,14 @@ const COOKIE_NAME = "allternativ-admin-token";
 //                    the route is not unguarded, only unpasassworded.
 //   /wp-json/*       The supplier's system reads orders here and writes tracking
 //                    back. It authenticates with its own consumer key.
+//   /api/cron/*      The scheduled jobs, called by the host's cron over HTTP
+//                    because a cron shell has neither the dev dependencies nor
+//                    the app's environment. Gated, the confirmation emails
+//                    would never be sent on the very deployment the founders
+//                    are reviewing.
 //
-// Both check credentials of their own. The password is for humans.
-const OPEN_PREFIXES = ["/api/webhooks", "/wp-json"];
+// All three check credentials of their own. The password is for humans.
+const OPEN_PREFIXES = ["/api/webhooks", "/wp-json", "/api/cron"];
 
 function stagingGate(request: NextRequest): NextResponse | null {
   if (!isStaging) return null;

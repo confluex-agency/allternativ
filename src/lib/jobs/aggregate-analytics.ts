@@ -1,15 +1,14 @@
 /**
- * Daily cron: aggregates sessions + events from previous day into daily_analytics.
- * Run at 02:00 UTC.
+ * Aggregates the previous day's sessions and events into `daily_analytics`.
+ * Meant to run once a day at 02:00 UTC.
+ *
+ * Nothing reads `daily_analytics` until this has run, so every analytics figure
+ * in the admin is blank while it is not scheduled.
  */
-import "dotenv/config";
-import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { prisma } from "@/lib/prisma";
+import type { JobResult } from "@/lib/jobs/types";
 
-const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
-const prisma = new PrismaClient({ adapter });
-
-async function main() {
+export async function aggregateAnalytics(): Promise<JobResult> {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
@@ -18,7 +17,6 @@ async function main() {
   const endOfYesterday = new Date(yesterday);
   endOfYesterday.setUTCHours(23, 59, 59, 999);
 
-  console.log(`Aggregating analytics for ${yesterday.toISOString().split("T")[0]}`);
 
   // Sessions from yesterday
   const sessions = await prisma.session.findMany({
@@ -149,18 +147,16 @@ async function main() {
     },
   });
 
-  console.log("Aggregation complete:", {
-    totalSessions,
-    uniqueVisitors,
-    pageViews,
-    totalOrders,
-    totalRevenueCents,
-  });
+  return {
+    summary: {
+      day: yesterday.toISOString().split("T")[0] ?? null,
+      totalSessions,
+      uniqueVisitors,
+      pageViews,
+      totalOrders,
+      totalRevenueCents,
+    },
+    // Nothing here needs a person. An empty day is a quiet day, not a fault.
+    warnings: [],
+  };
 }
-
-main()
-  .catch((e) => {
-    console.error("Aggregation failed:", e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());

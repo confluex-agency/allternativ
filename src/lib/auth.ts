@@ -134,18 +134,10 @@ export async function requireRole(
   return { ok: true, user };
 }
 
-/** Roles that may see commercial data: orders, customers, money. */
-export const COMMERCIAL_ROLES: AdminRole[] = ["OWNER", "ECOMMERCE_ADMIN"];
-
-/**
- * Roles that may read dashboards. All of them — ANALYTICS_VIEWER exists for
- * exactly this and nothing else (section 18 of the client brief).
- */
-export const REPORTING_ROLES: AdminRole[] = [
-  "OWNER",
-  "ECOMMERCE_ADMIN",
-  "CONTENT_ADMIN",
-  "ANALYTICS_VIEWER",
-];
+// The role sets moved to `roles.ts`, which has no server-only imports, so the
+// admin sidebar can decide whether to offer a link without pulling `jose`,
+// `next/headers` and Prisma into the browser. Re-exported here because every
+// API route already reads them from this module beside `requireRole`.
+export { COMMERCIAL_ROLES, REPORTING_ROLES } from "@/lib/roles";
 
 export { COOKIE_NAME };

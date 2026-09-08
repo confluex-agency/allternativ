@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { COMMERCIAL_ROLES, hasRole } from "@/lib/roles";
 
 // ⚠️ Only routes that EXIST belong here.
 //
@@ -18,14 +19,21 @@ import { cn } from "@/lib/utils";
 // true instead, and each entry moves up as its page ships. See "Admin roles" and
 // the API routes in CLAUDE.md — `/api/orders` and `/api/customers` already exist
 // and are role-checked; what is missing is the screen, not the data.
-const navItems = [{ href: "/admin", label: "Dashboard", icon: "◻" }];
+const navItems = [
+  { href: "/admin", label: "Dashboard", icon: "◻", roles: null },
+  // Orders carry the buyer's name, address and phone, so the page itself is
+  // guarded by COMMERCIAL_ROLES. Listed here under the same rule rather than a
+  // second copy of it: a link that bounces you back to the dashboard is a worse
+  // way to learn you lack the role than not being offered it.
+  { href: "/admin/orders", label: "Orders", icon: "◻", roles: COMMERCIAL_ROLES },
+];
 
 /** Screens the sidebar promised before they existed. Shown, not linked. */
-const comingSoon = ["Products", "Orders", "Customers", "Analytics"];
+const comingSoon = ["Products", "Customers", "Analytics"];
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   return (
     <aside className="w-64 border-r bg-white flex flex-col">
@@ -40,7 +48,16 @@ export function AdminSidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => (
+        {navItems
+          // Optimistic while the role is still being fetched. `user` comes from
+          // /api/auth/me, so the first paint has no role at all — and hiding a
+          // link for a beat, then popping it in, reads as the admin being
+          // broken. The page enforces the rule regardless; this only decides
+          // what is offered.
+          .filter(
+            (item) => !item.roles || loading || hasRole(user?.role, item.roles),
+          )
+          .map((item) => (
           <Link
             key={item.href}
             href={item.href}

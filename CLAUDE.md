@@ -27,20 +27,20 @@ with the outstanding questions and the delivery order, is in the vault.
 | Database | **MariaDB 11.8.8** on Hostinger (`srv1656.hstgr.io`), `utf8mb4_unicode_ci` |
 | Domain | `allternativ.com` — staging goes up first at `staging.allternativ.com` |
 
-Render is no longer used; `render.yaml` is a leftover.
+Render is no longer used, and `render.yaml` was deleted with it — it was the
+only place in this repository that ever scheduled anything, and it described
+both the wrong host and, after 2026-09-08, scripts that no longer exist.
 
-### ⚠️ Nothing is scheduled, and three things need to be
+### The scheduled work, and why it is an HTTP route
 
-`render.yaml` is the only place in this repository that ever scheduled
-anything, and it describes a host we left. **The Hostinger account has zero cron
-jobs** (checked 2026-09-08), which means three jobs that the code assumes are
-running are not running anywhere:
+Three jobs have to run on a timer. **The Hostinger account had zero cron jobs**
+when this was checked on 2026-09-08, which meant none of them ran anywhere:
 
-| Script | When | What stops without it |
+| Job | When | What stops without it |
 |---|---|---|
-| `scripts/sweep-orders.ts` | every 15 min | **The confirmation email is never sent.** The database is the queue and this is the only thing that drains it — and `/checkout/success` promises the buyer that mail. It also releases expired reservations in a shop with no traffic, retries recoverable webhook failures, and is the only thing that shouts about stuck events or negative stock. |
-| `scripts/aggregate-analytics.ts` | daily, 02:00 | `daily_analytics` stays empty, so every analytics figure is blank. |
-| `scripts/cleanup-old-events.ts` | weekly | `tracking_events` grows without limit on a shared plan. |
+| `sweep` | every 15 min | **The confirmation email is never sent.** The database is the queue and this is the only thing that drains it — and `/checkout/success` promises the buyer that mail. It also releases expired reservations in a shop with no traffic, retries recoverable webhook failures, and is the only thing that shouts about stuck events or negative stock. |
+| `aggregate` | daily, 02:00 | `daily_analytics` stays empty, so every analytics figure is blank. |
+| `cleanup` | weekly | `tracking_events` grows without limit on a shared plan. |
 
 Note what the sweep is **not**: it is not the safety net for overselling. Stock
 is taken by a conditional `UPDATE` when the checkout opens, and abandoned
@@ -48,16 +48,35 @@ baskets release themselves on the next purchase attempt. The sweep matters
 because a shop with no traffic has no "next attempt", and because **nobody is
 told about a stuck payment otherwise**.
 
-They run from the app directory with the same `DATABASE_URL` the app uses:
+⚠️ **They cannot run as scripts on this hosting**, and the two reasons are
+independent — fixing one would not have helped:
+
+1. `npx tsx` needs the dev dependencies, and the deploy installs `--omit=dev`.
+2. **A cron shell never receives the Node app's environment.** The variables are
+   set in the hPanel and injected into the *app* process, so a script started
+   from cron has no `DATABASE_URL` at all.
+
+So the logic lives in `src/lib/jobs/`, the app exposes it at
+`POST /api/cron/<job>` behind `CRON_SECRET`, and cron is a `curl`:
 
 ```
-cd ~/domains/<domain>/public_html && npx tsx scripts/sweep-orders.ts
+curl -fsS -X POST https://<domain>/api/cron/sweep -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-⚠️ `npx tsx` needs the dev dependencies present. Hostinger installs with
-`--omit=dev` on deploy, so **check that `tsx` resolves on the server before
-trusting the schedule** — a cron that fails silently every fifteen minutes looks
-exactly like one that has nothing to do.
+The work then happens inside the running server, which already has every
+variable. Locally the same jobs run through the CLI, which is the point of
+sharing the module: `npm run job sweep`.
+
+- `/api/cron` is in `OPEN_PREFIXES` in `proxy.ts`, alongside `/api/webhooks` and
+  `/wp-json`, because the staging password is for humans and this has a secret
+  of its own.
+- **POST only.** A GET is what a crawler, a link preview or a browser prefetch
+  issues, and `cleanup` deletes rows.
+- **It fails closed**: no `CRON_SECRET`, no run. Same reasoning as the login
+  limiter — this endpoint reprocesses payments.
+- ⚠️ **A job that warns still answers 200.** The work ran; a 5xx would make a
+  retry re-run a sweep that succeeded. `ok: false` in the body is the signal,
+  and Hostinger records the response as the cron's output.
 
 ## Security
 
@@ -427,7 +446,8 @@ winner, no deadlocks.
 - Reservations expire after `RESERVATION_MINUTES` (30), matching the Stripe
   session's `expires_at`.
 - They are released lazily before every reservation attempt **and** by
-  `scripts/sweep-orders.ts`, so the shop recovers even with no traffic.
+  the `sweep` job (see "The scheduled work"), so the shop recovers even with no
+  traffic.
 - Paying after your reservation expired still produces an order, because the
   money is real, and stock is taken late. **Stock may go negative on purpose**:
   it means the shop owes more than it holds, and every further sale of that
@@ -444,7 +464,7 @@ That split is what lets a failed event be replayed from the record.
 - `UnprocessableEventError` marks an event that will never succeed (malformed
   metadata). It is closed as `FAILED` with its reason instead of being retried
   for three days.
-- `scripts/sweep-orders.ts` retries recoverable failures and shouts about
+- The `sweep` job retries recoverable failures and shouts about
   anything still stuck or any negative stock.
 
 A message broker was considered and deliberately not used: overselling is a race
@@ -554,7 +574,7 @@ succeeded** — leaving the event marked failed for three days because a mail
 server was having a bad afternoon.
 
 So the order is written synchronously and the mail is queued on it. The database
-is the queue: `Order.emailStatus` is `PENDING`, and `scripts/sweep-orders.ts`
+is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
 
@@ -604,6 +624,7 @@ npm test               # vitest; borrows the local database, see below
 npx prisma generate    # regenerate the client
 npx prisma migrate deploy  # apply migrations (NOT `migrate dev`, see above)
 npx prisma db seed     # seed the catalogue
+npm run job sweep      # run a scheduled job locally (sweep|aggregate|cleanup)
 ```
 
 ⚠️ **`tsc --noEmit` on its own does not check `scripts/` or `prisma/seed.ts`.**
@@ -611,8 +632,9 @@ They are excluded from `tsconfig.json`, and that exclusion is deliberate:
 `next build` consumes that file, Hostinger rebuilds on every deploy, and a
 mistake in a cron script should not fail a production build. But excluded from
 the build is not the same as unchecked, and for a while it was — a duplicate
-`const` in `sweep-orders.ts` passed the type check and only surfaced when the
-script ran, which for a cron job means finding out in production.
+`const` in what was then `scripts/sweep-orders.ts` passed the type check and
+only surfaced when the script ran, which for a cron job means finding out in
+production.
 `tsconfig.scripts.json` covers them, and **`npm run typecheck` runs both**. Use
 it rather than `tsc` directly.
 

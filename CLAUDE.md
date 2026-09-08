@@ -29,6 +29,36 @@ with the outstanding questions and the delivery order, is in the vault.
 
 Render is no longer used; `render.yaml` is a leftover.
 
+### ⚠️ Nothing is scheduled, and three things need to be
+
+`render.yaml` is the only place in this repository that ever scheduled
+anything, and it describes a host we left. **The Hostinger account has zero cron
+jobs** (checked 2026-09-08), which means three jobs that the code assumes are
+running are not running anywhere:
+
+| Script | When | What stops without it |
+|---|---|---|
+| `scripts/sweep-orders.ts` | every 15 min | **The confirmation email is never sent.** The database is the queue and this is the only thing that drains it — and `/checkout/success` promises the buyer that mail. It also releases expired reservations in a shop with no traffic, retries recoverable webhook failures, and is the only thing that shouts about stuck events or negative stock. |
+| `scripts/aggregate-analytics.ts` | daily, 02:00 | `daily_analytics` stays empty, so every analytics figure is blank. |
+| `scripts/cleanup-old-events.ts` | weekly | `tracking_events` grows without limit on a shared plan. |
+
+Note what the sweep is **not**: it is not the safety net for overselling. Stock
+is taken by a conditional `UPDATE` when the checkout opens, and abandoned
+baskets release themselves on the next purchase attempt. The sweep matters
+because a shop with no traffic has no "next attempt", and because **nobody is
+told about a stuck payment otherwise**.
+
+They run from the app directory with the same `DATABASE_URL` the app uses:
+
+```
+cd ~/domains/<domain>/public_html && npx tsx scripts/sweep-orders.ts
+```
+
+⚠️ `npx tsx` needs the dev dependencies present. Hostinger installs with
+`--omit=dev` on deploy, so **check that `tsx` resolves on the server before
+trusting the schedule** — a cron that fails silently every fifteen minutes looks
+exactly like one that has nothing to do.
+
 ## Security
 
 ### Fixing vulnerabilities

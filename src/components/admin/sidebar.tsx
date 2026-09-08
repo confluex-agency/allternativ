@@ -5,13 +5,23 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: "/admin", label: "Dashboard", icon: "◻" },
-  { href: "/admin/products", label: "Products", icon: "◻" },
-  { href: "/admin/orders", label: "Orders", icon: "◻" },
-  { href: "/admin/customers", label: "Customers", icon: "◻" },
-  { href: "/admin/analytics", label: "Analytics", icon: "◻" },
-];
+// ⚠️ Only routes that EXIST belong here.
+//
+// This list carried Products, Orders, Customers and Analytics from the day the
+// shell was scaffolded, and none of those pages was ever built. Every one of
+// them is a 404. Nobody noticed because the admin is only opened by us, and we
+// know — but the people it is for are the two founders, and the first thing
+// they will do on launch day is log in and click "Orders".
+//
+// A link that goes nowhere is worse than a missing link: it says the feature is
+// there and broken, rather than not there yet. The section below says what is
+// true instead, and each entry moves up as its page ships. See "Admin roles" and
+// the API routes in CLAUDE.md — `/api/orders` and `/api/customers` already exist
+// and are role-checked; what is missing is the screen, not the data.
+const navItems = [{ href: "/admin", label: "Dashboard", icon: "◻" }];
+
+/** Screens the sidebar promised before they existed. Shown, not linked. */
+const comingSoon = ["Products", "Orders", "Customers", "Analytics"];
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -44,6 +54,19 @@ export function AdminSidebar() {
             <span className="text-xs">{item.icon}</span>
             {item.label}
           </Link>
+        ))}
+
+        <p className="px-3 pt-6 pb-2 text-[10px] uppercase tracking-[0.12em] text-neutral-400">
+          Not built yet
+        </p>
+        {comingSoon.map((label) => (
+          <span
+            key={label}
+            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-neutral-300"
+          >
+            <span className="text-xs">◻</span>
+            {label}
+          </span>
         ))}
       </nav>
 

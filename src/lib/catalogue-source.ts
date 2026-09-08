@@ -14,11 +14,16 @@
 // especificación que no esté confirmada por el proveedor. Si alguna
 // especificación no aparece confirmada, preferimos leave it unpublished."
 //
-// So there are no frame materials, no lens materials, no UV rating, no
-// dimensions, no weight, no fit and no country of origin in this file. The
-// previous version carried all of them, invented, including "Handcrafted ·
-// LATAM" on goods manufactured in China. A null field renders as nothing; a
-// wrong field renders as a claim.
+// The previous version carried a frame material, a lens material, a lens type
+// and "Handcrafted · LATAM" on goods manufactured in China, all of it invented.
+// A null field renders as nothing; a wrong field renders as a claim.
+//
+// From 2026-09-08 the specs below are no longer empty, and the rule did not
+// change — the evidence arrived. Every value is transcribed from one of Max's
+// six "Product information" sheets or from his written answer of that day, and
+// `SourceSpecs` says which. What he has still not told us stays null: the fit,
+// the country of origin and — the one that blocks a EU launch — the lens
+// filter category.
 
 /** What a photo shows. Mirrors `ImageType` and the client's file-name prefixes. */
 export type SourceImageType =
@@ -80,6 +85,95 @@ export type SourceColorway = {
  */
 export const PACKAGING_COST_USD_CENTS = 60 + 95 + 120 + 30;
 
+/**
+ * The published specification of one frame.
+ *
+ * ⚠️ EVERY FIELD HERE IS TRANSCRIBED FROM A SUPPLIER DOCUMENT. Nothing is
+ * derived, converted or filled in by resemblance to another model.
+ *
+ * Two sources, both dated and both kept:
+ *
+ * 1. **The six "Product information" sheets** Max sent on 2026-09-05
+ *    (`para nico/archivos varios/MAX`). They are page images, not text, and
+ *    they carry frame material, lens material, weight and the five
+ *    measurements. Transcribed on 2026-09-08.
+ * 2. **Max's written answer of 2026-09-08**, closing the question the sheets
+ *    could not: *"all lenses are UV 400 protection"*.
+ *
+ * ── What the sheets say and we still do NOT publish ─────────────────────────
+ *
+ * - **Gender.** The sheets say "Female", "women", "Neutral" and "General" for
+ *   six frames sold as one unisex line. It is the supplier's merchandising
+ *   category, not a property of the object, and `Product.gender` is UNISEX on
+ *   purpose.
+ * - **"Lens Type".** The column is not one kind of fact. For three models it
+ *   holds a material (PC, AC) and that goes to `lensMaterial`; for the other
+ *   three it holds "HD" or "Clear", which are a marketing word and — on a pair
+ *   of sunglasses — a contradiction. Neither is a lens type, so `lensType`
+ *   stays null everywhere rather than repeating the sheet's own confusion.
+ * - **Filter category.** See `lensCategory` below. This one is not squeamish-
+ *   ness, it is a launch blocker.
+ */
+export type SourceSpecs = {
+  /** `Product.frameDetail`, free text. The sheet's "Frame Material". */
+  frameDetail: string | null;
+  /**
+   * `Product.frameMaterial`, the enum the admin filters on.
+   *
+   * It has no member for polycarbonate, so five of the six are null and only
+   * SYNC — which the sheet calls METAL — can be expressed. The string above is
+   * what the customer reads; this is only for filtering.
+   */
+  frameMaterial: "METAL" | null;
+  /**
+   * `Product.lensMaterial`. Written as the sheet's own token plus its
+   * expansion, so the source stays legible next to the word: "Polycarbonate
+   * (PC)", "Acrylic (AC)".
+   */
+  lensMaterial: string | null;
+  /** `Product.uvProtection`. "UV400" on all six, confirmed 2026-09-08. */
+  uvProtection: string | null;
+  /**
+   * `Product.lensCategory`, the 0–4 scale of EN ISO 12312-1.
+   *
+   * ⚠️ NULL ON ALL SIX, AND THIS IS THE ONE BLANK THAT BLOCKS A EU LAUNCH.
+   *
+   * Max answered on 2026-09-08: *"black lens for your order are all C3, the
+   * gradient lens are C2"*. That is two categories, split by a property of the
+   * COLOURWAY — and it cannot be written down yet for two separate reasons:
+   *
+   * 1. **Nobody has said which of our sixteen colourways carry the gradient
+   *    lens.** Fifteen of them name their lens "Black" and one does not, but
+   *    the factory charts also use 双 ("double") and 渐进 ("gradient") as
+   *    different words, and guessing which of ours is which is precisely the
+   *    thing this file exists to refuse.
+   * 2. **The column is on the product, and the fact is on the variant.** Two
+   *    colourways of one model can differ, so a single number per model would
+   *    be wrong for at least one of them whatever we chose.
+   *
+   * So it stays null, the product page omits the row, and the question to Max
+   * is one line: which of these sixteen are the gradient ones? Answering it
+   * costs a column on ProductVariant and a migration, not a redesign.
+   */
+  lensCategory: number | null;
+  /**
+   * `Product.dimensionsMm`, in the trade's own order: lens width, bridge,
+   * temple. The sheets give five figures — total width and lens height as
+   * well — and those two are dropped rather than invented into the string,
+   * because "141-48-17-34-142" is not a notation anybody reads.
+   */
+  dimensionsMm: string | null;
+  /**
+   * `Product.weightGrams`, one decimal.
+   *
+   * ⚠️ The column is a DECIMAL and not an integer for one reason: Amplify
+   * weighs 15.4 g. Rounded to 15 it stops being what the supplier wrote, and a
+   * spec that is nearly right is the failure mode this whole file guards
+   * against.
+   */
+  weightGrams: number | null;
+};
+
 export type SourceProduct = {
   slug: string;
   name: string;
@@ -107,6 +201,11 @@ export type SourceProduct = {
    * is recorded without publishing a product nobody can see.
    */
   status: "LIVE" | "DRAFT";
+  /**
+   * What the supplier has confirmed in writing about this frame, and nothing
+   * else. See SourceSpecs.
+   */
+  specs: SourceSpecs;
   /**
    * Stand-in imagery, shared across the colourways rather than attached to any
    * one of them. See PLACEHOLDER_IMAGE_PREFIX below.
@@ -182,6 +281,16 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "LIVE",
+    // Sheet: 89310.pdf p.1. 141 mm across, lens height 34 mm.
+    specs: {
+      frameDetail: "Polycarbonate (PC)",
+      frameMaterial: null,
+      lensMaterial: "Polycarbonate (PC)",
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "48-17-142",
+      weightGrams: 22,
+    },
     placeholderImages: shots("prisma", 9),
     colorways: [
       {
@@ -223,6 +332,16 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "LIVE",
+    // Sheet: the WeChat PDF p.3. 150 mm across, lens height 35 mm.
+    specs: {
+      frameDetail: "Polycarbonate (PC)",
+      frameMaterial: null,
+      lensMaterial: "Acrylic (AC)",
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "65-18-130",
+      weightGrams: 34,
+    },
     placeholderImages: [
       ...shots("orbital-silver", 9),
       ...shots("orbital-black", 8),
@@ -265,6 +384,17 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "LIVE",
+    // Sheet: 862JT.pdf p.17. 151 mm across, lens height 55 mm. Its "Lens
+    // Type: HD" is not a material, so lensMaterial stays null.
+    specs: {
+      frameDetail: "Polycarbonate (PC)",
+      frameMaterial: null,
+      lensMaterial: null,
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "68-18-133",
+      weightGrams: 32.6,
+    },
     placeholderImages: shots("vortex", 8),
     colorways: [
       {
@@ -304,6 +434,17 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "LIVE",
+    // Sheet: 826JT.pdf p.1. 143 mm across, lens height 43 mm. The only
+    // metal frame of the six, and the only one the enum can express.
+    specs: {
+      frameDetail: "Metal",
+      frameMaterial: "METAL",
+      lensMaterial: null,
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "56-18-135",
+      weightGrams: 32.7,
+    },
     placeholderImages: [...shots("halo", 9), ...HALO_LIFESTYLE],
     colorways: [
       {
@@ -343,6 +484,17 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "LIVE",
+    // Sheet: 2037JT.pdf p.3. 145 mm across, lens height 32 mm. Its "Lens
+    // Type: Clear" is a contradiction on a sunglass and is not published.
+    specs: {
+      frameDetail: "Polycarbonate (PC)",
+      frameMaterial: null,
+      lensMaterial: null,
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "67-20-145",
+      weightGrams: 15.4,
+    },
     placeholderImages: shots("nocturne", 9),
     colorways: [
       {
@@ -379,6 +531,18 @@ export const catalogueProducts: SourceProduct[] = [
     priceCents: PRICE_CENTS,
     type: "SUNGLASSES",
     status: "DRAFT",
+    // Sheet: 3980JT.pdf p.2, the one sheet written in Chinese. 153 mm
+    // across, lens height 29 mm, and the hinge is stamped "3980 49□23-140",
+    // which is the same measurement in the trade's own notation.
+    specs: {
+      frameDetail: "Polycarbonate (PC)",
+      frameMaterial: null,
+      lensMaterial: "Acrylic (AC)",
+      uvProtection: "UV400",
+      lensCategory: null,
+      dimensionsMm: "49-23-140",
+      weightGrams: 34.7,
+    },
     placeholderImages: [],
     colorways: [
       {
@@ -392,7 +556,21 @@ export const catalogueProducts: SourceProduct[] = [
       {
         key: "demi-black",
         name: "Demi / Black",
-        sku: "PRISM_C6-DEMI-BLACK",
+        // ⚠️ C4, NOT C6, and the correction matters because the warehouse reads
+        // this string. The invoice line said "C6 Demi/Black", but the factory
+        // colour chart for 3980 says C6 is DEMI/PURPLE and C4 is DEMI/BLACK —
+        // so the invoice asserted two different things at once. Asked, and Max
+        // answered on 2026-09-08: he had prepared both lenses and "made a
+        // mistake with purple lens", having understood we wanted the black one.
+        //
+        // Whichever way the remaining ambiguity falls, `C6` beside the word
+        // BLACK cannot be right: either the code is wrong or the colourway name
+        // is. This pairs the code with what the shop actually sells.
+        //
+        // ⬜ Prism is DRAFT, so nothing is on sale under either code, but the
+        // list of 32 SKUs already went to Daniel. It needs resending, and Max
+        // needs to confirm in one line that the 25 units are the black lens.
+        sku: "PRISM_C4-DEMI-BLACK",
         supplierSku: null,
         swatch: "#6b4423",
         stock: 25,

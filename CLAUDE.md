@@ -233,17 +233,51 @@ The client is explicit: *"no queremos que se infiera ni se invente ninguna
 especificación que no esté confirmada por el proveedor. Si alguna especificación
 no aparece confirmada, preferimos leave it unpublished."*
 
-Every published spec field is therefore **null** right now, and the seed writes
-null on both the create and the update branch so a re-run scrubs anything left
-over. `Spec` in `product-purchase.tsx` renders nothing for a null value, so the
-product page simply omits the row.
-
 This is not pedantry. The catalogue this replaced carried a frame material, a
 lens material, a lens type and **"Handcrafted · LATAM"** on goods manufactured in
 Yiwu and Shenzhen. A null field renders as nothing; a wrong field renders as a
 claim, and a false origin on a shop that takes money is not a copy problem.
 
-Fill these in only from the supplier documentation the client sends.
+**Since 2026-09-08 the specs are no longer empty**, and the rule did not bend —
+the evidence arrived. Max sent a "Product information" sheet for each of the six
+models, and they are transcribed into `SourceSpecs` in `catalogue-source.ts`,
+which records for every value which sheet it came from. The seed writes them on
+**both** the create and the update branch, so a re-run still **scrubs** anything
+that stops being confirmed. `Spec` in `product-purchase.tsx` renders nothing for
+a null value, so an unanswered field is simply an omitted row.
+
+What the sheets say and we still do **not** publish:
+
+- **Gender.** They say "Female", "women", "Neutral" and "General" about six
+  frames sold as one unisex line. That is the supplier's merchandising category,
+  not a property of the object.
+- **"Lens Type".** The column holds a material (PC, AC) for three models and
+  "HD" or "Clear" for the other three — a marketing word and, on a sunglass, a
+  contradiction. The materials go to `lensMaterial`; `lensType` stays null
+  rather than republishing the sheet's own confusion.
+- **Fit and origin.** Not on any sheet.
+
+⚠️ **`weightGrams` is a `Decimal(4,1)`, not an `Int`.** Amplify weighs 15.4 g and
+SYNC 32.7 g; as integers those become 15 and 33, which is *near* what the
+supplier wrote. On a published spec, near is the failure. `catalog.ts` converts
+it to a plain number — a Prisma `Decimal` cannot cross into a client component.
+
+⚠️ **`lensCategory` is null on all six, and it is the one blank that blocks a EU
+launch.** EN ISO 12312-1 requires the filter category to be declared. Max
+answered *"black lens for your order are all C3, the gradient lens are C2"* —
+two categories split by a property of the **colourway**, and (a) nobody has said
+which of our sixteen carry the gradient lens, (b) the column is on `Product`
+while the fact is on the variant. Closing it costs one question, then a column
+on `ProductVariant`. `tests/catalogue-specs.test.ts` asserts the null so that
+filling it in has to be a decision.
+
+⚠️ **A factory colour code in a SKU is a claim too.** `PRISM_C6-DEMI-BLACK` said
+C6 while the 3980 chart says C6 is DEMI/**PURPLE** and C4 is DEMI/BLACK — one
+string asserting two incompatible things, in the field the warehouse picks by.
+It is `C4` now, and the test file carries the chart for the seven colourways
+whose SKU embeds a code, so the two can never drift again.
+
+Fill anything still null in only from supplier documentation.
 
 ### All product photography is a placeholder
 

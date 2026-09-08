@@ -159,25 +159,33 @@ async function main() {
     const openingStock = sp.colorways.reduce((n, cw) => n + cw.stock, 0);
     unitCount += openingStock;
 
-    // ⚠️ Every published spec is written as null, on both branches. This is not
-    // an oversight: the previous catalogue carried invented values (a frame
-    // material, a lens material and "Handcrafted · LATAM" on goods made in
-    // China), and a re-run has to SCRUB them, not leave them standing. The
-    // client sends confirmed specs separately; until then the fields stay empty
-    // and the product page simply omits the section.
-    const unpublishedSpecs = {
+    // Published specs, written on BOTH branches so a re-run scrubs as well as
+    // fills. That symmetry is the point and it has not changed: the previous
+    // catalogue carried invented values (a frame material, a lens material and
+    // "Handcrafted · LATAM" on goods made in China), and anything no longer
+    // confirmed has to disappear on the next seed rather than survive in a row
+    // nobody looks at.
+    //
+    // What changed on 2026-09-08 is that six of these fields are no longer
+    // null: Max's product-information sheets arrived and were transcribed into
+    // `catalogue-source.ts`, which records for each value which sheet it came
+    // from. The ones still listed as null below are the ones he has not
+    // answered — not a policy of emptiness, an honest record of what we know.
+    const publishedSpecs = {
       description: null,
-      frameDetail: null,
       origin: null,
+      // The sheets' "Lens Type" column holds a material for three models and a
+      // marketing word for the other three. Neither is a lens type.
       lensType: null,
-      lensMaterial: null,
-      uvProtection: null,
-      lensCategory: null,
-      dimensionsMm: null,
-      weightGrams: null,
       fit: null,
-      frameMaterial: null,
       frameShape: null,
+      frameDetail: sp.specs.frameDetail,
+      frameMaterial: sp.specs.frameMaterial,
+      lensMaterial: sp.specs.lensMaterial,
+      uvProtection: sp.specs.uvProtection,
+      lensCategory: sp.specs.lensCategory,
+      dimensionsMm: sp.specs.dimensionsMm,
+      weightGrams: sp.specs.weightGrams,
     };
 
     const product = await prisma.product.upsert({
@@ -197,7 +205,7 @@ async function main() {
         status: sp.status,
         metaTitle: `${sp.name} — ${sp.tagline} | Allternativ`,
         metaDescription: sp.tagline,
-        ...unpublishedSpecs,
+        ...publishedSpecs,
       },
       create: {
         name: sp.name,
@@ -216,7 +224,7 @@ async function main() {
         gender: "UNISEX",
         metaTitle: `${sp.name} — ${sp.tagline} | Allternativ`,
         metaDescription: sp.tagline,
-        ...unpublishedSpecs,
+        ...publishedSpecs,
       },
     });
 

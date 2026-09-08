@@ -163,7 +163,11 @@ model Product {
   uvProtection         String?        @map("uv_protection") // e.g. "UV400"
   lensCategory         Int?           @map("lens_category") // 0-4, the standard scale
   dimensionsMm         String?        @map("dimensions_mm") // e.g. "50-22-145"
-  weightGrams          Int?           @map("weight_grams")
+  // ⚠️ DECIMAL, NOT INT, and the one decimal place is the whole point: the
+  // supplier's sheets weigh Amplify at 15.4 g and SYNC at 32.7 g. Stored as an
+  // integer those become 15 and 33 — near the truth, which on a published spec
+  // is the failure this catalogue is built to avoid.
+  weightGrams          Decimal?       @map("weight_grams") @db.Decimal(4, 1)
   fit                  String?
   metaTitle            String?        @map("meta_title")
   metaDescription      String?        @map("meta_description") @db.VarChar(255)

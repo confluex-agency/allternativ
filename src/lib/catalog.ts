@@ -182,7 +182,11 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
       uvProtection: row.uvProtection,
       lensCategory: row.lensCategory,
       dimensions: row.dimensionsMm,
-      weightGrams: row.weightGrams,
+      // Prisma hands a DECIMAL column back as a Decimal object, which a server
+      // component cannot pass to a client one — it is not serialisable, and the
+      // page fails at the boundary rather than at the query. Converted here, at
+      // the one place the database becomes the storefront's vocabulary.
+      weightGrams: row.weightGrams === null ? null : Number(row.weightGrams),
       fit: row.fit,
       origin: row.origin,
     },

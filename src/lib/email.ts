@@ -204,6 +204,23 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
 
   if (!apiKey || !from) throw new NoEmailProviderError();
 
+  // ⚠️ `EMAIL_REPLY_TO` exists because of where `EMAIL_FROM` has to live.
+  //
+  // The sending domain is a SUBDOMAIN — `send.allternativ.com` — so that adding
+  // a provider does not mean editing the SPF record the founders' own mailboxes
+  // depend on. The provider then requires `from` to be on that subdomain, and a
+  // subdomain created for sending has no MX record: **a customer who hits reply
+  // gets a bounce.**
+  //
+  // People do reply to order confirmations. It is often how a shop first hears
+  // "wrong address" or "cancel this", and a bounce there is worse than no email
+  // at all, because the buyer believes they have written to somebody.
+  //
+  // So the reply goes back to the real mailbox on the root domain, which
+  // Hostinger already hosts. Optional, and absent it simply is not sent — a
+  // sending address on a domain that does receive mail needs no override.
+  const replyTo = process.env.EMAIL_REPLY_TO;
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -215,6 +232,7 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   });
 

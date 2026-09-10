@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   buildOrderConfirmation,
+  buildDispatchNotification,
   outcomeForFailure,
   NoEmailProviderError,
   PermanentEmailError,
   EMAIL_MAX_ATTEMPTS,
   type ConfirmationOrder,
+  type DispatchOrder,
 } from "@/lib/email";
 
 // The confirmation email is queued on the order and drained by
@@ -143,5 +145,81 @@ describe("what the buyer reads", () => {
       shippingZip: null,
     });
     expect(sparse.text).not.toMatch(/\n {2}\n/);
+  });
+});
+
+// ── The dispatch notification ───────────────────────────────────────────────
+//
+// It exists because two separate things promised it: the client asked for a
+// Tracking ID in writing on 2026-08-20, and the confirmation email tells every
+// buyer "we'll email you again with tracking as soon as it ships". For a while
+// nothing sent it, which made the confirmation a document that lied.
+
+const shipped: DispatchOrder = {
+  orderNumber: "ALT-20260905-2814",
+  trackingNumber: "YT2609052814001",
+  carrier: "YunExpress",
+  shippingName: "Prueba E2E",
+  shippingCountry: "MT",
+  items: [
+    {
+      productName: "The Corinthian",
+      variantName: "Olive Green",
+      caseColor: "BLACK",
+      quantity: 1,
+    },
+    {
+      productName: "Orbital",
+      variantName: "Sand Black",
+      caseColor: "WHITE",
+      quantity: 2,
+    },
+  ],
+};
+
+describe("what the buyer reads when it ships", () => {
+  it("carries the tracking number and the carrier", () => {
+    const { text } = buildDispatchNotification("a@b.com", shipped);
+    expect(text).toContain("YT2609052814001");
+    expect(text).toContain("YunExpress");
+  });
+
+  it("names the order, so it can be told from another one", () => {
+    const { subject, text } = buildDispatchNotification("a@b.com", shipped);
+    expect(subject).toContain("ALT-20260905-2814");
+    expect(text).toContain("ALT-20260905-2814");
+  });
+
+  it("says the case colour, exactly as the confirmation did", () => {
+    // The buyer compares the two emails. A pair described one way when they
+    // bought it and another way when it shipped reads as the wrong parcel.
+    const { text } = buildDispatchNotification("a@b.com", shipped);
+    expect(text).toContain("case: black");
+    expect(text).toContain("case: white");
+  });
+
+  it("keeps the quantity, so two pairs do not look like one", () => {
+    const { text } = buildDispatchNotification("a@b.com", shipped);
+    expect(text).toContain("2 x Orbital");
+  });
+
+  it("prints no tracking section at all when there is no number", () => {
+    // ⚠️ The sweep already refuses to queue one of these, and this is the
+    // second guard. A "here is your tracking" with a blank where the number
+    // goes is worse than silence: the buyer writes in to ask for the thing the
+    // email was supposed to contain.
+    const { text } = buildDispatchNotification("a@b.com", {
+      ...shipped,
+      trackingNumber: null,
+      carrier: null,
+    });
+    expect(text).not.toContain("Tracking:");
+  });
+
+  it("quotes no money", () => {
+    // The figures were settled in the confirmation. Repeating a total days
+    // later invites a second reading of a decision already made.
+    const { text } = buildDispatchNotification("a@b.com", shipped);
+    expect(text).not.toMatch(/[€$£]/);
   });
 });

@@ -278,6 +278,17 @@ export default async function AdminOrderPage({
                   : "—"
               }
             />
+            <Row
+              label="Tracking email"
+              value={
+                // "Queued" on an order that has not shipped is not a backlog:
+                // the mail is not late, it is not due. Saying so stops somebody
+                // chasing a queue that is behaving.
+                order.trackingNumber === null
+                  ? "Not due yet"
+                  : <EmailStatusBadge status={order.dispatchEmailStatus} />
+              }
+            />
           </dl>
         </section>
       </div>

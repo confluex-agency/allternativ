@@ -1,7 +1,7 @@
 /**
  * Housekeeping for the payment path. Safe to run as often as you like.
  *
- * Three jobs:
+ * Four jobs:
  *
  * 1. Hand expired stock reservations back. Abandoned checkouts release
  *    themselves on the next purchase attempt anyway, but a shop with no traffic
@@ -15,6 +15,10 @@
  *    milliseconds and a mail provider cannot be trusted to take milliseconds,
  *    so the order is written there and the mail is queued on it.
  *
+ * 4. Drain the dispatch-notification queue. Same shape, different trigger: this
+ *    one becomes due when the supplier's ERP marks an order shipped and writes
+ *    a tracking number, not when the order is created.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -27,6 +31,7 @@ import { processStripeEvent } from "@/lib/webhooks/process-stripe-event";
 import { releaseExpiredReservations } from "@/lib/inventory";
 import {
   buildOrderConfirmation,
+  buildDispatchNotification,
   sendEmail,
   outcomeForFailure,
   EMAIL_MAX_ATTEMPTS,
@@ -163,20 +168,117 @@ async function drainOrderEmails(): Promise<{
   return { sent, retrying, gaveUp, blocked };
 }
 
+/**
+ * Drain the dispatch-notification queue.
+ *
+ * ⚠️ The condition is what makes this correct, and it is not `status = PENDING`.
+ * Every order carries `dispatchEmailStatus = PENDING` from the moment it is
+ * paid, and most of them sit there legitimately for days — the mail is not
+ * late, it has not happened yet. What makes one DUE is the order having shipped
+ * **and** carrying a tracking number.
+ *
+ * Requiring the number and not just the status is deliberate: the supplier's
+ * ERP writes `SHIPPED` and the tracking number in the same update today, but a
+ * status arriving without a number would otherwise mail the buyer a "here is
+ * your tracking" with nothing in it, which is worse than saying nothing at all.
+ */
+async function drainDispatchEmails(): Promise<{
+  sent: number;
+  retrying: number;
+  gaveUp: number;
+  blocked: string | null;
+}> {
+  const queued = await prisma.order.findMany({
+    where: {
+      dispatchEmailStatus: "PENDING",
+      status: { in: ["SHIPPED", "DELIVERED"] },
+      trackingNumber: { not: null },
+      dispatchEmailAttempts: { lt: EMAIL_MAX_ATTEMPTS },
+    },
+    orderBy: { shippedAt: "asc" },
+    take: 50,
+    include: { customer: true, items: true },
+  });
+
+  let sent = 0;
+  let retrying = 0;
+  let gaveUp = 0;
+  let blocked: string | null = null;
+
+  for (const order of queued) {
+    if (!order.customer?.email) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          dispatchEmailStatus: "FAILED",
+          dispatchEmailLastError: "Order has no customer email",
+        },
+      });
+      gaveUp++;
+      continue;
+    }
+
+    try {
+      await sendEmail(buildDispatchNotification(order.customer.email, order));
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          dispatchEmailStatus: "SENT",
+          dispatchEmailSentAt: new Date(),
+          dispatchEmailAttempts: { increment: 1 },
+          dispatchEmailLastError: null,
+        },
+      });
+      sent++;
+    } catch (error) {
+      const outcome = outcomeForFailure(order.dispatchEmailAttempts, error);
+
+      if (outcome.kind === "keep") {
+        blocked = outcome.reason;
+        break;
+      }
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          dispatchEmailStatus: outcome.kind === "giveUp" ? "FAILED" : "PENDING",
+          dispatchEmailAttempts: outcome.attempts,
+          dispatchEmailLastError: outcome.error,
+        },
+      });
+      if (outcome.kind === "giveUp") gaveUp++;
+      else retrying++;
+    }
+  }
+
+  return { sent, retrying, gaveUp, blocked };
+}
+
 export async function sweepOrders(): Promise<JobResult> {
   const warnings: string[] = [];
 
   const released = await releaseExpiredReservations();
   const { ok, stillFailing } = await retryFailedEvents();
   const mail = await drainOrderEmails();
+  const dispatch = await drainDispatchEmails();
 
-  if (mail.blocked) {
-    warnings.push(`Email queue is not draining: ${mail.blocked}`);
+  // Said once even when both queues are stuck, because they stall for the same
+  // single reason — no provider — and saying it twice would read as two faults.
+  const blocked = mail.blocked ?? dispatch.blocked;
+  if (blocked) {
+    warnings.push(`Email queue is not draining: ${blocked}`);
   }
   if (mail.gaveUp > 0) {
     warnings.push(
       `${mail.gaveUp} order(s) will never be confirmed by email. The success ` +
         `page promised the buyer one, so somebody has to write to them by hand.`,
+    );
+  }
+  if (dispatch.gaveUp > 0) {
+    warnings.push(
+      `${dispatch.gaveUp} order(s) shipped without the buyer being told. The ` +
+        `confirmation email promised them tracking, so somebody has to send it ` +
+        `by hand.`,
     );
   }
 
@@ -191,6 +293,21 @@ export async function sweepOrders(): Promise<JobResult> {
   if (unconfirmed > 0) {
     warnings.push(
       `${unconfirmed} paid order(s) still waiting for a confirmation email.`,
+    );
+  }
+
+  // The same backlog check for the other queue, and it is the more embarrassing
+  // one: the parcel is already moving and the buyer does not know.
+  const untold = await prisma.order.count({
+    where: {
+      dispatchEmailStatus: "PENDING",
+      status: { in: ["SHIPPED", "DELIVERED"] },
+      trackingNumber: { not: null },
+    },
+  });
+  if (untold > 0) {
+    warnings.push(
+      `${untold} shipped order(s) still waiting for their tracking email.`,
     );
   }
 
@@ -233,6 +350,9 @@ export async function sweepOrders(): Promise<JobResult> {
       emailsSent: mail.sent,
       emailsRetrying: mail.retrying,
       emailsGivenUp: mail.gaveUp,
+      dispatchEmailsSent: dispatch.sent,
+      dispatchEmailsRetrying: dispatch.retrying,
+      dispatchEmailsGivenUp: dispatch.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

@@ -566,6 +566,22 @@ model Order {
   emailSentAt       DateTime?        @map("email_sent_at")
   emailAttempts     Int              @default(0) @map("email_attempts")
   emailLastError    String?          @map("email_last_error") @db.Text
+  // ─ The dispatch email, queued the same way and counted separately ─
+  //
+  // A second set of columns rather than a second row or a reused one, because
+  // an order gets TWO emails and they fail independently: the confirmation can
+  // be sent while the dispatch one is still waiting for the supplier to ship,
+  // and one of them failing must not describe the other.
+  //
+  // ⚠️ PENDING here does NOT mean "due". It means "not sent yet", and most
+  // orders sit in it legitimately for days. What makes a dispatch email due is
+  // the order having shipped AND carrying a tracking number — the sweep asks
+  // for both, so an order marked SHIPPED with nothing to track never mails a
+  // buyer a notification with no number in it.
+  dispatchEmailStatus    OrderEmailStatus @default(PENDING) @map("dispatch_email_status")
+  dispatchEmailSentAt    DateTime?        @map("dispatch_email_sent_at")
+  dispatchEmailAttempts  Int              @default(0) @map("dispatch_email_attempts")
+  dispatchEmailLastError String?          @map("dispatch_email_last_error") @db.Text
   // ─ Supplier ERP (Dianxiaomi) round-trip ─
   erpExportedAt     DateTime?   @map("erp_exported_at")
   trackingNumber    String?     @map("tracking_number")

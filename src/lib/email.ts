@@ -1,4 +1,4 @@
-// The confirmation email: what it says, and how it leaves.
+// The two emails a buyer receives: what they say, and how they leave.
 //
 // ── Why it is queued and not sent from the webhook ──────────────────────────
 // The webhook is the only place an order is created, and it answers Stripe
@@ -19,6 +19,7 @@
 // backlog for that reason.
 
 import { formatCurrency } from "@/lib/utils";
+import { DELIVERY_ESTIMATE_BUSINESS_DAYS } from "@/lib/shipping";
 
 /** Give up after this many tries and stop retrying for ever. */
 export const EMAIL_MAX_ATTEMPTS = 5;
@@ -183,6 +184,80 @@ export function buildOrderConfirmation(
   ].join("\n");
 
   return { to, subject: `Your Allternativ order ${order.orderNumber}`, text };
+}
+
+/**
+ * What the dispatch notification needs. A subset of the order, and no money:
+ * the buyer already has the figures in their confirmation, and repeating them
+ * in a "your order shipped" note invites a second reading of a total that was
+ * settled days ago.
+ */
+export interface DispatchOrder {
+  orderNumber: string;
+  trackingNumber: string | null;
+  carrier: string | null;
+  shippingName: string | null;
+  shippingCountry: string | null;
+  items: {
+    productName: string | null;
+    variantName: string | null;
+    caseColor: string | null;
+    quantity: number;
+  }[];
+}
+
+/**
+ * "Your order has shipped", with the tracking number.
+ *
+ * ⚠️ This mail exists because two separate things promised it. The client asked
+ * for it in writing on 2026-08-20 — *"el cliente recibirá un Tracking ID"* —
+ * and the confirmation email has been telling buyers "we'll email you again
+ * with tracking as soon as it ships" since the day it was written. For a while
+ * nothing sent it, which made the confirmation a document that lied.
+ *
+ * Built from the ORDER like the confirmation, and for the same reason.
+ */
+export function buildDispatchNotification(
+  to: string,
+  order: DispatchOrder,
+): EmailMessage {
+  const lines = order.items.map((i) => {
+    const name = [i.productName, i.variantName].filter(Boolean).join(" — ");
+    const withCase = i.caseColor ? ` (case: ${i.caseColor.toLowerCase()})` : "";
+    return `  ${i.quantity} x ${name}${withCase}`;
+  });
+
+  // ⚠️ No tracking number, no email. The caller already refuses to queue one,
+  // and this is the second guard: a "here is your tracking" message with a
+  // blank where the number goes is worse than silence, because the buyer then
+  // writes in to ask for what the mail was supposed to contain.
+  const tracking = order.trackingNumber
+    ? [
+        order.carrier
+          ? `  ${order.carrier}  ${order.trackingNumber}`
+          : `  ${order.trackingNumber}`,
+      ]
+    : [];
+
+  const text = [
+    `Your order is on its way.`,
+    ``,
+    `Order ${order.orderNumber}`,
+    ``,
+    ...lines,
+    ``,
+    ...(tracking.length > 0 ? [`Tracking:`, ...tracking, ``] : []),
+    `Delivery usually takes ${DELIVERY_ESTIMATE_BUSINESS_DAYS.minimum}-${DELIVERY_ESTIMATE_BUSINESS_DAYS.maximum} business days from dispatch.`,
+    `Tracking can take a day or two to start showing movement.`,
+    ``,
+    `Allternativ`,
+  ].join("\n");
+
+  return {
+    to,
+    subject: `Your Allternativ order ${order.orderNumber} has shipped`,
+    text,
+  };
 }
 
 // ── How it leaves ───────────────────────────────────────────────────────────

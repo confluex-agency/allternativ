@@ -644,7 +644,7 @@ the same reason the encoder refuses a cart it cannot fit instead of truncating.
 The old single `items` key is still read, so a session created minutes before a
 deploy still becomes an order.
 
-### The confirmation email is queued, not sent
+### The two emails are queued, not sent
 
 The webhook answers Stripe synchronously, and that is what gives the payment
 path its durability: a failure returns 5xx and Stripe retries for three days.
@@ -657,6 +657,24 @@ So the order is written synchronously and the mail is queued on it. The database
 is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
+
+There are **two** of them, queued the same way and counted separately:
+
+| Mail | Becomes due when | Promised by |
+|---|---|---|
+| Confirmation | the order is paid | `/checkout/success` |
+| Dispatch, with the tracking number | the order is marked SHIPPED **and** has a tracking number | the confirmation email itself, and the client's own point 06 of 2026-08-20 |
+
+⚠️ **Separate columns, not a reused one.** An order gets two emails and they
+fail independently: the confirmation can be long sent while the dispatch one is
+still waiting for the supplier to ship, and one failing must not describe the
+other.
+
+⚠️ **`dispatchEmailStatus = PENDING` does not mean "due".** Every paid order
+carries it, and most sit there legitimately for days. The sweep asks for the
+shipped status **and** a tracking number, so an order marked SHIPPED with
+nothing to track never mails a buyer a notification with a blank in it. The
+admin says "Not due yet" for the same reason.
 
 `src/lib/email.ts` holds both halves, content and transport.
 

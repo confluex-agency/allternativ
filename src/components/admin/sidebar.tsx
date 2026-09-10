@@ -26,10 +26,13 @@ const navItems = [
   // second copy of it: a link that bounces you back to the dashboard is a worse
   // way to learn you lack the role than not being offered it.
   { href: "/admin/orders", label: "Orders", icon: "◻", roles: COMMERCIAL_ROLES },
+  // No customer data and no cost figures on this one, so any signed-in admin
+  // may read it — including ANALYTICS_VIEWER, which is the default role.
+  { href: "/admin/products", label: "Products", icon: "◻", roles: null },
 ];
 
 /** Screens the sidebar promised before they existed. Shown, not linked. */
-const comingSoon = ["Products", "Customers", "Analytics"];
+const comingSoon = ["Customers", "Analytics"];
 
 export function AdminSidebar() {
   const pathname = usePathname();

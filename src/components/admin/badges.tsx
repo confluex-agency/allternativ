@@ -1,4 +1,8 @@
-import type { OrderStatus, OrderEmailStatus } from "@/generated/prisma/enums";
+import type {
+  OrderStatus,
+  OrderEmailStatus,
+  ProductStatus,
+} from "@/generated/prisma/enums";
 
 // Status pills for the order book.
 //
@@ -52,4 +56,19 @@ export function EmailStatusBadge({ status }: { status: OrderEmailStatus }) {
   // while something drains it, so the word says what is being waited for.
   const text = status === "PENDING" ? "Queued" : label(status);
   return <Pill tone={EMAIL_TONES[status]}>{text}</Pill>;
+}
+
+const PRODUCT_TONES: Record<ProductStatus, string> = {
+  LIVE: "bg-emerald-50 text-emerald-700",
+  // Recorded with its real codes and stock, but no page and no card. Not an
+  // error state: it is how the launch inventory stays complete while a model
+  // waits for something (Prism waits for photography of its own).
+  DRAFT: "bg-amber-50 text-amber-700",
+  SCHEDULED: "bg-sky-50 text-sky-700",
+  HIDDEN: "bg-neutral-100 text-neutral-500",
+  DISCONTINUED: "bg-neutral-100 text-neutral-500",
+};
+
+export function ProductStatusBadge({ status }: { status: ProductStatus }) {
+  return <Pill tone={PRODUCT_TONES[status]}>{label(status)}</Pill>;
 }

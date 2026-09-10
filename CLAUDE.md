@@ -87,19 +87,32 @@ broadly and produces a diff nobody can review. Fix with a targeted version bump,
 or with an entry in the `overrides` block in `package.json` — the mechanism is
 already there.
 
-Pin ranges deliberately. `next` is on `~16.2.12`, not `^16.2.12`: a caret would
-let a fresh install on Hostinger pull 16.3.x, a minor nobody tested, and
-Hostinger reinstalls on every deploy.
+Pin ranges deliberately. `next` is on `~16.3.4`, not `^16.3.4`: a caret would let
+a fresh install on Hostinger pull a minor nobody tested, and Hostinger reinstalls
+on every deploy.
+
+⚠️ **The tilde stops a minor arriving by accident, not on purpose.** On
+2026-09-10 the pin was moved from `~16.2.12` to `~16.3.4` deliberately, because
+`16.2.12` was the last of its line and a **critical** advisory had no fix inside
+it. Crossing a minor is allowed; crossing one without running the suite, the
+type check and a production build first is not. That is the whole difference the
+tilde is there to enforce.
 
 Move together, always: `@prisma/client`, `@prisma/adapter-mariadb` and the
 `prisma` CLI. A mismatch between client, engine and adapter fails confusingly.
 
-### Accepted residuals (2026-08-17)
+### Accepted residuals (2026-09-10)
 
-Production went from 16 vulnerabilities to 4. These four stay, on purpose.
 **Judge a residual by reachability, not by severity**: can attacker-controlled
 input get to this code path in the deployed app? If not, it is accepted, and the
-reason is written down.
+reason is written down. Production sits at **9** under `--omit=dev`.
+
+⚠️ GitHub's own count is much higher (65 at the last push) because Dependabot
+counts the whole tree, dev dependencies included. The number that describes the
+running server is `npm audit --omit=dev`. Neither is wrong; they answer
+different questions.
+
+**The Prisma command line — four, unchanged since 2026-08-17:**
 
 | Package | Why it stays |
 |---|---|
@@ -112,8 +125,49 @@ under `--omit=dev` only because `@prisma/client` declares `prisma` as a peer
 dependency, so npm treats it as production-reachable. Nothing in `src/` imports
 the CLI.
 
-**Re-check when Prisma bumps its own pin**, and any time `npm audit` grows a
-package that is not on this list.
+⚠️ npm offers `prisma@6.19.3` as the "fix" for several of these. That is a
+**downgrade across a major** from the 7.x line this project runs, and it would
+break the client, the engine and the adapter together. It is the resolver
+picking the oldest version with no advisory, not advice.
+
+**The database driver — three, and these are new:**
+
+| Package | Why it stays |
+|---|---|
+| `mariadb` (high) | Three advisories, **no fix published**. The SQL injection needs a `big5`/`gbk`/`sjis`/`cp932`/`gb18030` client charset; ours is `utf8mb4` everywhere, set explicitly in `docker-compose.yml` and on Hostinger. The other two leak credentials to a **man in the middle** — which needs the connection to cross a network. ⚠️ That is the one to re-examine if `DATABASE_URL` in production ever stops being `localhost`: from the app container it is, and the same URL from a laptop is not. |
+| `mysql2` (high) | Auth-plugin downgrade and a decompression bomb. Arrives under the adapter, and both need a hostile or intercepted database server. Same reachability argument, same caveat. |
+| `@prisma/adapter-mariadb` (moderate) | Flagged only for depending on the two above. |
+
+**Build tooling — two:** `baseline-browser-mapping` and `fflate`, both moderate,
+both reached only by a build that runs on our own inputs.
+
+### What was NOT accepted, and why (2026-09-10)
+
+`next` carried a **critical**: two unauthenticated RCEs
+([GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36),
+[GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)).
+
+By the reachability rule alone it would have qualified as a residual: one only
+affects **Windows-hosted** servers and Hostinger is Linux, and the other needs
+AVIF in `images.formats`, which is opt-in and which we have never set — the
+default is webp only.
+
+**It was patched anyway**, to `16.3.4`, and the reasoning is worth keeping:
+
+- "Not reachable" here rests on **one line of configuration nobody has a reason
+  to protect**. Adding `formats: ['image/avif', 'image/webp']` for a page-speed
+  win is a change any of us would make without thinking, and it would silently
+  re-open a remote code execution on a shop that holds card transactions.
+- The residuals above are reachable-by-nobody *structurally* — a CLI that is
+  never imported, a charset we do not use. This one was reachable-by-nobody
+  *incidentally*.
+- The same bump fixed `sharp` (high, libheif) for free, because it is Next's own
+  dependency.
+
+The bump also crossed a minor, which the pin exists to prevent by accident. It
+was verified first: 58 tests, both type checks, a production build, and the
+built server exercised over the storefront, the cart, the admin and the cron
+route.
 
 ### Who can reach what
 

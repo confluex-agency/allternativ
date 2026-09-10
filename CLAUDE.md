@@ -31,6 +31,32 @@ Render is no longer used, and `render.yaml` was deleted with it — it was the
 only place in this repository that ever scheduled anything, and it described
 both the wrong host and, after 2026-09-08, scripts that no longer exist.
 
+### ⚠️ Nothing in the deploy applies migrations
+
+Hostinger's build runs `npm install` (whose `postinstall` is `prisma generate`)
+and then `next build`. **It never runs `prisma migrate deploy`, and it cannot**:
+the build container has no route to MySQL, which is the same constraint that
+keeps the storefront off build-time pre-rendering.
+
+So a migration reaches production only when a person runs it, and forgetting is
+silent until the new code touches the new column. On 2026-09-10 a deploy went
+out green with two migrations unapplied; the first request to the sweep answered
+`The column orders.email_status does not exist in the current database`, and
+until then everything looked fine.
+
+⚠️ **A green build is not a migrated database.** After any deploy that carries a
+new migration, from a machine that can reach the database:
+
+```bash
+# .env keeps the production URL commented as HOSTINGER_DATABASE_URL
+DATABASE_URL="<the Hostinger URL>" npx prisma migrate status   # read-only, check first
+DATABASE_URL="<the Hostinger URL>" npx prisma migrate deploy
+```
+
+This is the one routine reason to point at Hostinger rather than the container.
+It is a handful of connections, nowhere near the 500-per-hour cap that makes
+*builds* against it a bad idea.
+
 ### The scheduled work, and why it is an HTTP route
 
 Three jobs have to run on a timer. **The Hostinger account had zero cron jobs**

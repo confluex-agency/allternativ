@@ -57,6 +57,25 @@ This is the one routine reason to point at Hostinger rather than the container.
 It is a handful of connections, nowhere near the 500-per-hour cap that makes
 *builds* against it a bad idea.
 
+⚠️ **The same is true of the seed.** Nothing in the deploy runs it either, so a
+change to `catalogue-source.ts` — a corrected SKU, a newly confirmed spec —
+reaches production only when a person runs `npx prisma db seed` against it. On
+2026-09-10 staging served `PRISM_C6-DEMI-BLACK` and empty specs for a day after
+both were fixed and deployed, because the code shipped and the data did not.
+
+Running it against a shop that has sold something is safe, and deliberately so —
+verified on staging the same day, with an order already placed:
+
+- **Stock is not restored.** Opening quantities are written on create only, so
+  the two variants that had sold stayed at 16 and 15.
+- **Case stock is not overwritten** once anything has consumed that colour. The
+  seed counts `OrderItem`s per colour first; with one black and one white sold,
+  it left 149 and 148 alone.
+- **Orders are untouched.**
+
+What it *does* refresh is the copy and the specs, which is the point — and the
+reason it has to go back to `update: {}` the day the admin CRUD ships.
+
 ### The scheduled work, and why it is an HTTP route
 
 Three jobs have to run on a timer. **The Hostinger account had zero cron jobs**

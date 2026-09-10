@@ -715,11 +715,13 @@ Hostinger's own SMTP is the alternative: free, already paid for, no DNS changes.
 What it gives up is exactly the list above, plus that unknown about the port.
 
 ⚠️ `EMAIL_FROM` must be an address on the verified domain — never a personal
-Gmail. And on a subdomain that address **cannot receive**: the subdomain is
-created for sending and has no MX record, so a buyer who hits reply gets a
-bounce. People do reply to order confirmations — it is often how a shop first
-hears "wrong address" or "cancel this" — so `EMAIL_REPLY_TO` points back at the
-real Hostinger mailbox on the root domain. A bounce there is worse than no
-email, because the buyer believes they have written to somebody.
+Gmail. And on a sending subdomain that address **is not a mailbox**: the only MX
+the subdomain carries is the provider's own bounce handler
+(`feedback-smtp.<region>.amazonses.com`), which no person reads. A buyer who
+hits reply therefore gets **no error and no answer** — the message is accepted
+and vanishes, which is quieter than a bounce and worse, because both sides
+believe it arrived. People do reply to order confirmations; it is often how a
+shop first hears "wrong address" or "cancel this". `EMAIL_REPLY_TO` points back
+at the real Hostinger mailbox on the root domain.
 
 @AGENTS.md

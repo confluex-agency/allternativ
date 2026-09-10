@@ -208,17 +208,21 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   //
   // The sending domain is a SUBDOMAIN — `send.allternativ.com` — so that adding
   // a provider does not mean editing the SPF record the founders' own mailboxes
-  // depend on. The provider then requires `from` to be on that subdomain, and a
-  // subdomain created for sending has no MX record: **a customer who hits reply
-  // gets a bounce.**
+  // depend on. The provider then requires `from` to be on that subdomain, and
+  // the subdomain's only MX record is the one its setup asks for:
+  // `feedback-smtp.<region>.amazonses.com`, which handles bounces and
+  // complaints. **It is not a mailbox and no person reads it.**
+  //
+  // So a customer who hits reply does not get an error. Their message is
+  // accepted and goes nowhere — quieter than a bounce and worse, because both
+  // sides believe it arrived.
   //
   // People do reply to order confirmations. It is often how a shop first hears
-  // "wrong address" or "cancel this", and a bounce there is worse than no email
-  // at all, because the buyer believes they have written to somebody.
+  // "wrong address" or "cancel this".
   //
   // So the reply goes back to the real mailbox on the root domain, which
   // Hostinger already hosts. Optional, and absent it simply is not sent — a
-  // sending address on a domain that does receive mail needs no override.
+  // sending address on a domain that does receive human mail needs no override.
   const replyTo = process.env.EMAIL_REPLY_TO;
 
   const res = await fetch("https://api.resend.com/emails", {

@@ -208,14 +208,17 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   //
   // The sending domain is a SUBDOMAIN — `send.allternativ.com` — so that adding
   // a provider does not mean editing the SPF record the founders' own mailboxes
-  // depend on. The provider then requires `from` to be on that subdomain, and
-  // the subdomain's only MX record is the one its setup asks for:
-  // `feedback-smtp.<region>.amazonses.com`, which handles bounces and
-  // complaints. **It is not a mailbox and no person reads it.**
+  // depend on. The provider then requires `from` to be on that subdomain — and
+  // that subdomain does not receive mail.
   //
-  // So a customer who hits reply does not get an error. Their message is
-  // accepted and goes nowhere — quieter than a bounce and worse, because both
-  // sides believe it arrived.
+  // Resend's setup separates the two: the records that let it SEND are a DKIM
+  // TXT and a pair of CNAMEs, and receiving is a switch of its own that we leave
+  // off. So `send.allternativ.com` ends up with no MX and no address record,
+  // and **a customer who hits reply gets a bounce.**
+  //
+  // ⚠️ Turning that switch on would not fix it. It would point the subdomain at
+  // the provider's inbound handling, not at a person, which trades a bounce for
+  // a message that is accepted and read by nobody — quieter, and worse.
   //
   // People do reply to order confirmations. It is often how a shop first hears
   // "wrong address" or "cancel this".

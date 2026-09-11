@@ -284,21 +284,35 @@ export function buildEmailVerification(
     Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 60 * 1000)),
   );
 
+  // ⚠️ The wording is deliberate and it is a security control, not copy.
+  //
+  // It used to open "Confirm this address to finish setting up your account",
+  // which reads as something the reader did. That is exactly what makes an
+  // account pre-hijack work: somebody else registers with your address, you
+  // get a plausible-looking confirmation mail, you click it, and you have just
+  // proved the address on a row THEY hold the password to.
+  //
+  // So it says plainly that a request was made, not that the reader made it,
+  // and it says what ignoring it costs: nothing. Verifying now also ends every
+  // session on the account, which is the other half of the fix — but the
+  // person who should not click still needs to be told not to.
   const text = [
     opts.name ? `Hello ${opts.name},` : `Hello,`,
     ``,
-    `Confirm this address to finish setting up your Allternativ account:`,
+    `Somebody asked to create an Allternativ account for this email address.`,
+    `If that was you, confirm it here:`,
     ``,
     `  ${url}`,
     ``,
     `The link works once and expires in about ${hours} hours.`,
     ``,
-    `Until it is confirmed you can sign in, but your order history stays`,
-    `hidden — we do not show what somebody bought to an address nobody has`,
-    `proved they own.`,
+    `Confirming is what opens your order history. Until then an account can be`,
+    `signed into but shows nothing about you — we do not show what somebody`,
+    `bought, or where it was sent, to an address nobody has proved they own.`,
     ``,
-    `If you did not create an account, ignore this email. Nothing was changed`,
-    `on any order you have placed.`,
+    `If this was NOT you, do nothing at all. Ignoring this email leaves your`,
+    `order history closed, and no order you have placed is affected either way.`,
+    `Do not forward this link to anybody.`,
     ``,
     `Allternativ`,
   ].join("\n");

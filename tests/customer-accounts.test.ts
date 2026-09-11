@@ -383,12 +383,57 @@ describe("small rules that are easy to get wrong", () => {
   });
 
   it("only ever redirects to a path on this site", () => {
+    // Exact values, where there is one obvious right answer.
     expect(safeNext("/cart")).toBe("/cart");
+    expect(safeNext("/products/orbital?x=1#top")).toBe("/products/orbital?x=1#top");
     expect(safeNext(undefined)).toBe("/account");
-    // The open-redirect shapes: an absolute URL, a protocol-relative one, and
-    // the backslash some browsers normalise into a slash.
     expect(safeNext("https://evil.example")).toBe("/account");
     expect(safeNext("//evil.example")).toBe("/account");
-    expect(safeNext("/\\evil.example")).toBe("/account");
+    expect(safeNext("javascript:alert(1)")).toBe("/account");
+
+    // ⚠️ Everything else is asserted as the PROPERTY, not as a string, and
+    // that is the lesson rather than a convenience.
+    //
+    // The first version of `safeNext` enumerated bad prefixes — it rejected
+    // "//" and "/\" and passed the rest. A security review found the hole: the
+    // WHATWG URL parser strips every ASCII tab and newline from its input
+    // before parsing, so "/<TAB>/evil.example" is never a path beginning with
+    // a slash and a tab — by the time any parser looks it reads
+    // "//evil.example", protocol-relative, and lands on evil.example.
+    // `searchParams` decodes %09 straight into a tab, so
+    // `?next=%2F%09%2Fevil.example` was the whole exploit.
+    //
+    // Asserting the exact string each shape returns would be asserting the
+    // parser's normalisation, which is not ours to pin and which differs
+    // harmlessly between shapes. What has to hold is the only thing that
+    // matters: whatever comes back, resolved against this site, is still on
+    // this site. A test written that way would have failed on the tab.
+    const probes = [
+      "/cart",
+      "//evil.example",
+      "/\evil.example",
+      "/\\evil.example",
+      "\/evil.example",
+      "/\t/evil.example",
+      "/\n/evil.example",
+      "/\r/evil.example",
+      "/\t\/evil.example",
+      "/\t\n\r//evil.example",
+      "https://evil.example/x",
+      "http://evil.example",
+      "//evil.example/\t/x",
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+    ];
+    for (const probe of probes) {
+      const resolved = new URL(
+        safeNext(probe),
+        "https://allternativ.com/account/login",
+      );
+      expect(
+        resolved.origin,
+        `safeNext(${JSON.stringify(probe)}) escaped the origin`,
+      ).toBe("https://allternativ.com");
+    }
   });
 });

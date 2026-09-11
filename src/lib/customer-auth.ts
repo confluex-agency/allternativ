@@ -183,12 +183,34 @@ export async function getCustomerFromCookies(): Promise<SignedInCustomer | null>
     return null;
   }
 
+  const emailVerified = customer.emailVerifiedAt !== null;
+
+  // ⚠️ `name` and `phone` are withheld until the address is proved, and this is
+  // the same gate `listCustomerOrders` applies — deliberately in the same one
+  // place, not re-remembered per route.
+  //
+  // The first version of this gated ONLY the order history, and that was a
+  // hole a security review found. A `Customer` row is created by the Stripe
+  // webhook for every guest buyer, and the webhook writes the BUYER'S OWN name
+  // and phone into it from `session.customer_details`. Registration adopts any
+  // row that has no password — which is every guest row — and signed the
+  // registrant straight in. So `GET /api/account/me` answered with a real
+  // person's name and phone number to anybody who typed their email address
+  // and any ten characters.
+  //
+  // It also leaked the fact the gate existed to stop leaking: a blank name and
+  // phone meant "this address has never bought", a filled one meant it had.
+  // Scriptable against any list of addresses.
+  //
+  // The cost of withholding is that somebody who has just signed up does not
+  // see their own name back until they click the link. That is a small price
+  // for a rule with no exceptions to forget.
   return {
     id: customer.id,
     email: customer.email,
-    name: customer.name,
-    phone: customer.phone,
-    emailVerified: customer.emailVerifiedAt !== null,
+    name: emailVerified ? customer.name : null,
+    phone: emailVerified ? customer.phone : null,
+    emailVerified,
     marketingConsent: customer.marketingConsent,
   };
 }

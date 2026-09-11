@@ -77,14 +77,25 @@ export type RegisterResult =
 /**
  * Create the account, or put a password on the row a guest checkout left.
  *
- * ⚠️ `already-registered` does leak one bit: whether this address has an
- * account. It is the honest trade, and it is narrower than it looks — the
- * answer is the same for an address nobody has ever heard of and for an
- * address that has bought six pairs as a guest, because a guest row has no
- * password. What it reveals is "someone signed up", never "someone bought".
+ * ⚠️ `already-registered` leaks one bit: whether this address has an account.
+ * That much is the honest trade — the answer is identical for an address
+ * nobody has heard of and for one that has bought six pairs as a guest,
+ * because a guest row has no password. It says "someone signed up", not
+ * "someone bought".
  *
- * The alternative — answering "check your email" either way — needs a working
- * mail provider to be anything but a lie, and there is not one yet.
+ * ⚠️ An earlier version of this comment stopped there, and it was wrong in a
+ * way worth keeping written down. Adopting the row was only half the story:
+ * the registrant was then signed in and handed the row's `name` and `phone` —
+ * the BUYER's, written by the Stripe webhook. So the reply did distinguish a
+ * guest buyer from a stranger after all, by whether those fields came back
+ * filled, and it handed over the PII while it was at it. The gate was on the
+ * order history and nowhere else.
+ *
+ * It is closed in `getCustomerFromCookies`, which now withholds `name` and
+ * `phone` until `emailVerifiedAt` is set, and in `updateCustomerProfile`,
+ * which will not let an unproved registrant overwrite them. The lesson is the
+ * one this file already claimed to follow: the gate belongs in one place that
+ * every path goes through, not on the one field somebody remembered.
  */
 export async function registerCustomer(input: {
   email: string;
@@ -231,12 +242,33 @@ export async function consumeVerificationToken(
     return { ok: false, reason: "expired" };
   }
 
+  const now = new Date();
+
   await prisma.customer.update({
     where: { id: customer.id },
     data: {
-      emailVerifiedAt: new Date(),
+      emailVerifiedAt: now,
       emailVerificationToken: null,
       emailVerificationExpiresAt: null,
+      // ⚠️ Every session issued BEFORE this moment dies here, and that is the
+      // point — it closes an account pre-hijack a security review found.
+      //
+      // The attack: somebody registers with a victim's address before the
+      // victim does. The row is adopted, the attacker holds a password on it,
+      // and a verification email goes to the VICTIM's inbox saying an account
+      // is waiting to be confirmed. A victim who has genuinely shopped here
+      // plausibly clicks it — and the click proves the address on the row the
+      // attacker has the password to. Because the session is re-read from the
+      // row on every request, the attacker's still-live cookie would gain the
+      // victim's whole order history at that instant. The victim's own action
+      // completes the attack.
+      //
+      // `passwordChangedAt` is the mechanism that already exists for "kill
+      // what came before", so it is reused rather than duplicated. The honest
+      // consequence is that clicking the link signs you out, which is why the
+      // page that spends the token says to sign in afterwards. Verifying is a
+      // once-per-account event; the trade is easy.
+      passwordChangedAt: now,
       // `verifyEmailStatus` is deliberately left alone. Clearing the token is
       // what takes this row out of the sweep's queue — the drain asks for a
       // token and an unproven address, not for a status — so there is nothing
@@ -358,9 +390,16 @@ export async function updateCustomerProfile(
 ): Promise<void> {
   const current = await prisma.customer.findUnique({
     where: { id: customerId },
-    select: { marketingConsent: true },
+    select: { marketingConsent: true, emailVerifiedAt: true },
   });
   if (!current) return;
+
+  // ⚠️ The other half of the same gate. Reading a guest buyer's name and phone
+  // is closed in `getCustomerFromCookies`; this stops an unproved registrant
+  // OVERWRITING them on a row that is not theirs. Consent is still theirs to
+  // set — it is about what we may send to the address, and withholding that
+  // would mean an unverified person could not decline marketing.
+  const mayEditIdentity = current.emailVerifiedAt !== null;
 
   const consentChanged =
     input.marketingConsent !== undefined &&
@@ -369,8 +408,14 @@ export async function updateCustomerProfile(
   await prisma.customer.update({
     where: { id: customerId },
     data: {
-      name: input.name === undefined ? undefined : input.name?.trim() || null,
-      phone: input.phone === undefined ? undefined : input.phone?.trim() || null,
+      name:
+        !mayEditIdentity || input.name === undefined
+          ? undefined
+          : input.name?.trim() || null,
+      phone:
+        !mayEditIdentity || input.phone === undefined
+          ? undefined
+          : input.phone?.trim() || null,
       ...(input.marketingConsent === undefined
         ? {}
         : { marketingConsent: input.marketingConsent }),

@@ -44,7 +44,15 @@ export function AccountView({
       const res = await fetch("/api/account", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, marketingConsent: consent }),
+        // Only what this person is allowed to change. Before the address is
+        // proved that is consent and nothing else, so the identity fields are
+        // left out of the body rather than sent and refused — the route
+        // answers 403 to a body that carries them.
+        body: JSON.stringify(
+          customer.emailVerified
+            ? { name, phone, marketingConsent: consent }
+            : { marketingConsent: consent },
+        ),
       });
       if (res.ok) {
         setSaved(true);
@@ -91,10 +99,12 @@ export function AccountView({
         <div className="glass mt-10 rounded-[1.5rem] p-6 md:mt-12 md:rounded-[2rem] md:p-8">
           <p className="eyebrow text-brand-muted mb-2">confirm your email</p>
           <p className="max-w-2xl text-base leading-relaxed text-brand-ink-soft">
-            Your order history stays closed until you click the link we send to{" "}
+            Your order history — and your saved name and phone — stay closed
+            until you click the link we send to{" "}
             <span className="text-brand-ink">{customer.email}</span>. We do not
-            show what somebody bought — or where it was sent — to an address
-            nobody has proved they own.
+            show what somebody bought, where it was sent, or who they are, to an
+            address nobody has proved they own. That applies to this screen
+            whoever is looking at it, which is the point.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <button
@@ -194,12 +204,19 @@ export function AccountView({
           <h2 className="display mb-8 text-2xl text-brand-ink md:text-3xl">
             Details
           </h2>
+          {!customer.emailVerified && (
+            <p className="mb-6 max-w-md text-sm leading-relaxed text-brand-muted">
+              Your name and phone are hidden, and cannot be changed, until the
+              address above is confirmed.
+            </p>
+          )}
           <form onSubmit={saveProfile} className="space-y-5">
             <Field
               label="Name"
               value={name}
               onChange={setName}
               autoComplete="name"
+              disabled={!customer.emailVerified}
             />
             <Field
               label="Phone"
@@ -207,6 +224,7 @@ export function AccountView({
               onChange={setPhone}
               type="tel"
               autoComplete="tel"
+              disabled={!customer.emailVerified}
             />
 
             {/* ⚠️ Not editable, and not an oversight. The address is the key
@@ -260,22 +278,28 @@ function Field({
   onChange,
   type = "text",
   autoComplete,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   autoComplete?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
       <span className="eyebrow text-brand-muted">{label}</span>
+      {/* Disabled is the courtesy, not the control: the server refuses the
+          write regardless. A form that looks editable and silently discards
+          what was typed is worse than one that says it is closed. */}
       <input
         type={type}
         value={value}
         autoComplete={autoComplete}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full border-0 border-b border-brand-ink/20 bg-transparent pb-2 text-base text-brand-ink outline-none fluid-transition focus:border-brand-ink"
+        className="mt-1.5 w-full border-0 border-b border-brand-ink/20 bg-transparent pb-2 text-base text-brand-ink outline-none fluid-transition focus:border-brand-ink disabled:opacity-40"
       />
     </label>
   );

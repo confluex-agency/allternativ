@@ -819,6 +819,28 @@ shipped with no check at all.
 "You have no orders" and "we are not showing you these yet" are different
 sentences and the screen says both.
 
+⚠️ **The gate covers the row, not just the orders — and getting that wrong is
+the mistake this feature actually made.** It shipped with `emailVerifiedAt`
+guarding `listCustomerOrders` and nothing else, and a security review found
+what that left open. The webhook writes the BUYER's own `name` and `phone` into
+the row from `session.customer_details`, so registering with a stranger's
+address and any ten characters returned a real person's name and phone from
+`GET /api/account/me` — and told you whether that address had ever bought,
+because a blank name meant it had not. Now `getCustomerFromCookies` withholds
+`name` and `phone` until the address is proved, and `updateCustomerProfile`
+refuses to overwrite them. **Anything else added to `Customer` has to answer
+the same question before it is returned.**
+
+⚠️ **Verifying kills every session issued before it** (`passwordChangedAt` is
+stamped in the same write). That closes an account *pre-hijack*: register with
+a victim's address first, the victim gets a plausible confirmation mail, clicks
+it, and the click would otherwise prove the address on the row the attacker
+holds the password to — handing them the history at that instant, because the
+session is re-read from the row on every request. The visible consequence is
+that clicking the link signs you out, which is why the verify page says to sign
+in again, and why the email says *somebody asked* to create an account rather
+than implying the reader did.
+
 ⚠️ **So this feature is only as alive as the mail is.** If the queue does not
 drain, accounts can be created and used — details, consent, a place to come
 back to — but no order history is ever shown to anybody. The sweep shouts about
@@ -864,8 +886,20 @@ cookie gets a redirect to `/admin/login` and a 401 from `/api/orders`.
   the outbox: the row has to be able to produce the link when the sweep runs.
   Exposure is limited by lifetime instead — 32 random bytes, 72 hours, and the
   column cleared in the same write that marks the address proven.
-- **`?next=` goes through `safeNext()`.** Unchecked it is an open redirect on a
-  shop that takes card details.
+- **`?next=` goes through `safeNext()`, which RESOLVES the value and compares
+  origins.** Unchecked it is an open redirect on a shop that takes card
+  details, and the victim has just watched a real login succeed on the real
+  domain before being handed over.
+
+  ⚠️ It used to reject `//` and `/\` by prefix, and a security review broke it:
+  **the WHATWG URL parser strips every ASCII tab and newline from its input
+  before parsing**, so `/<TAB>/evil.example` is never a path beginning with a
+  slash and a tab — by the time any parser looks it reads `//evil.example`.
+  `searchParams` decodes `%09` straight into one, so
+  `?next=%2F%09%2Fevil.example` was the whole exploit. A prefix list only
+  blocks the shapes somebody thought of; asking the parser blocks the class.
+  The test asserts the property (resolve it, stay on this origin), not the
+  string each shape returns.
 - **The customer password rule is not the admin one.** Ten characters, no
   composition rules. `PasswordSchema` in `auth.ts` is right for an account that
   can change prices and wrong for the public, where composition rules buy

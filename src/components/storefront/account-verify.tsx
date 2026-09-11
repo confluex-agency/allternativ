@@ -57,11 +57,20 @@ export function AccountVerify({ token }: { token: string | null }) {
               Your order history is open. Anything you bought with this address
               — including before you had an account — is there now.
             </p>
+            {/* ⚠️ Confirming ends every session that existed before it, on
+                purpose: if somebody else had registered with this address
+                first, their sign-in dies here rather than inheriting a history
+                this click just unlocked. So the next step really is to sign
+                in, and saying so stops it reading as a bug. */}
+            <p className="mt-3 text-sm leading-relaxed text-brand-muted">
+              For safety this also signed out anything already using the
+              account, so sign in once more below.
+            </p>
             <Link
-              href="/account"
+              href="/account/login"
               className="eyebrow mt-10 inline-block rounded-full bg-brand-ink px-6 py-4 text-brand-beige fluid-transition hover:opacity-90"
             >
-              Go to your account
+              Sign in
             </Link>
           </>
         ) : state === "failed" ? (

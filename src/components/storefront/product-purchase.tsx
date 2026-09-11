@@ -18,6 +18,7 @@ import {
 } from "@/lib/shipping";
 import { priceIn, useMarket } from "@/components/storefront/price";
 import { useCart } from "@/hooks/useCart";
+import { useCartDrawer } from "@/hooks/useCartDrawer";
 import { trackAddToCart, trackSoldOutView } from "@/lib/tracking";
 import { ProductGallery } from "@/components/storefront/product-gallery";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
   );
   const [justAdded, setJustAdded] = useState(false);
   const addItem = useCart((s) => s.addItem);
+  const openCart = useCartDrawer((s) => s.openCart);
 
   const variant =
     product.variants.find((v) => v.id === variantId) ?? product.variants[0];
@@ -94,6 +96,12 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
     trackAddToCart(variant.sku, 1);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 2000);
+    // Show the basket straight away. Two seconds of the button reading ADDED
+    // was the only confirmation there was, and it left the visitor with no way
+    // to see what they now had without leaving the page they were on -- at the
+    // exact moment they are most likely to add a second pair, which is also the
+    // moment the free-delivery line in the panel has something to say.
+    openCart();
   }
 
   const multiColour = product.variants.length > 1;

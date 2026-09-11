@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import { StorefrontNavbar } from "@/components/storefront/navbar";
 import { StorefrontFooter } from "@/components/storefront/footer";
+import { CartDrawer } from "@/components/storefront/cart-drawer";
 import { TrackerInit } from "@/components/storefront/tracker-init";
 import { CookieNotice } from "@/components/storefront/cookie-notice";
 
@@ -34,6 +35,11 @@ export default function StorefrontLayout({
       <StorefrontNavbar />
       <main className="flex-1">{children}</main>
       <StorefrontFooter />
+      {/* Mounted once for the whole storefront rather than per page: the basket
+          panel has to open from the header on every screen, and from the Add to
+          cart button on a product page, without either of them knowing where
+          the other lives. */}
+      <CartDrawer />
       <TrackerInit />
       <CookieNotice />
       {ImageFramingTool && <ImageFramingTool />}

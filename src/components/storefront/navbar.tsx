@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
+import { useCartDrawer } from "@/hooks/useCartDrawer";
 import { DestinationPicker } from "@/components/storefront/destination-picker";
 
 // Section 02 of the brief, which names COLLECTIONS the main ecommerce entry
@@ -22,6 +23,7 @@ const NAV_LINKS = [
 
 export function StorefrontNavbar() {
   const [open, setOpen] = useState(false);
+  const openCart = useCartDrawer((s) => s.openCart);
 
   // The cart lives in localStorage (Zustand persist), which the server cannot
   // read, so the badge has to render 0 on the server and the real count after.
@@ -83,8 +85,14 @@ export function StorefrontNavbar() {
             <User size={18} className="text-brand-ink" strokeWidth={1.5} />
           </Link>
 
-          <Link
-            href="/cart"
+          {/* Opens the panel instead of navigating to /cart, which is the whole
+              point of the panel: checking the basket should not cost you the
+              page you were looking at. `/cart` still exists and is still where
+              the destination and the discount code are settled — the panel's
+              own button goes there. */}
+          <button
+            type="button"
+            onClick={openCart}
             aria-label={`Cart, ${count} item${count === 1 ? "" : "s"}`}
             className="relative grid size-11 place-items-center rounded-full fluid-transition hover:bg-brand-ink/5"
           >
@@ -101,7 +109,7 @@ export function StorefrontNavbar() {
                 {count}
               </span>
             )}
-          </Link>
+          </button>
 
           {/* Mobile menu button */}
           <button

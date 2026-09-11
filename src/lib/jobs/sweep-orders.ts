@@ -1,7 +1,7 @@
 /**
  * Housekeeping for the payment path. Safe to run as often as you like.
  *
- * Four jobs:
+ * Five jobs:
  *
  * 1. Hand expired stock reservations back. Abandoned checkouts release
  *    themselves on the next purchase attempt anyway, but a shop with no traffic
@@ -19,6 +19,11 @@
  *    one becomes due when the supplier's ERP marks an order shipped and writes
  *    a tracking number, not when the order is created.
  *
+ * 5. Drain the account-verification queue. Same shape again, and the one with
+ *    teeth: until that link is clicked a customer cannot see their own order
+ *    history, because a `Customer` row is created by the Stripe webhook for
+ *    every guest buyer and an unproven address must not open one.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -32,6 +37,7 @@ import { releaseExpiredReservations } from "@/lib/inventory";
 import {
   buildOrderConfirmation,
   buildDispatchNotification,
+  buildEmailVerification,
   sendEmail,
   outcomeForFailure,
   EMAIL_MAX_ATTEMPTS,
@@ -254,6 +260,93 @@ async function drainDispatchEmails(): Promise<{
   return { sent, retrying, gaveUp, blocked };
 }
 
+/**
+ * Drain the account-verification queue.
+ *
+ * ⚠️ The condition is a token and an unproven address, NOT a status. Clearing
+ * the token is what `consumeVerificationToken` does when somebody clicks the
+ * link, so a verified account drops out of this query whatever its status
+ * column says — and an account that verified while the queue was blocked never
+ * gets mailed a link it no longer needs.
+ *
+ * An expired token is not re-issued here. Doing that would mail somebody a
+ * fresh link out of nowhere, days after they lost interest; asking for another
+ * one is a button on the account page.
+ */
+async function drainVerificationEmails(): Promise<{
+  sent: number;
+  retrying: number;
+  gaveUp: number;
+  blocked: string | null;
+}> {
+  const queued = await prisma.customer.findMany({
+    where: {
+      verifyEmailStatus: "PENDING",
+      emailVerifiedAt: null,
+      emailVerificationToken: { not: null },
+      emailVerificationExpiresAt: { gt: new Date() },
+      verifyEmailAttempts: { lt: EMAIL_MAX_ATTEMPTS },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 50,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      emailVerificationToken: true,
+      emailVerificationExpiresAt: true,
+      verifyEmailAttempts: true,
+    },
+  });
+
+  let sent = 0;
+  let retrying = 0;
+  let gaveUp = 0;
+  let blocked: string | null = null;
+
+  for (const customer of queued) {
+    try {
+      await sendEmail(
+        buildEmailVerification(customer.email, {
+          name: customer.name,
+          token: customer.emailVerificationToken!,
+          expiresAt: customer.emailVerificationExpiresAt!,
+        }),
+      );
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          verifyEmailStatus: "SENT",
+          verifyEmailSentAt: new Date(),
+          verifyEmailAttempts: { increment: 1 },
+          verifyEmailLastError: null,
+        },
+      });
+      sent++;
+    } catch (error) {
+      const outcome = outcomeForFailure(customer.verifyEmailAttempts, error);
+
+      if (outcome.kind === "keep") {
+        blocked = outcome.reason;
+        break;
+      }
+
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          verifyEmailStatus: outcome.kind === "giveUp" ? "FAILED" : "PENDING",
+          verifyEmailAttempts: outcome.attempts,
+          verifyEmailLastError: outcome.error,
+        },
+      });
+      if (outcome.kind === "giveUp") gaveUp++;
+      else retrying++;
+    }
+  }
+
+  return { sent, retrying, gaveUp, blocked };
+}
+
 export async function sweepOrders(): Promise<JobResult> {
   const warnings: string[] = [];
 
@@ -261,10 +354,12 @@ export async function sweepOrders(): Promise<JobResult> {
   const { ok, stillFailing } = await retryFailedEvents();
   const mail = await drainOrderEmails();
   const dispatch = await drainDispatchEmails();
+  const verify = await drainVerificationEmails();
 
-  // Said once even when both queues are stuck, because they stall for the same
-  // single reason — no provider — and saying it twice would read as two faults.
-  const blocked = mail.blocked ?? dispatch.blocked;
+  // Said once even when all three queues are stuck, because they stall for the
+  // same single reason — no provider — and saying it three times would read as
+  // three faults.
+  const blocked = mail.blocked ?? dispatch.blocked ?? verify.blocked;
   if (blocked) {
     warnings.push(`Email queue is not draining: ${blocked}`);
   }
@@ -279,6 +374,31 @@ export async function sweepOrders(): Promise<JobResult> {
       `${dispatch.gaveUp} order(s) shipped without the buyer being told. The ` +
         `confirmation email promised them tracking, so somebody has to send it ` +
         `by hand.`,
+    );
+  }
+
+  if (verify.gaveUp > 0) {
+    warnings.push(
+      `${verify.gaveUp} account(s) could not be sent a verification link. ` +
+        `Those people can sign in but will never see their own order history ` +
+        `until somebody sorts the address out.`,
+    );
+  }
+
+  // The backlog that is quietest and least obvious from the outside: these
+  // people registered, were told to check their email, and nothing was sent.
+  const unverified = await prisma.customer.count({
+    where: {
+      verifyEmailStatus: "PENDING",
+      emailVerifiedAt: null,
+      emailVerificationToken: { not: null },
+      emailVerificationExpiresAt: { gt: new Date() },
+    },
+  });
+  if (unverified > 0) {
+    warnings.push(
+      `${unverified} account(s) still waiting for a verification email. ` +
+        `Their order history stays hidden until they get it.`,
     );
   }
 
@@ -353,6 +473,9 @@ export async function sweepOrders(): Promise<JobResult> {
       dispatchEmailsSent: dispatch.sent,
       dispatchEmailsRetrying: dispatch.retrying,
       dispatchEmailsGivenUp: dispatch.gaveUp,
+      verificationEmailsSent: verify.sent,
+      verificationEmailsRetrying: verify.retrying,
+      verificationEmailsGivenUp: verify.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

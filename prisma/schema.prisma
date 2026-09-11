@@ -477,6 +477,33 @@ model Customer {
   //   bought as a guest and the record was created by the Stripe webhook. ─
   passwordHash       String?   @map("password_hash")
   emailVerifiedAt    DateTime? @map("email_verified_at")
+  // Kills tokens issued before the last password change, exactly as
+  // `AdminUser.passwordChangedAt` does. Nullable because most rows here are
+  // guest buyers who have never had a password at all.
+  passwordChangedAt  DateTime? @map("password_changed_at")
+  lastLoginAt        DateTime? @map("last_login_at")
+
+  // ─ Proving the address belongs to whoever typed it ─────────────────────────
+  //
+  // ⚠️ This is not a nicety, it is the whole security of the feature. The
+  // Stripe webhook creates a `Customer` row for every GUEST buyer, keyed on the
+  // email they paid with. So "register" very often means "put a password on a
+  // row that already holds somebody's order history, shipping address and
+  // phone number" — and without proof of the address, anyone who knows a
+  // buyer's email could register and read all of it.
+  //
+  // So the account exists on sign-up, but `emailVerifiedAt` is what unlocks
+  // order history. See `src/lib/customer-accounts.ts`.
+  emailVerificationToken     String?           @unique @map("email_verification_token")
+  emailVerificationExpiresAt DateTime?         @map("email_verification_expires_at")
+  // Queued and drained by the sweep, like the two order emails and for the
+  // same reason. SKIPPED by default: every row that already exists was made by
+  // the webhook and has nothing to verify, and the honest word for that is
+  // neither "sent" nor "pending".
+  verifyEmailStatus          QueuedEmailStatus @default(SKIPPED) @map("verify_email_status")
+  verifyEmailSentAt          DateTime?         @map("verify_email_sent_at")
+  verifyEmailAttempts        Int               @default(0) @map("verify_email_attempts")
+  verifyEmailLastError       String?           @map("verify_email_last_error") @db.Text
   // ─ Section 25 is explicit: having an account is NOT marketing consent. These
   //   are stored separately and the timestamp is the proof of when it was given. ─
   marketingConsent   Boolean   @default(false) @map("marketing_consent")
@@ -489,6 +516,8 @@ model Customer {
   wishlistItems WishlistItem[]
   sessions      Session[]
 
+  // The queue query: accounts whose verification mail has not gone out yet.
+  @@index([verifyEmailStatus])
   @@map("customers")
 }
 
@@ -502,11 +531,17 @@ enum OrderStatus {
   REFUNDED
 }
 
-// Where the confirmation email got to. Its own status, separate from the
-// order's: an order is PAID whether or not the mail went out, and conflating
-// the two would make a mail provider's bad afternoon look like a payment
-// problem.
-enum OrderEmailStatus {
+// Where a queued email got to. Its own status, separate from whatever it is
+// attached to: an order is PAID whether or not the mail went out, and
+// conflating the two would make a mail provider's bad afternoon look like a
+// payment problem.
+//
+// It was called `OrderEmailStatus` while orders were the only thing that
+// queued mail. The account-verification email queues the same way, on the same
+// four states, drained by the same sweep — so the name lost the "Order".
+// ⚠️ On MySQL a Prisma enum is an inline column type, not a database object,
+// so the rename produced no migration SQL at all.
+enum QueuedEmailStatus {
   PENDING // queued, waiting for the sweep to drain it
   SENT
   FAILED // given up on: too many attempts, or a permanent refusal
@@ -562,7 +597,7 @@ model Order {
   // marked failed for three days over something that has nothing to do with
   // the money. The order is written synchronously; the mail is queued here and
   // drained by `scripts/sweep-orders.ts`.
-  emailStatus       OrderEmailStatus @default(PENDING) @map("email_status")
+  emailStatus       QueuedEmailStatus @default(PENDING) @map("email_status")
   emailSentAt       DateTime?        @map("email_sent_at")
   emailAttempts     Int              @default(0) @map("email_attempts")
   emailLastError    String?          @map("email_last_error") @db.Text
@@ -578,7 +613,7 @@ model Order {
   // the order having shipped AND carrying a tracking number — the sweep asks
   // for both, so an order marked SHIPPED with nothing to track never mails a
   // buyer a notification with no number in it.
-  dispatchEmailStatus    OrderEmailStatus @default(PENDING) @map("dispatch_email_status")
+  dispatchEmailStatus    QueuedEmailStatus @default(PENDING) @map("dispatch_email_status")
   dispatchEmailSentAt    DateTime?        @map("dispatch_email_sent_at")
   dispatchEmailAttempts  Int              @default(0) @map("dispatch_email_attempts")
   dispatchEmailLastError String?          @map("dispatch_email_last_error") @db.Text
@@ -598,6 +633,12 @@ model Order {
 
   // The queue query: paid orders whose mail has not gone out yet.
   @@index([emailStatus])
+  // The same query for the other queue. ⚠️ This index has EXISTED since
+  // `20260910200000_dispatch_email_queue` created it, but it was never declared
+  // here — so the schema and the database disagreed, and the next `migrate
+  // diff` anybody ran would have quietly offered to DROP it. Declaring it is
+  // the fix; the migration that noticed carries no SQL for it.
+  @@index([dispatchEmailStatus])
   @@map("orders")
 }
 

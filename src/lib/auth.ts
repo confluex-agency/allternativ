@@ -8,6 +8,24 @@ import { AdminRole } from "@/generated/prisma/enums";
 const COOKIE_NAME = "allternativ-admin-token";
 const JWT_SECRET = new TextEncoder().encode(env.JWT_SECRET);
 
+/**
+ * Which of the two token systems this one is.
+ *
+ * ⚠️ Customers now sign in too (`src/lib/customer-auth.ts`), and both sides
+ * sign with the SAME `JWT_SECRET`. Different cookie names already keep them
+ * apart in normal operation, but a cookie name is not a security boundary: it
+ * is a string an attacker who can set cookies chooses. Without this claim, a
+ * customer's own valid token dropped into the admin cookie would verify.
+ *
+ * It is checked on both sides, so neither token is accepted by the other.
+ *
+ * ⚠️ Admin tokens issued before this shipped carry no `typ` and are therefore
+ * rejected: everyone signed in at deploy time is signed out once. That is the
+ * whole cost, and it is the right way round — accepting a token because it is
+ * old is how this kind of check gets hollowed out.
+ */
+export const ADMIN_TOKEN_TYPE = "admin";
+
 export interface JWTPayload {
   sub: string; // admin user id
   email: string;
@@ -31,7 +49,10 @@ export const PasswordSchema = z
 export async function signToken(
   payload: Omit<JWTPayload, "iat" | "exp">,
 ): Promise<string> {
-  return new SignJWT(payload as unknown as Record<string, unknown>)
+  return new SignJWT({
+    ...(payload as unknown as Record<string, unknown>),
+    typ: ADMIN_TOKEN_TYPE,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -43,6 +64,10 @@ const KNOWN_ROLES = Object.values(AdminRole) as string[];
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    // A customer's token is signed with the same secret, so the signature
+    // alone does not say which system issued this. See ADMIN_TOKEN_TYPE.
+    if (payload.typ !== ADMIN_TOKEN_TYPE) return null;
 
     // The decode is a cast, not a check. Typing `role` as AdminRole would
     // otherwise have the compiler believe something nobody verified: a token
@@ -92,7 +117,19 @@ export async function getAuthFromCookies(): Promise<JWTPayload | null> {
   });
   if (!user) return null;
 
-  const tokenIssuedMs = payload.iat * 1000;
+  // ⚠️ The second of tolerance is not slack, it is the unit `iat` is measured
+  // in — and without it this check fires on the very token it is meant to
+  // bless. A JWT's issued-at is whole SECONDS, floored; `passwordChangedAt` is
+  // a millisecond timestamp. `/api/auth/change-password` writes the timestamp
+  // and then signs a replacement token, whose `iat` floors back to the start of
+  // that same second and therefore lands BEFORE it — so the fresh token was
+  // dead on arrival roughly whenever the change did not happen exactly on a
+  // second boundary.
+  //
+  // The symptom was quiet enough to live with for a while: change your
+  // password, get bounced to the login page, sign in again with the new one,
+  // and assume that is how it works.
+  const tokenIssuedMs = payload.iat * 1000 + 999;
   if (
     user.passwordChangedAt &&
     tokenIssuedMs < user.passwordChangedAt.getTime()

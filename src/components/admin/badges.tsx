@@ -1,6 +1,6 @@
 import type {
   OrderStatus,
-  OrderEmailStatus,
+  QueuedEmailStatus,
   ProductStatus,
 } from "@/generated/prisma/enums";
 
@@ -33,7 +33,7 @@ const ORDER_TONES: Record<OrderStatus, string> = {
   REFUNDED: "bg-amber-50 text-amber-700",
 };
 
-const EMAIL_TONES: Record<OrderEmailStatus, string> = {
+const EMAIL_TONES: Record<QueuedEmailStatus, string> = {
   PENDING: "bg-amber-50 text-amber-700",
   SENT: "bg-emerald-50 text-emerald-700",
   // The only one that is genuinely bad news: the success page promised this
@@ -51,7 +51,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return <Pill tone={ORDER_TONES[status]}>{label(status)}</Pill>;
 }
 
-export function EmailStatusBadge({ status }: { status: OrderEmailStatus }) {
+export function EmailStatusBadge({ status }: { status: QueuedEmailStatus }) {
   // "Pending" on its own reads like a queue that is working. It is, but only
   // while something drains it, so the word says what is being waited for.
   const text = status === "PENDING" ? "Queued" : label(status);

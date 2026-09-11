@@ -81,7 +81,16 @@ export async function proxy(request: NextRequest) {
     }
 
     try {
-      await jwtVerify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, JWT_SECRET);
+      // ⚠️ The signature alone no longer identifies an admin. Customers sign in
+      // too and their tokens are signed with the same secret, so the claim that
+      // says which system issued this has to be checked here as well — not
+      // because the cookie names collide, but because the cookie name is
+      // chosen by whoever sets the cookie. `requireAdminPage()` checks it again
+      // properly; this only avoids waving the request through the edge.
+      if (payload.typ !== "admin") {
+        return NextResponse.redirect(new URL("/admin/login", request.url));
+      }
       return NextResponse.next();
     } catch {
       return NextResponse.redirect(new URL("/admin/login", request.url));

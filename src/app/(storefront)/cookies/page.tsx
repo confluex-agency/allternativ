@@ -20,6 +20,7 @@ export const metadata = {
 //   allternativ:destination   src/hooks/useDestination.ts
 //   allternativ:consent       src/lib/consent.ts
 //   allternativ-admin-token   src/lib/auth.ts (staff only, never a customer)
+//   allternativ-customer-token src/lib/customer-auth.ts (only if you sign in)
 //
 // ⚠️ If a new one is added anywhere, it belongs in this table on the same day.
 // A cookie policy that has fallen behind the code is worse than none, because
@@ -57,6 +58,14 @@ const ROWS = [
     essential: true,
   },
   {
+    name: "allternativ-customer-token",
+    kind: "Cookie",
+    purpose:
+      "Proof that you are signed in to your account. Only set if you sign in, and readable only by our server — never by the page itself.",
+    life: "7 days, or until you sign out",
+    essential: true,
+  },
+  {
     name: "alt_vid",
     kind: "Cookie",
     purpose:
@@ -79,7 +88,7 @@ export default function CookiesPage() {
     <PolicyPage
       eyebrow="cookies"
       title="What we keep in your browser."
-      standfirst="Six things, and only two of them are about measuring. The table is the whole list, not a summary of one."
+      standfirst="Seven things, and only two of them are about measuring. The table is the whole list, not a summary of one."
     >
       <PolicySection title="The full list">
         <div className="mt-1 overflow-x-auto">

@@ -260,18 +260,69 @@ export function buildDispatchNotification(
   };
 }
 
+/**
+ * The third queued email: proving an address belongs to whoever typed it.
+ *
+ * ⚠️ This one is not a courtesy, it is a lock. A `Customer` row is created by
+ * the Stripe webhook for every guest buyer, so registering an account very
+ * often means putting a password on a row that already holds somebody's order
+ * history and shipping address. Clicking this link is the only thing that opens
+ * that history. See `src/lib/customer-accounts.ts`.
+ *
+ * The link is built from `NEXT_PUBLIC_APP_URL`, which is the same variable
+ * `success_url` is built from and carries the same warning: it is inlined at
+ * build time, and a wrong value here mails people a link to localhost.
+ */
+export function buildEmailVerification(
+  to: string,
+  opts: { name: string | null; token: string; expiresAt: Date },
+): EmailMessage {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const url = `${base.replace(/\/+$/, "")}/account/verify?token=${encodeURIComponent(opts.token)}`;
+  const hours = Math.max(
+    1,
+    Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 60 * 1000)),
+  );
+
+  const text = [
+    opts.name ? `Hello ${opts.name},` : `Hello,`,
+    ``,
+    `Confirm this address to finish setting up your Allternativ account:`,
+    ``,
+    `  ${url}`,
+    ``,
+    `The link works once and expires in about ${hours} hours.`,
+    ``,
+    `Until it is confirmed you can sign in, but your order history stays`,
+    `hidden — we do not show what somebody bought to an address nobody has`,
+    `proved they own.`,
+    ``,
+    `If you did not create an account, ignore this email. Nothing was changed`,
+    `on any order you have placed.`,
+    ``,
+    `Allternativ`,
+  ].join("\n");
+
+  return { to, subject: "Confirm your Allternativ account", text };
+}
+
 // ── How it leaves ───────────────────────────────────────────────────────────
 
 /**
  * The transport, and deliberately the only place that knows about a provider.
  *
- * ⚠️ No provider is wired yet — the choice is the client's and needs an account
- * and a verified sending domain. Until then this throws `NoEmailProviderError`
- * and orders stay queued rather than failing, so nothing is lost and the mails
- * go out the day a key is set.
+ * Resend, because it is the smallest thing that works from a Next.js app on
+ * shared hosting: one HTTP call, no SDK, and no need to find out whether
+ * outbound SMTP is even open from the Hostinger Node container.
  *
- * Resend is sketched below because it is the smallest thing that works from a
- * Next.js app on shared hosting: one HTTP call, no SDK required.
+ * As of 2026-09-11 `RESEND_API_KEY`, `EMAIL_FROM` and `EMAIL_REPLY_TO` are set
+ * in the staging variables and the DNS for `send.allternativ.com` is in place.
+ *
+ * ⚠️ Configured is not the same as proved. Nothing has been observed leaving:
+ * the sweep only reaches this function when the queue has something in it, so
+ * an empty queue reports success either way. The `NoEmailProviderError` path
+ * below is still the right behaviour if a key is ever removed — orders stay
+ * queued rather than failing, and nothing is lost.
  */
 export async function sendEmail(message: EmailMessage): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;

@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Menu, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { DestinationPicker } from "@/components/storefront/destination-picker";
 
@@ -11,8 +11,8 @@ import { DestinationPicker } from "@/components/storefront/destination-picker";
 // point at a flat grid of everything; the shop is organised by drop, and the
 // word in the nav should be the same word the client uses for it.
 //
-// Search, Account and Cart are the utility half of that section. Only the cart
-// exists so far, and it lives on the right of the bar.
+// Search, Account and Cart are the utility half of that section. Account and
+// cart exist and live on the right of the bar; search does not yet.
 const NAV_LINKS = [
   { href: "/collections", label: "Collections" },
   { href: "/frequency", label: "Frequency" },
@@ -69,6 +69,19 @@ export function StorefrontNavbar() {
           {/* Hidden on the narrowest screens, where the basket already carries
               the same control and the header has no room for it. */}
           <DestinationPicker className="hidden sm:inline-flex" />
+
+          {/* Always the same link, signed in or not, and deliberately so.
+              Telling the two apart in the header means either a database read
+              on every page or a second hydration mismatch to manage, and it
+              buys nothing: `/account` sends an anonymous visitor to the login
+              form itself. */}
+          <Link
+            href="/account"
+            aria-label="Account"
+            className="grid size-11 place-items-center rounded-full fluid-transition hover:bg-brand-ink/5"
+          >
+            <User size={18} className="text-brand-ink" strokeWidth={1.5} />
+          </Link>
 
           <Link
             href="/cart"
@@ -131,7 +144,7 @@ export function StorefrontNavbar() {
             </button>
           </div>
           <ul className="flex flex-col px-6 py-6">
-            {NAV_LINKS.map((link) => (
+            {[...NAV_LINKS, { href: "/account", label: "Account" }].map((link) => (
               <li
                 key={link.href}
                 className="border-b border-brand-ink/5 last:border-0"

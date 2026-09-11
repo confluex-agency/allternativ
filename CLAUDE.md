@@ -9,6 +9,38 @@ throughout the code (`section 07`, `section 22`, and so on). A copy lives at
 `Nicolas docs/2026/allternativ/site-preview/a.docx`, and the response we sent,
 with the outstanding questions and the delivery order, is in the vault.
 
+## ⚠️ READ THIS FIRST: where the CURRENT state lives
+
+**This file describes how the shop works. It does not describe what happened
+last week.** For that, and before doing anything else on this project, read:
+
+```
+../../Confluex-Vault/Proyectos/Allternativ/Estado actual.md   ← start here
+../../Confluex-Vault/Diario/<most recent>.md                  ← the session detail
+```
+
+⚠️ **This is not a nicety, and skipping it cost a chunk of 2026-09-11.** That
+day was spent re-deriving from the database — reading `orders`, querying Stripe,
+listing Hostinger's cron jobs — facts that had been written in plain Spanish the
+previous evening and committed. Worse, this file *asserted the opposite of
+several of them*, because nobody had come back to correct it: it said no mail
+provider was wired when one had already sent a real confirmation, and it said
+the account had no cron jobs when all three were running.
+
+Two rules follow, and they point in opposite directions on purpose:
+
+- **The vault is the present tense.** What is deployed, what was tested
+  yesterday, what the client and the supplier last said, what is still open. It
+  is written per session and it is the only thing that is current by design.
+- **This file is the standing tense.** Why the code is shaped the way it is, and
+  which mistakes not to repeat. It has no dates on most of it because most of it
+  should still be true in six months.
+
+⚠️ **When they disagree, neither one automatically wins — go and look.** Both
+were wrong at some point on 2026-09-11, and the thing that settled every
+argument was the database, the Hostinger panel, the DNS or Stripe's own API. An
+assertion in a document is a claim about the world, not the world.
+
 ## Stack
 
 - **Next.js 16 App Router** (SSR/SSG/ISR + API routes)

@@ -242,6 +242,87 @@ describe("order history is gated on a proved address", () => {
   });
 });
 
+describe("one account sees its own orders and nobody else's", () => {
+  // ⚠️ The claim this file exists to hold down. Every other test here checks
+  // that the gate opens for the right person; this one checks that it does not
+  // open for the wrong one, which is the failure nobody would notice until it
+  // mattered.
+  //
+  // It is worth a test of its own because the isolation is NOT enforced by the
+  // shape of the data. Every customer's orders sit in one table, and what keeps
+  // them apart is a single `where: { customerId }` — one clause, in one
+  // function, that a refactor could widen without breaking anything visible.
+  it("never returns another customer's order, in either direction", async () => {
+    const alice = await registerCustomer({
+      email: email("alice"),
+      password: PASSWORD,
+    });
+    const mallory = await registerCustomer({
+      email: email("mallory"),
+      password: PASSWORD,
+    });
+    if (!alice.ok || !mallory.ok) throw new Error("registration failed");
+
+    await prisma.order.create({
+      data: {
+        orderNumber: `ORD-${RUN}-ALICE`,
+        customerId: alice.customerId,
+        status: "PAID",
+        subtotalCents: 3900,
+        totalCents: 3900,
+        currency: "EUR",
+        // The fields that make a leak actually cost something.
+        shippingName: "Alice",
+        shippingAddress: "1 Alice Street",
+        shippingCity: "Alicetown",
+      },
+    });
+    await prisma.order.create({
+      data: {
+        orderNumber: `ORD-${RUN}-MALLORY`,
+        customerId: mallory.customerId,
+        status: "PAID",
+        subtotalCents: 7800,
+        totalCents: 7800,
+        currency: "EUR",
+      },
+    });
+
+    await consumeVerificationToken(alice.verification.token);
+    await consumeVerificationToken(mallory.verification.token);
+
+    const hers = must(await listCustomerOrders(alice.customerId), "Alice's orders");
+    const his = must(await listCustomerOrders(mallory.customerId), "Mallory's orders");
+
+    expect(hers.map((o) => o.orderNumber)).toEqual([`ORD-${RUN}-ALICE`]);
+    expect(his.map((o) => o.orderNumber)).toEqual([`ORD-${RUN}-MALLORY`]);
+    // Said the other way round too. `toEqual` above would already catch it,
+    // but this is the sentence somebody reads when the test goes red.
+    expect(hers.some((o) => o.orderNumber.endsWith("MALLORY"))).toBe(false);
+    expect(his.some((o) => o.orderNumber.endsWith("ALICE"))).toBe(false);
+  });
+
+  it("verifying one address does not open anybody else's history", async () => {
+    // The gate is per-row. Proving one address must not prove another, and the
+    // cheapest way to get that wrong is a query that checks "is anyone
+    // verified" instead of "is THIS customer verified".
+    const proved = await registerCustomer({
+      email: email("proved"),
+      password: PASSWORD,
+    });
+    const unproved = await registerCustomer({
+      email: email("unproved"),
+      password: PASSWORD,
+    });
+    if (!proved.ok || !unproved.ok) throw new Error("registration failed");
+
+    await consumeVerificationToken(proved.verification.token);
+
+    expect(await listCustomerOrders(proved.customerId)).not.toBeNull();
+    expect(await listCustomerOrders(unproved.customerId)).toBeNull();
+  });
+});
+
 describe("consent is recorded where it was given", () => {
   it("stamps the time it changed and clears it on withdrawal", async () => {
     const address = email("consent");

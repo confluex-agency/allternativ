@@ -22,5 +22,5 @@ export default async function AccountLoginPage({
   // the dashboard rather than to the login page.
   if (await getCustomerFromCookies()) redirect(target);
 
-  return <AccountAuthForm mode="login" next={target} />;
+  return <AccountAuthForm initialMode="login" next={target} />;
 }

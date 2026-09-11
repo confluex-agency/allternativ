@@ -1,34 +1,84 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-/**
- * Sign in and sign up, which are the same form with a different verb.
- *
- * Kept as one component because the two screens have to stay in step: the
- * password rules, the error placement and the wording about what an account
- * does are the sort of thing that drifts the moment there are two copies —
- * the same way `ProductCard` drifted when the home grid and the catalogue each
- * had their own.
- */
+// Sign in and create an account: the same form with a different verb.
+//
+// ── Why it is one component, on two real URLs, that switches in place ───────
+//
+// The obvious version of this is a modal that toggles between the two, and it
+// is what most shops do. It is worse here for a reason that has nothing to do
+// with taste: **password managers.** 1Password, Chrome's own keychain and the
+// rest key their autofill on a page, and they are markedly worse at offering a
+// saved login — and at capturing a new one — inside a dialog that appears over
+// something else. An account nobody can get back into is not an account.
+//
+// Real URLs also give us the back button, a link somebody can send, and the
+// `?next=` that carries a visitor back to whatever they were doing before they
+// were asked to sign in. A modal has none of those without reinventing them.
+//
+// But the video's instinct was not wrong about the switch itself. The version
+// this replaced navigated between two pages, which meant somebody who typed
+// their address, was told it did not match an account, and clicked "create
+// one" **had to type it again**. That is the whole friction, and it is
+// avoidable: the two modes live in one mounted component, so what has been
+// typed survives the switch, and `window.history.replaceState` keeps the
+// address bar honest without unmounting anything. Next supports that natively
+// and syncs its own router with it.
+//
+// The switch is still a real `<Link>`, so a middle-click or a cmd-click opens
+// the other form in its own tab exactly as a link should. Only the ordinary
+// click is intercepted.
+
+type Mode = "login" | "register";
+
+const PATHS: Record<Mode, string> = {
+  login: "/account/login",
+  register: "/account/register",
+};
+
 export function AccountAuthForm({
-  mode,
+  initialMode,
   next,
 }: {
-  mode: "login" | "register";
+  initialMode: Mode;
   next: string;
 }) {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>(initialMode);
+
+  // Deliberately OUTSIDE the mode switch: these survive it, which is the
+  // point. Nobody should have to retype their address to find out they needed
+  // the other form.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [consent, setConsent] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const registering = mode === "register";
+  const other: Mode = registering ? "login" : "register";
+
+  function switchTo(target: Mode, event?: MouseEvent) {
+    // Let the browser handle the clicks that mean "open this somewhere else".
+    if (
+      event &&
+      (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
+    ) {
+      return;
+    }
+    event?.preventDefault();
+    setMode(target);
+    // The old form's complaint does not describe the new one.
+    setError("");
+
+    const query = next === "/account" ? "" : `?next=${encodeURIComponent(next)}`;
+    window.history.replaceState(null, "", `${PATHS[target]}${query}`);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -101,6 +151,9 @@ export function AccountAuthForm({
             type="password"
             value={password}
             onChange={setPassword}
+            // ⚠️ This attribute is what tells a password manager whether to
+            // offer a saved login or to capture a new one, so it has to follow
+            // the mode rather than be set once.
             autoComplete={registering ? "new-password" : "current-password"}
             required
             hint={registering ? "At least 10 characters." : undefined}
@@ -123,7 +176,11 @@ export function AccountAuthForm({
             </label>
           )}
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-red-700">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
@@ -141,35 +198,21 @@ export function AccountAuthForm({
         </form>
 
         <p className="mt-8 text-sm text-brand-ink-soft">
-          {registering ? (
-            <>
-              Already have one?{" "}
-              <Link
-                href="/account/login"
-                className="text-brand-ink underline underline-offset-4"
-              >
-                Sign in
-              </Link>
-              .
-            </>
-          ) : (
-            <>
-              No account?{" "}
-              <Link
-                href="/account/register"
-                className="text-brand-ink underline underline-offset-4"
-              >
-                Create one
-              </Link>
-              .
-            </>
-          )}
+          {registering ? "Already have one? " : "No account? "}
+          <Link
+            href={PATHS[other]}
+            onClick={(e) => switchTo(other, e)}
+            className="text-brand-ink underline underline-offset-4"
+          >
+            {registering ? "Sign in" : "Create one"}
+          </Link>
+          .
         </p>
 
         {/* ⚠️ Said out loud rather than left for somebody to discover: there is
             no "forgot password" yet, because it needs a mail provider and the
-            shop does not have one. Promising a reset link that cannot be sent
-            would be worse than admitting there is none. */}
+            shop does not have one wired end to end. Promising a reset link that
+            cannot be sent would be worse than admitting there is none. */}
         {!registering && (
           <p className="mt-3 text-xs leading-relaxed text-brand-muted">
             Forgotten your password? Write to us and we will sort it out — the

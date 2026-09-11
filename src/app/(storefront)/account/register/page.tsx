@@ -19,5 +19,5 @@ export default async function AccountRegisterPage({
 
   if (await getCustomerFromCookies()) redirect(target);
 
-  return <AccountAuthForm mode="register" next={target} />;
+  return <AccountAuthForm initialMode="register" next={target} />;
 }

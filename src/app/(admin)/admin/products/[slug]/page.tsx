@@ -23,11 +23,61 @@ export default async function AdminProductPage({
   await requireAdminPage();
 
   const { slug } = await params;
+  // ⚠️ `select`, never `include`, and the list page carries the same rule with
+  // the same comment.
+  //
+  // `include` does not mean "and also these relations" — it means "every
+  // scalar column of this model, AND these relations". So the obvious-looking
+  // `include: { variants, marketPrices, images }` was fetching the whole
+  // `Product` row, **`supplierCostUsdCents` with it**: what Allternativ pays
+  // the supplier per pair, on a page `requireAdminPage()` opens for ANY signed
+  // -in admin, ANALYTICS_VIEWER and CONTENT_ADMIN included. Section 18 never
+  // said finance was part of either role.
+  //
+  // Nothing rendered it, so nothing leaked. That is exactly why it was worth
+  // changing: in the App Router, anything handed to a `"use client"` component
+  // is serialised into the HTML that ships to the browser, where it sits in
+  // view-source. The distance between here and a real leak was one ordinary
+  // edit — making the spec table collapsible, or a `JSON.stringify(product)`
+  // left in from an afternoon's debugging — and NOTHING would have failed. No
+  // test, no type error, an identical-looking page.
+  //
+  // Named columns fail the other way round: ask for a field that is not on
+  // this list and the build says so. `/api/analytics/sales` is explicit for
+  // the same reason, after a bare `findMany` there returned whole Order rows
+  // with the shipping address in them.
   const product = await prisma.product.findUnique({
     where: { slug },
-    include: {
-      variants: { orderBy: { position: "asc" } },
-      marketPrices: true,
+    select: {
+      name: true,
+      code: true,
+      tagline: true,
+      status: true,
+      priceCents: true,
+      // The published specification, exactly the eight rows below.
+      frameDetail: true,
+      lensMaterial: true,
+      uvProtection: true,
+      lensCategory: true,
+      dimensionsMm: true,
+      weightGrams: true,
+      fit: true,
+      origin: true,
+      variants: {
+        orderBy: { position: "asc" },
+        // `supplierSku` is left out on the same principle: it is the code the
+        // supplier's ERP maps against, this screen never shows it, and a
+        // column nobody asked for is a column nobody checked.
+        select: {
+          id: true,
+          swatch: true,
+          colorName: true,
+          sku: true,
+          stockQuantity: true,
+          isActive: true,
+        },
+      },
+      marketPrices: { select: { market: true, currency: true, priceCents: true } },
       images: { select: { id: true, url: true, type: true, variantId: true } },
     },
   });

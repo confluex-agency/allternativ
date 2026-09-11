@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminPage } from "@/lib/admin-guard";
 import { COMMERCIAL_ROLES } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
+import { OrderControls } from "@/components/admin/order-controls";
 import { fulfilmentSku } from "@/lib/sku";
 import { OrderStatusBadge, EmailStatusBadge } from "@/components/admin/badges";
 
@@ -291,6 +292,14 @@ export default async function AdminOrderPage({
             />
           </dl>
         </section>
+      </div>
+
+      {/* The only controls in the admin that change an order, and the first
+          thing anywhere that writes to `audit_logs`. Placed below the record
+          rather than above it, so the page still reads as "here is the order"
+          before it reads as "here is what you can do to it". */}
+      <div className="mt-6">
+        <OrderControls orderId={order.id} status={order.status} />
       </div>
 
       {order.notes && (

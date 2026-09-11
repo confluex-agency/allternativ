@@ -79,11 +79,14 @@ reason it has to go back to `update: {}` the day the admin CRUD ships.
 ### The scheduled work, and why it is an HTTP route
 
 Three jobs have to run on a timer. **The Hostinger account had zero cron jobs**
-when this was checked on 2026-09-08, which meant none of them ran anywhere:
+when this was checked on 2026-09-08, which meant none of them ran anywhere.
+**All three exist now** — verified 2026-09-11, on the schedules below, each a
+`curl` at `staging.allternativ.com` carrying `CRON_SECRET` — and the last sweep
+answered `ok: true`:
 
 | Job | When | What stops without it |
 |---|---|---|
-| `sweep` | every 15 min | **The confirmation email is never sent.** The database is the queue and this is the only thing that drains it — and `/checkout/success` promises the buyer that mail. It also releases expired reservations in a shop with no traffic, retries recoverable webhook failures, and is the only thing that shouts about stuck events or negative stock. |
+| `sweep` | every 15 min | **The confirmation email is never sent.** The database is the queue and this is the only thing that drains it — and `/checkout/success` promises the buyer that mail. **No customer can confirm their email either**, so no account ever sees its own order history. It also releases expired reservations in a shop with no traffic, retries recoverable webhook failures, and is the only thing that shouts about stuck events or negative stock. |
 | `aggregate` | daily, 02:00 | `daily_analytics` stays empty, so every analytics figure is blank. |
 | `cleanup` | weekly | `tracking_events` grows without limit on a shared plan. |
 
@@ -231,6 +234,12 @@ exactly how `/api/orders` and `/api/customers` ended up with no check at all.
 401 and 403 mean different things and are returned separately: not signed in
 versus signed in without the right role.
 
+⚠️ **`/api/account/*` is not in this table and has no role.** Those are the
+*customer's* routes, guarded by `requireCustomer()` in `customer-auth.ts`, and
+a customer is either themselves or nobody — every query below that point is
+filtered by their own id, so there is nothing to be authorised *for*. Never
+reach for `requireRole()` there; it reads a different table.
+
 Analytics is open to every role, so **nothing customer-identifying may be added
 to those payloads**. `/api/analytics/sales` uses an explicit `select` for that
 reason; a bare `findMany` returns the whole Order row, shipping address included.
@@ -240,6 +249,16 @@ not by `src/proxy.ts` alone. The proxy only verifies the token signature; it
 cannot check `passwordChangedAt` without a database read on every request. Before
 the guard existed, a token killed by a password change still opened admin pages
 while being rejected by every API route.
+
+⚠️ **That same check used to kill the token it was meant to bless.** A JWT's
+`iat` is whole **seconds**, floored; `passwordChangedAt` is a millisecond
+timestamp. `/api/auth/change-password` writes the timestamp and then signs a
+replacement token, whose `iat` floors back to the start of that same second and
+therefore lands *before* it — so the fresh token was dead on arrival unless the
+change happened exactly on a second boundary. The symptom was quiet enough to
+live with: change your password, get bounced to the login page, sign in again,
+assume that is how it works. Both `getAuthFromCookies` and its customer
+equivalent now allow the one second that is the unit of the comparison.
 
 ### Two things that will bite on deploy
 
@@ -308,7 +327,7 @@ reads the datasource out of `prisma.config.ts`.
    case-insensitively under the default collation.
 
 **MariaDB stores `Json` as `LONGTEXT`** with a validity check, not as a native
-binary JSON type. Fine for our five JSON columns, which are written and read
+binary JSON type. Fine for our eight JSON columns, which are written and read
 whole, but do not expect to index inside them.
 
 **The seed refreshes product copy on every run** while `catalogue-source.ts` is
@@ -542,8 +561,18 @@ operation, so no amount of concurrency can produce a negative figure. Verified
 against the real database: ten simultaneous checkouts for the last unit, one
 winner, no deadlocks.
 
-- Reservations expire after `RESERVATION_MINUTES` (30), matching the Stripe
-  session's `expires_at`.
+- Reservations expire after `RESERVATION_MINUTES`, which is **40**:
+  `CHECKOUT_WINDOW_MINUTES` (30, and the value Stripe's `expires_at` is built
+  from) plus `RESERVATION_GRACE_MINUTES` (10).
+
+  ⚠️ This file used to say 30, "matching the Stripe session's `expires_at`",
+  and that is the opposite of what the code does on purpose. The reservation
+  **outlives** the payment page by ten minutes, and that gap is what makes the
+  "paid after the reservation expired" branch in `process-stripe-event.ts`
+  unreachable in normal operation — Stripe will not charge an expired session,
+  so by the time a payment can land the stock is still held. Believing the two
+  are equal would make that branch look like the everyday case and the grace
+  period look like dead code.
 - They are released lazily before every reservation attempt **and** by
   the `sweep` job (see "The scheduled work"), so the shop recovers even with no
   traffic.
@@ -677,12 +706,17 @@ is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
 
-There are **two** of them, queued the same way and counted separately:
+There are **three** of them, queued the same way and counted separately:
 
 | Mail | Becomes due when | Promised by |
 |---|---|---|
 | Confirmation | the order is paid | `/checkout/success` |
 | Dispatch, with the tracking number | the order is marked SHIPPED **and** has a tracking number | the confirmation email itself, and the client's own point 06 of 2026-08-20 |
+| Account verification | somebody registers | the account page, which says the history is waiting on it |
+
+The third one lives on `Customer` rather than `Order` and is the only one with
+teeth: until it is clicked, a customer cannot see their own order history. See
+"Customer accounts" below.
 
 ⚠️ **Separate columns, not a reused one.** An order gets two emails and they
 fail independently: the confirmation can be long sent while the dispatch one is
@@ -716,14 +750,125 @@ admin says "Not due yet" for the same reason.
   units on purpose — it is for the shop front — and would turn EUR 15.10 of
   delivery into EUR 15 in a document the buyer holds against a card statement.
 
-⚠️ **No provider is wired yet**, so nothing actually sends. `sendEmail` sketches
-Resend because it is one HTTP call with no SDK, but the account and the verified
-sending domain are the client's to create. Until `RESEND_API_KEY` and
-`EMAIL_FROM` are set, the sweep reports the backlog and changes nothing.
+### The provider IS wired now, and what that does and does not prove
 
-That backlog is a broken promise, not a missing nicety: `/checkout/success`
-tells the buyer a confirmation is coming. The sweep shouts about it every run
-for that reason.
+Checked on 2026-09-11, and it corrects what this file used to say:
+
+- **DNS is in place** on `send.allternativ.com` — the Resend DKIM TXT
+  (`resend._domainkey.send`) and the two CNAMEs (`send.send` and `rsend.send`
+  → `forge.rmta.net`), exactly the sending-only half described below. The root
+  domain's own SPF, DKIM and MX for the founders' mailboxes are untouched,
+  which was the whole point of using a subdomain.
+- **`RESEND_API_KEY`, `EMAIL_FROM` and `EMAIL_REPLY_TO` are all set** in the
+  staging Node.js variables.
+- **The three cron jobs exist**, on the schedules this file asks for.
+
+⚠️ **What none of that proves is that a message has ever left.** The trap is
+specific and worth writing down: `drainOrderEmails` only calls `sendEmail` when
+the queue has something in it, so an EMPTY queue produces `warnings: []` whether
+the provider works or not. The last sweep on staging returned exactly that —
+`ok: true`, no warnings, nothing sent — and it would look identical with a
+revoked key, a typo'd key, or a domain the Resend dashboard has not verified.
+
+**Absence of the "Email queue is not draining" warning is not evidence.** It
+only appears once there is something to attempt.
+
+So the provider's status is "configured, unproven". Proving it takes one real
+message through the queue — see the customer-accounts section, whose
+verification email is the cheapest way to put one there.
+
+## Customer accounts
+
+The ACCOUNT entry section 02 of the brief asks for. `customers.password_hash`
+and `email_verified_at` had been sitting in the schema since the beginning;
+what shipped on 2026-09-11 is everything around them — `src/lib/customer-auth.ts`
+(tokens, cookie, guards), `src/lib/customer-accounts.ts` (every rule), thin
+routes under `/api/account/`, and the pages under `(storefront)/account/`.
+
+**Buying never requires one.** Guest checkout is untouched.
+
+### ⚠️ Registering is usually writing on somebody's existing row
+
+This is the thing to understand before changing anything here. A `Customer` row
+is **not** created by signing up — it is created by the Stripe webhook, for
+every guest buyer, keyed on the email they paid with. So by the time anyone
+registers, that row very often already holds their order history, their
+shipping address and their phone number.
+
+Which means: if signing up were enough to read the row, **knowing somebody's
+email address would be enough to read what they bought and where it went.**
+
+So it is not enough. `emailVerifiedAt` gates order history, and only a link
+sent to the address itself sets it. The check lives **inside**
+`listCustomerOrders()`, not in the page and not in the route — one copy, for
+the reason the admin side learned when `/api/orders` and `/api/customers`
+shipped with no check at all.
+
+`listCustomerOrders` returns **null**, never `[]`, for an unproven address.
+"You have no orders" and "we are not showing you these yet" are different
+sentences and the screen says both.
+
+⚠️ **So this feature is only as alive as the mail is.** If the queue does not
+drain, accounts can be created and used — details, consent, a place to come
+back to — but no order history is ever shown to anybody. The sweep shouts about
+the backlog every run for that reason.
+
+The provider is configured (see above) but has never been proved to send.
+**Registering one account on staging and reading the next sweep's cron output is
+the test**: it is the cheapest thing in the shop that puts a real message in the
+queue, and it costs no money and no order. A bad key shows up as a 4xx, which
+`outcomeForFailure` treats as permanent and writes into
+`customers.verify_email_last_error` — a sentence, not a mystery.
+
+### The two token systems must never meet
+
+Customers and staff both sign in, and **both are signed with the same
+`JWT_SECRET`**. Three things keep them apart:
+
+1. Different cookies — `allternativ-customer-token` vs `allternativ-admin-token`.
+2. A `typ` claim inside the token, checked on both sides *and* in `proxy.ts`.
+   A cookie name is not a security boundary: it is a string chosen by whoever
+   sets the cookie.
+3. Different tables. No path in `customer-auth.ts` can return an `AdminUser`.
+
+⚠️ **Admin tokens issued before this shipped carry no `typ` and are rejected**,
+so everyone signed in at deploy time is signed out once. That is the whole
+cost, and it is the right way round.
+
+Verified against the built server: a valid customer token placed in the admin
+cookie gets a redirect to `/admin/login` and a 401 from `/api/orders`.
+
+### Things that look like details and are not
+
+- **The email is not editable.** It is the key the Stripe webhook matches
+  orders on; changing it silently either hands the account somebody else's
+  history or loses its own. Doing it properly means proving the new address
+  before the old one stops working, which is a flow of its own.
+- **The verification link is spent by a POST, never by the page load.** A GET
+  is what a link preview, a corporate mail scanner and a browser prefetch all
+  issue, and every one of them would burn the link before the person clicked
+  it. Same reasoning as `/api/cron/*` being POST-only.
+- **The token is stored as it is sent, not hashed**, because the database is
+  the outbox: the row has to be able to produce the link when the sweep runs.
+  Exposure is limited by lifetime instead — 32 random bytes, 72 hours, and the
+  column cleared in the same write that marks the address proven.
+- **`?next=` goes through `safeNext()`.** Unchecked it is an open redirect on a
+  shop that takes card details.
+- **The customer password rule is not the admin one.** Ten characters, no
+  composition rules. `PasswordSchema` in `auth.ts` is right for an account that
+  can change prices and wrong for the public, where composition rules buy
+  `Sunglasses1!` and a support email.
+- **Consent is still not implied.** The checkbox is off by default and
+  `marketingConsentAt` is cleared on withdrawal rather than left behind
+  describing a consent that no longer exists (section 25).
+
+### Not built yet
+
+**There is no self-service password reset.** It needs the same mail provider
+everything else is waiting on, and the login page says so out loud rather than
+offering a link that cannot send. Wishlist persistence, an address book, and
+signing in *during* checkout are also still open — the cart and the wishlist
+remain in the browser exactly as before.
 
 ## Admin roles
 
@@ -800,25 +945,30 @@ characters such as `?`, `+`, `;` and `>`, and a `?` inside the password ends the
 URL's authority section: Prisma then reports `invalid port number`, which points
 nowhere near the real cause.
 
-## Two providers the client still has to choose
-
-Both are blocking something already built. Neither needs code beyond the seam
-that is already there.
+## The provider the client still has to choose
 
 **Image storage.** Uploaded admin images **cannot live on the app's disk** — it
 is rebuilt on every deploy. Cloudinary recommended. This blocks more than it
 used to: there is now real product photography waiting to replace the
 placeholders under `/catalog/`.
 
-**Transactional email.** The queue is built and tested (see above); nothing
-sends until a provider is set. Note that **Hostinger email is already configured
-on the domain** — MX to `mx1/mx2.hostinger.com`, its own SPF and DKIM, DMARC at
-`p=none` — but that is *mailbox* hosting, for people writing to people. A
-confirmation for an order that was just charged is a different job: it needs
-per-message logs, bounce and complaint webhooks, and its own reputation, because
-a confirmation in the spam folder reads to the buyer as "my order failed".
+### Transactional email — chosen and configured, kept here for the reasoning
 
-Recommended: **Resend, on a subdomain** such as `send.allternativ.com`.
+⚠️ This section used to say email was still to be decided. **It is decided:
+Resend, on `send.allternativ.com`, and the DNS and the keys are in place** (see
+"The provider IS wired now" above for what was actually verified, and for the
+one thing that has not been).
+
+The reasoning is kept because it is the argument against the alternative that
+keeps suggesting itself — **Hostinger's own SMTP, which is free and already
+paid for.** Hostinger email *is* configured on the domain, MX to
+`mx1/mx2.hostinger.com` with its own SPF and DKIM and DMARC at `p=none`. But
+that is *mailbox* hosting, for people writing to people. A confirmation for an
+order that was just charged is a different job: it needs per-message logs,
+bounce and complaint webhooks, and its own reputation, because a confirmation in
+the spam folder reads to the buyer as "my order failed".
+
+And one thing more, which is the part that would be discovered too late:
 
 - The strongest argument is infrastructure, not marketing: Resend is an **HTTP
   API, not SMTP**. Outbound HTTPS from the Hostinger Node container is
@@ -828,8 +978,17 @@ Recommended: **Resend, on a subdomain** such as `send.allternativ.com`.
   Editing it means touching the record the mailboxes depend on, and SPF has a
   ten-lookup limit. A subdomain also keeps the two reputations apart.
 
-Hostinger's own SMTP is the alternative: free, already paid for, no DNS changes.
-What it gives up is exactly the list above, plus that unknown about the port.
+⚠️ **That port question is still unanswered, and it is why "just use the mail we
+already have" should stay answered with no.** Switching to Hostinger SMTP would
+mean adding an SMTP client (nodemailer, a dependency this project does not
+have), writing a second transport beside the one that already works, and only
+then finding out whether port 465 or 587 is even reachable from the Node
+container. The HTTP path is built, configured and never has to ask.
+
+If it ever does come up again, settle the port first — a cron job running
+`timeout 5 bash -c '</dev/tcp/smtp.hostinger.com/465'` answers it for the price
+of one line, and `EMAIL_FROM` would then have to move back to the root domain,
+whose SPF would need editing. That is three reversals to gain nothing.
 
 ⚠️ `EMAIL_FROM` must be an address on the verified domain — never a personal
 Gmail. And on a sending subdomain that address **does not receive**: sending and

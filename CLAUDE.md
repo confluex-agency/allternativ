@@ -788,6 +788,167 @@ Still unexercised by anything real: the DISPATCH mail (needs an order marked
 SHIPPED *with* a tracking number — staging's one order has neither) and the
 account VERIFICATION mail (needs somebody to register).
 
+## The supplier, and how an order reaches him
+
+Dianxiaomi (店小秘) **cannot connect to this shop directly.** It only integrates
+with platforms it already knows — Amazon, Shopee, Temu, TikTok Shop, Shopify,
+WooCommerce — and a bespoke Next.js shop is not on that list. So there are two
+doors, and both exist:
+
+1. **The WooCommerce façade** at `/wp-json/wc/v3/*`, authenticated with
+   `WOO_CONSUMER_KEY`. Rather than run a real WordPress alongside this app, with
+   a second catalogue to keep in step and a second thing to patch, we answer the
+   handful of endpoints Dianxiaomi actually uses. This is the automatic path.
+2. **The CSV**, which is the manual one: `/api/erp/export` down, and
+   `/api/erp/tracking` up for the sheet the supplier exports.
+
+**Every request to the façade is logged in `woo_request_logs`, including the
+routes we have not implemented**, because nobody knew what Dianxiaomi asks for
+when it authorises a store. The log is how we found out instead of guessing —
+and it is the first place to look when something about the supplier is unclear.
+
+### What is proved, and what is not (checked 2026-09-11)
+
+```
+393  GET  /wp-json/wc/v3/orders     auth:yes match:yes → 200   24/08 … 11/09
+  2  GET  /wp-json/wc/v3/orders     auth:NO            → 401   24/08
+  1  GET  /wp-json/wc/v3/products/0                    → 404   10/09
+```
+
+**The outbound half runs in production.** The supplier has been reading orders
+without failure for nineteen days; the two 401s are the initial connection
+before the credentials were right. And a real order crossed end to end on
+2026-09-10 — three pairs, correct SKUs, and the **case colours intact**, which
+is the most fragile thing in the chain because a case is an option of the
+purchase with no SKU of its own.
+
+⚠️ **The return half has never run.** Zero PUT, zero POST, no order has ever
+carried a tracking number. Probably not broken — that order was never actually
+dispatched, so there was nothing to track — but it is **unexercised**, and it is
+the last thing between here and a closed loop.
+
+### ⚠️ A test order must say that it is one
+
+On 2026-09-11 the supplier looked at an order that had reached Dianxiaomi
+complete and correct and **had to ask whether it was a test.** It was. Nothing
+he receives said so.
+
+That question is cheap to ask once and expensive to get wrong once: on a live
+shop an unmarked test order is a parcel somebody pays to send to nobody, or a
+real order hesitated over because it looked like another rehearsal.
+
+`src/lib/test-order.ts` reads **Stripe's own marker** — a session id starts
+`cs_test_` in test mode and `cs_live_` in live — so there is no column of ours to
+drift. Test orders are still forwarded, deliberately: refusing to send them would
+mean the integration could never be exercised end to end. They are forwarded and
+labelled, in the `customer_note` the façade sends (the field the supplier
+actually reads; it is the tooltip on his order list) and in the CSV's Status
+column, always **in front of** the case colours and never instead of them.
+
+### Tracking, whichever door it comes through
+
+⚠️ **Both doors write the status and the number together, and that pairing is
+what the dispatch email depends on.** `/api/erp/tracking` sets `trackingNumber`,
+`carrier`, `shippedAt` and SHIPPED in one `updateMany`. The façade goes further
+and forces it: if a tracking number arrives and `shippedAt` is null it sets
+SHIPPED whatever status the caller sent, because a tracking number means the
+parcel left the warehouse and the status field is an opinion.
+
+The field names accepted are a list (`_tracking_number`, `tracking_number`,
+`_wot_tracking_number`, `_wc_shipment_tracking_number`, `trackingnumber`, plus
+the same shapes inside `meta_data`). **If the supplier sends something else it is
+not lost**: the whole body is in `woo_request_logs`, so it is read and the name
+added.
+
+---
+
+## The dashboard figures
+
+⚠️ **Revenue is grouped by currency, never summed.** Orders are charged in the
+currency of the market they were sold to — EUR, GBP, USD, CAD, AUD, NZD — and
+adding `total_cents` across them produces a number with no unit: the kind that
+reads fine on a dashboard and is wrong everywhere it gets repeated afterwards.
+Until somebody chooses a conversion policy and a rate to freeze it at, one line
+per currency is the honest answer. With a single currency it reads as one figure.
+
+- **Net of refunds.** A refunded order is not revenue, and a dashboard that
+  counts it is one somebody reconciles against Stripe once and never trusts.
+- **"Awaiting dispatch"** — paid and not yet gone — is the only actionable
+  figure on the screen: it is the pile that has to reach the supplier.
+- ⚠️ **Negative stock is counted apart from low stock**, because it is not a
+  worse version of the same thing: it means the shop has taken money for pairs
+  it does not hold. `reserveStock` already refuses every further sale of that
+  colourway, so it cannot quietly get worse, but it needs a person today. It
+  gets its own red panel with the SKUs.
+- `LOW_STOCK_THRESHOLD` lives in `inventory.ts` because two screens ask the
+  question now, and two numbers meant to be the same number is how a card ends
+  up saying "3 low" beside a list of four.
+
+⚠️ Any signed-in admin reaches this screen, `ANALYTICS_VIEWER` included, so
+**nothing customer-identifying may be added to it** — the same rule
+`/api/analytics/*` lives under. Counts and sums only.
+
+---
+
+## Changing an order from the admin
+
+The only screen in the admin that changes a commercial record, and therefore the
+first thing that ever writes to `audit_logs`.
+
+⚠️ **SHIPPED is not a status anybody picks.** See the pairing rule above. A
+status dropdown offering SHIPPED would produce an order marked shipped with
+nothing to track — skipped by the sweep for ever, no failed row, nobody looking,
+and the buyer never told their parcel is moving. That is the worst failure shape
+this system has.
+
+So the dropdown offers **PROCESSING** and **CANCELLED** only, and dispatching by
+hand is a separate form that **requires** the tracking number.
+
+- `MANUAL_STATUSES` **is** the control, not a UI list: the route's zod enum is
+  built from it, so a value that is not on it cannot be expressed by any request.
+  It lives in `src/lib/order-status.ts`, which imports nothing — the buttons are
+  a client component, and importing it from `orders-admin.ts` pulled Prisma into
+  the browser bundle and killed the production build with `Can't resolve 'fs'`.
+  Same lesson as `roles.ts` and `auth.ts`.
+- **REFUNDED is not on the list.** The money lives in Stripe, and a status
+  claiming a refund that did not happen is worse than no status because the next
+  person reads it and stops looking.
+- **Cancelling does not restock and does not refund.** Both are separate acts.
+  The screen says so, because the opposite is the natural assumption.
+
+`recordAudit()` in `src/lib/audit.ts` is the only writer. ⚠️ A failed audit write
+does **not** undo the change it describes — a full table must not stop the shop
+telling a buyer their parcel moved — but it is loud, because a trail that
+quietly stops recording is worse than none: somebody reads the emptiness as
+"nothing happened".
+
+---
+
+## The basket panel
+
+`/cart` still exists and is still where the destination and the discount code are
+settled. The panel is for deciding fast without losing the page you are on:
+before it, adding a pair showed ADDED for two seconds and there was no way to see
+the basket except by navigating away — friction at the exact moment somebody has
+decided they want the thing, and the moment a second pair is most likely to be
+added.
+
+- It carries the **free-delivery line** from `freeShippingMessage()`, the same
+  function `/cart` calls, so the client's own copy cannot drift into two
+  slightly different sentences. Said here it lands while the visitor is still
+  browsing, which is the only moment it can change what they do.
+- It shows **where the parcel is going**, because that choice sets the currency
+  *and* the only country Stripe's payment page will accept an address in.
+- ⚠️ **It does not end in a payment**, and "Proceed to checkout" goes to `/cart`.
+  A button that sometimes skipped the page where the country and the code are
+  settled and sometimes did not would be a support ticket nobody could reproduce.
+
+The basket is read with `useSyncExternalStore` and a stable server snapshot, not
+a `mounted` flag in an effect — the navbar counter already carries the reason,
+and here there is a whole list below it.
+
+---
+
 ## Customer accounts
 
 The ACCOUNT entry section 02 of the brief asks for. `customers.password_hash`

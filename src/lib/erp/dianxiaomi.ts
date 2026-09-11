@@ -17,6 +17,7 @@
 // changes — the mapping and the routes stay as they are.
 
 import { fulfilmentSku } from "@/lib/sku";
+import { isTestOrder, TEST_ORDER_LABEL } from "@/lib/test-order";
 import type {
   Order,
   OrderItem,
@@ -106,7 +107,12 @@ export function buildErpRows(orders: ErpOrder[]): ErpRow[] {
     order.items.map((item) => ({
       orderNumber: order.orderNumber,
       orderDate: formatDate(order.createdAt),
-      status: order.status,
+      // ⚠️ A rehearsal says so, in the column the supplier sorts by. The same
+      // fact the WooCommerce façade puts in `customer_note`: on 2026-09-11 an
+      // order reached Dianxiaomi complete and correct and the supplier had to
+      // ASK whether it was a test, because nothing he could see said so. Both
+      // routes carry it now, because an order can arrive by either.
+      status: isTestOrder(order) ? `${TEST_ORDER_LABEL} ${order.status}` : order.status,
       // Snapshots first: they are what the buyer actually paid for. The case
       // colour is appended because Daniel asked for `Model_Colour_Case` and the
       // same string has to reach him whichever route the order takes, the file

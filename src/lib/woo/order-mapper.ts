@@ -12,6 +12,7 @@ import type {
   Product,
 } from "@/generated/prisma/client";
 import { fulfilmentSku } from "@/lib/sku";
+import { labelIfTest } from "@/lib/test-order";
 
 export type ExportableOrder = Order & {
   customer: Pick<Customer, "email" | "name" | "phone">;
@@ -122,7 +123,13 @@ export function toWooOrder(order: ExportableOrder) {
     date_modified: order.updatedAt.toISOString(),
     // WooCommerce's field for what the buyer wrote at checkout. We have no such
     // box, so it carries the one instruction the warehouse cannot get wrong.
-    customer_note: packingNote(order.items),
+    //
+    // ⚠️ And, when the order is a rehearsal, the fact that it is one. This is
+    // the field the supplier actually reads — it is what shows as the tooltip
+    // on his order list — and on 2026-09-11 he had to ASK whether a test order
+    // was real, because nothing he could see said otherwise. See
+    // `src/lib/test-order.ts`.
+    customer_note: labelIfTest(order, packingNote(order.items)),
     discount_total: money(order.discountCents),
     shipping_total: money(order.shippingCents),
     total: money(order.totalCents),

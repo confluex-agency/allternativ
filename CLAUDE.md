@@ -763,19 +763,30 @@ Checked on 2026-09-11, and it corrects what this file used to say:
   staging Node.js variables.
 - **The three cron jobs exist**, on the schedules this file asks for.
 
-⚠️ **What none of that proves is that a message has ever left.** The trap is
-specific and worth writing down: `drainOrderEmails` only calls `sendEmail` when
-the queue has something in it, so an EMPTY queue produces `warnings: []` whether
-the provider works or not. The last sweep on staging returned exactly that —
-`ok: true`, no warnings, nothing sent — and it would look identical with a
-revoked key, a typo'd key, or a domain the Resend dashboard has not verified.
+**And a message HAS left.** Staging's one real order,
+`ALT-20260910-1253`, carries `email_status = SENT` with `email_attempts = 1`:
+the sweep called `sendEmail` once, Resend accepted it, and the row was closed.
+The whole path — queue, cron, sweep, HTTPS out of the Node container, API key,
+verified sending domain — has run end to end at least once.
 
-**Absence of the "Email queue is not draining" warning is not evidence.** It
-only appears once there is something to attempt.
+⚠️ **`SENT` means Resend ACCEPTED it, not that anybody read it.** It closes the
+questions that could break the deployment (is the key live, is the domain
+verified, does outbound HTTPS work from cron) and leaves the one that needs a
+human: whether it lands in an inbox or in spam. DMARC is still at `p=none`, and
+nobody has looked in a real mailbox.
 
-So the provider's status is "configured, unproven". Proving it takes one real
-message through the queue — see the customer-accounts section, whose
-verification email is the cheapest way to put one there.
+⚠️ **Do not read a quiet sweep as proof of anything.** `drainOrderEmails` only
+calls `sendEmail` when the queue has something in it, so an EMPTY queue returns
+`ok: true` with `warnings: []` whether the provider works or not — identical to
+a revoked key, a typo'd key, or an unverified domain. Absence of the "Email
+queue is not draining" warning is not evidence; it only appears once there is
+something to attempt. **The evidence is in `orders.email_status`**, not in the
+cron's output, and that is the column to look at when somebody asks whether
+mail works.
+
+Still unexercised by anything real: the DISPATCH mail (needs an order marked
+SHIPPED *with* a tracking number — staging's one order has neither) and the
+account VERIFICATION mail (needs somebody to register).
 
 ## Customer accounts
 
@@ -813,10 +824,11 @@ drain, accounts can be created and used — details, consent, a place to come
 back to — but no order history is ever shown to anybody. The sweep shouts about
 the backlog every run for that reason.
 
-The provider is configured (see above) but has never been proved to send.
-**Registering one account on staging and reading the next sweep's cron output is
-the test**: it is the cheapest thing in the shop that puts a real message in the
-queue, and it costs no money and no order. A bad key shows up as a 4xx, which
+The provider works: staging's one order was confirmed by email on 2026-09-10
+(see "The provider IS wired now" above). What has never run is THIS mail
+specifically. **Registering one account on staging and reading
+`customers.verify_email_status` afterwards is the test** — it costs no money and
+no order. A bad address or a rejected message shows up as a 4xx, which
 `outcomeForFailure` treats as permanent and writes into
 `customers.verify_email_last_error` — a sentence, not a mystery.
 

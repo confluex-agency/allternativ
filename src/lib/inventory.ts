@@ -20,6 +20,21 @@ import type { Prisma } from "@/generated/prisma/client";
 export const CHECKOUT_WINDOW_MINUTES = 30;
 
 /**
+ * At or below this many units, a colourway is worth somebody's attention.
+ *
+ * Lives here rather than in the screen that shows it, because two screens now
+ * ask the question — the dashboard's alert count and the product list's
+ * highlighting — and two numbers that are supposed to be the same number are
+ * how a dashboard ends up saying "3 low" beside a list showing four.
+ *
+ * ⚠️ Not the same thing as NEGATIVE stock, which is not "low" but "we have
+ * already sold more than we hold". That one means the shop owes a customer a
+ * pair it does not have, `reserveStock` refuses every further sale of it, and
+ * it needs a person today. The dashboard counts them apart for that reason.
+ */
+export const LOW_STOCK_THRESHOLD = 10;
+
+/**
  * Extra time the reservation outlives the payment page.
  *
  * Stripe refuses to charge an expired session, so the only way a payment can

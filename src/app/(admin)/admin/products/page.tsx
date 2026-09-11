@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminPage } from "@/lib/admin-guard";
 import { formatCurrency } from "@/lib/utils";
 import { ProductStatusBadge } from "@/components/admin/badges";
+// The one threshold, shared with the dashboard. Two copies of a number that is
+// meant to be the same number is how a card says "3 low" beside a list of four.
+import { LOW_STOCK_THRESHOLD } from "@/lib/inventory";
 
 // The catalogue, as the people who own it need to see it.
 //
@@ -22,7 +25,7 @@ import { ProductStatusBadge } from "@/components/admin/badges";
 
 export const dynamic = "force-dynamic";
 
-const STOCK_LOW = 10;
+
 
 export default async function AdminProductsPage() {
   await requireAdminPage();
@@ -101,7 +104,7 @@ export default async function AdminProductsPage() {
                     className={`px-4 py-3 text-right font-medium ${
                       anyNegative
                         ? "text-red-600"
-                        : stock <= STOCK_LOW
+                        : stock <= LOW_STOCK_THRESHOLD
                           ? "text-amber-600"
                           : ""
                     }`}

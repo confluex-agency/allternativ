@@ -25,7 +25,7 @@
  *    every guest buyer and an unproven address must not open one.
  *
  * 6. Drain the password-reset queue. ⚠️ The one where being late is itself the
- *    failure: a reset link is worth about an hour, so a sweep that does not run
+ *    failure: a reset link is worth a few hours, so a sweep that does not run
  *    does not merely delay this mail, it makes it worthless. The drain refuses
  *    to post a link that has already expired.
  *
@@ -357,8 +357,8 @@ async function drainVerificationEmails(): Promise<{
  * Drain the password-reset queue.
  *
  * ⚠️ **This queue is the one where lateness is itself the failure.** The other
- * three carry messages that are still correct an hour late; a reset link is
- * valid for about sixty minutes from the moment it is minted, so a sweep that
+ * three carry messages that are still correct a day late; a reset link is
+ * valid for a few hours from the moment it is minted, so a sweep that
  * does not run posts a link that arrives dead. That is why the expiry is in the
  * query — a link already past its time is never sent, because "here is your
  * reset link" followed by "this link has expired" is worse than nothing and
@@ -489,11 +489,11 @@ export async function sweepOrders(): Promise<JobResult> {
   }
 
   // ⚠️ Unlike the other three backlogs, this one is measured against the CLOCK
-  // and not only against the queue. A reset link is worth about an hour, so a
-  // reset still sitting here unsent is minutes away from being worthless — and
-  // once it expires it leaves the queue silently, with the person still waiting
-  // and nothing anywhere saying so. Counting it while it is still alive is the
-  // only moment there is anything to count.
+  // and not only against the queue. A reset link is worth a few hours, so a
+  // reset still sitting here unsent is burning a window that does not refill —
+  // and once it expires it leaves the queue silently, with the person still
+  // waiting and nothing anywhere saying so. Counting it while it is still alive
+  // is the only moment there is anything to count.
   const waitingForReset = await prisma.customer.count({
     where: {
       resetEmailStatus: "PENDING",
@@ -504,7 +504,7 @@ export async function sweepOrders(): Promise<JobResult> {
   if (waitingForReset > 0) {
     warnings.push(
       `${waitingForReset} password reset link(s) still unsent, and they expire ` +
-        `within the hour. If the sweep is late these people get nothing.`,
+        `in a few hours. If the sweep is late these people get nothing.`,
     );
   }
 

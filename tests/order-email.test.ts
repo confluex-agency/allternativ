@@ -8,6 +8,7 @@ import {
   EMAIL_MAX_ATTEMPTS,
   type ConfirmationOrder,
   type DispatchOrder,
+  buildPasswordReset,
 } from "@/lib/email";
 
 // The confirmation email is queued on the order and drained by
@@ -221,5 +222,49 @@ describe("what the buyer reads when it ships", () => {
     // later invites a second reading of a decision already made.
     const { text } = buildDispatchNotification("a@b.com", shipped);
     expect(text).not.toMatch(/[€$£]/);
+  });
+});
+
+describe("what somebody reads when they have forgotten their password", () => {
+  const reset = (minutesFromNow: number) =>
+    buildPasswordReset("buyer@example.com", {
+      name: "Buyer",
+      token: "a-token",
+      expiresAt: new Date(Date.now() + minutesFromNow * 60 * 1000),
+    });
+
+  it("says how long it lasts in the unit a person thinks in", () => {
+    // ⚠️ The lifetime moved from 60 minutes to 180 on 2026-09-12, and the naive
+    // version of this sentence then read "expires in about 180 minutes" —
+    // arithmetic homework in a message somebody reads on a phone, mid-something
+    // else, which is precisely when this mail gets read.
+    expect(reset(180).text).toContain("about 3 hours");
+    expect(reset(180).text).not.toMatch(/\d{3,} minutes/);
+
+    // Under two hours it stays in minutes: "about 1 hour" would round away the
+    // difference between fifty minutes left and ten.
+    expect(reset(50).text).toContain("about 50 minutes");
+  });
+
+  it("says a request was made, not that the reader made it", () => {
+    // ⚠️ Security, not copy. A mail that reads like a completed action makes a
+    // person who did not ask for it panic, and a panicked person clicks the
+    // link to "check" — which is the one thing that must not happen. The safe
+    // action for the wrong recipient is to do nothing, so the mail has to say
+    // that nothing has happened and that ignoring it costs them nothing.
+    const text = reset(180).text;
+    expect(text).toContain("Somebody asked");
+    expect(text).toContain("Nothing has changed yet");
+    expect(text).toMatch(/If this was NOT you, do nothing/);
+  });
+
+  it("never says whether the address has an account", () => {
+    // The request endpoint answers identically either way. Saying "we found
+    // your account" in the one place the answer is visible would hand the whole
+    // thing back to anybody who can see the mailbox.
+    const text = reset(180).text.toLowerCase();
+    for (const giveaway of ["we found", "your account exists", "no account"]) {
+      expect(text).not.toContain(giveaway);
+    }
   });
 });

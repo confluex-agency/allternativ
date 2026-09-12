@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       {
         error:
           result.reason === "expired"
-            ? "That link has expired. Reset links last about an hour — ask for a new one."
+            ? "That link has expired. Reset links last a few hours — ask for a new one."
             : "That link is not one we issued, or it has already been used.",
         reason: result.reason,
       },

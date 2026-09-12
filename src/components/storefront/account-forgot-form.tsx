@@ -59,8 +59,7 @@ export function AccountForgotForm() {
             </h1>
             <p className="mt-5 text-base leading-relaxed text-brand-ink-soft">
               If there is an account for {email}, a link to choose a new
-              password is on its way. It works once and expires in about an
-              hour.
+              password is on its way. It works once and expires in a few hours.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-brand-muted">
               Nothing has changed yet — your current password still works until

@@ -333,7 +333,7 @@ export function buildEmailVerification(
  * ⚠️ This is the only one of the four that is a CREDENTIAL. The confirmation
  * and dispatch mails describe something that already happened; the verification
  * link can at most mark an address proven. This one hands over the account to
- * whoever opens it, which is why its token lives about an hour instead of three
+ * whoever opens it, which is why its token lives a few hours instead of three
  * days — see `PASSWORD_RESET_TTL_MINUTES`.
  *
  * Two consequences for what it says, and both are security rather than copy:
@@ -358,10 +358,20 @@ export function buildPasswordReset(
 ): EmailMessage {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const url = `${base.replace(/\/+$/, "")}/account/reset?token=${encodeURIComponent(opts.token)}`;
+
+  // ⚠️ Said in the unit a person thinks in. "Expires in about 180 minutes" is
+  // arithmetic homework in a message somebody is reading on a phone while doing
+  // something else — which, as the first end-to-end test found out, is exactly
+  // when this mail gets read. Under two hours it stays in minutes, because
+  // "about 1 hour" rounds away the difference between fifty minutes and ten.
   const minutes = Math.max(
     5,
     Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 1000)),
   );
+  const lifetime =
+    minutes >= 120
+      ? `${Math.round(minutes / 60)} hours`
+      : `${minutes} minutes`;
 
   const text = [
     opts.name ? `Hello ${opts.name},` : `Hello,`,
@@ -371,7 +381,7 @@ export function buildPasswordReset(
     ``,
     `  ${url}`,
     ``,
-    `The link works once and expires in about ${minutes} minutes.`,
+    `The link works once and expires in about ${lifetime}.`,
     ``,
     `Nothing has changed yet. Your current password still works, and it keeps`,
     `working unless you open the link above and choose a different one.`,

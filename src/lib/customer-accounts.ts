@@ -80,8 +80,8 @@ function mintVerification(): NewVerification {
 export const SWEEP_INTERVAL_MINUTES = 15;
 
 /**
- * How long a password reset link lives — and why it is minutes, not the
- * seventy-two hours its sibling above gets.
+ * How long a password reset link lives — and why it is hours, not the
+ * seventy-two hours its sibling above gets, nor the sixty minutes it started at.
  *
  * The two links are not the same kind of object. A verification link can only
  * ever mark an address proven; the worst a stolen one does is open a history to
@@ -89,17 +89,29 @@ export const SWEEP_INTERVAL_MINUTES = 15;
  * account**: whoever holds it chooses the password. So it gets a credential's
  * lifetime, not a courtesy's.
  *
- * ⚠️ It cannot simply be as short as possible, and the floor is peculiar to how
+ * ⚠️ It cannot simply be as short as possible, and the FLOOR is peculiar to how
  * this shop sends mail. **The database is the outbox and the sweep is the
  * postman**, so a link is minted now and posted up to `SWEEP_INTERVAL_MINUTES`
  * later. A lifetime near that interval would mail people links that had already
  * expired in the queue — the cruellest possible failure, because it looks like
  * the shop is broken and the person has no way to tell it from a typo.
  *
- * Sixty minutes is four sweeps of headroom, leaves the recipient forty-five
- * minutes in the worst case, and is the figure a bank would recognise.
+ * ⚠️ **The CEILING is not where the first version put it, and the correction is
+ * worth keeping.** It shipped at sixty minutes, reasoned about entirely from the
+ * two constraints above. Then the first person to test it end to end asked for a
+ * reset, was called away, came back, and found the link dead. That is not an
+ * unlucky edge — it is the ordinary shape of the event: somebody asks from a
+ * phone, in the middle of doing something else, and reads the mail later.
+ *
+ * The security cost of a longer window is smaller than it sounds, because the
+ * other two properties are doing the real work: the link is **single-use**, and
+ * **any newer request kills it**. So what a longer lifetime actually changes is
+ * how long something usable sits in a mailbox — and anybody who holds the
+ * mailbox can mint a fresh one whenever they like. Three hours is what GitHub
+ * uses, covers "I'll look at this when I'm done", and still leaves twelve sweeps
+ * of headroom over the floor.
  */
-export const PASSWORD_RESET_TTL_MINUTES = 60;
+export const PASSWORD_RESET_TTL_MINUTES = 180;
 
 export interface NewPasswordReset {
   token: string;

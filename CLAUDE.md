@@ -802,9 +802,9 @@ There are **four** of them, queued the same way and counted separately:
 | Password reset | somebody asks on `/account/forgot` | the login page, which now links to it |
 
 ⚠️ **The fourth is the only one where being LATE is itself the failure.** The
-other three carry a message that is still correct an hour after it was due; a
-reset link is worth about sixty minutes from the moment it is minted, so a sweep
-that does not run does not delay this mail, it makes it worthless. The drain
+other three carry a message that is still correct a day after it was due; a
+reset link is worth a few hours from the moment it is minted, so a sweep that
+does not run does not delay this mail, it makes it worthless. The drain
 refuses to post a link that has already expired, because "here is your reset
 link" followed by "this link has expired" reads to the customer as a shop that
 does not work. See "Getting back in" below.
@@ -1205,14 +1205,26 @@ for the small job be spent on the large one.
 
 Four consequences, each of which is easy to get backwards:
 
-- **The lifetime is 60 minutes, not 72 hours.** A credential gets a
-  credential's life. ⚠️ But it cannot be as short as instinct wants, and the
-  floor is peculiar to this shop: **the database is the outbox and the sweep is
-  the postman**, so a link is minted now and posted up to 15 minutes later. A
-  lifetime near the sweep interval mails people links that expired in the
-  queue. `PASSWORD_RESET_TTL_MINUTES` against `SWEEP_INTERVAL_MINUTES` is
-  asserted in the tests as a *relationship*, so shortening it fails there
-  instead of failing a customer.
+- **The lifetime is 3 hours, not the verification link's 72.** A credential gets
+  a credential's life.
+
+  ⚠️ The **floor** is peculiar to this shop: **the database is the outbox and
+  the sweep is the postman**, so a link is minted now and posted up to 15
+  minutes later. A lifetime near the sweep interval mails people links that
+  expired in the queue. `PASSWORD_RESET_TTL_MINUTES` against
+  `SWEEP_INTERVAL_MINUTES` is asserted in the tests as a *relationship*, so
+  shortening it past the postman fails there instead of failing a customer.
+
+  ⚠️ **The ceiling was wrong first, and the correction is the lesson.** It
+  shipped at 60 minutes, reasoned entirely from the floor and from "this is a
+  credential". The first person to test it end to end asked for a reset, was
+  called away, came back, and found the link dead — which is not an edge case
+  but the ordinary shape of the event: somebody asks from a phone, mid-something
+  else, and reads the mail later. **A lifetime chosen only from the threat model
+  had no idea what people do.** The security cost of the longer window is small
+  because the other two properties do the real work — the link is single-use and
+  any newer request kills it — so what changes is only how long something usable
+  sits in a mailbox that its owner could re-mint from anyway.
 - **A reset proves the address.** Receiving mail at an address and using what it
   contained is the same proof the verification link asks for, delivered by a
   stronger act, so `emailVerifiedAt` is stamped and order history opens. The

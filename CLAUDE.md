@@ -76,8 +76,8 @@ out green with two migrations unapplied; the first request to the sweep answered
 `The column orders.email_status does not exist in the current database`, and
 until then everything looked fine.
 
-⚠️ **A green build is not a migrated database.** After any deploy that carries a
-new migration, from a machine that can reach the database:
+⚠️ **A green build is not a migrated database.** From a machine that can reach
+the database:
 
 ```bash
 # .env keeps the production URL commented as HOSTINGER_DATABASE_URL
@@ -88,6 +88,40 @@ DATABASE_URL="<the Hostinger URL>" npx prisma migrate deploy
 This is the one routine reason to point at Hostinger rather than the container.
 It is a handful of connections, nowhere near the 500-per-hour cap that makes
 *builds* against it a bad idea.
+
+#### ⚠️ Run it BEFORE the push, not after
+
+This section used to say "after any deploy that carries a new migration", and
+that is the wrong way round for every migration this project has actually
+shipped. **The two orders are not symmetrical:**
+
+- An **additive** migration — a new nullable or defaulted column, a new index,
+  a new table — is invisible to the code already running. Applying it first
+  costs nothing and there is no window at all.
+- The **new code against the old schema** is not survivable: it answers
+  `The column ... does not exist`, on the first request that touches it.
+
+So migrating first closes the window; migrating after opens it and leaves it
+open for however long it takes somebody to remember. On 2026-09-12 both of the
+day's migrations were applied before the push for this reason, and staging never
+served a request against a schema it was ahead of.
+
+⚠️ The rule flips for a **destructive** migration — one that drops or renames a
+column the running code still reads. There the old code is what breaks, so the
+deploy goes first and the migration follows. Nothing in this project has needed
+one yet; if one does, it is two deploys, not one.
+
+#### ⚠️ The push is what deploys, and it takes about ninety seconds
+
+Hostinger builds from GitHub on push to `main`. Nobody has to press anything —
+and pressing "Rebuild" in the panel is **not** the same thing: it rebuilds the
+copy it already had (learned 2026-09-10).
+
+Verified twice on 2026-09-12: a push at 10:21:36 UTC finished building at
+10:22:42, and the second one took about a minute and a half from `git push` to
+the new route answering. **A route that 404s immediately after a push has not
+failed yet** — check `hosting_listNodeJSBuildsV1` for the build state before
+going looking for a bug.
 
 ⚠️ **The same is true of the seed.** Nothing in the deploy runs it either, so a
 change to `catalogue-source.ts` — a corrected SKU, a newly confirmed spec —
@@ -744,7 +778,7 @@ the same reason the encoder refuses a cart it cannot fit instead of truncating.
 The old single `items` key is still read, so a session created minutes before a
 deploy still becomes an order.
 
-### The two emails are queued, not sent
+### The four emails are queued, not sent
 
 The webhook answers Stripe synchronously, and that is what gives the payment
 path its durability: a failure returns 5xx and Stripe retries for three days.
@@ -845,18 +879,31 @@ something to attempt. **The evidence is in `orders.email_status`**, not in the
 cron's output, and that is the column to look at when somebody asks whether
 mail works.
 
-**The VERIFICATION mail has now left too.** On 2026-09-12 an account was
-registered on staging and the sweep answered `verificationEmailsSent: 1` — and
-that counter is evidence rather than noise, because `sweep-orders.ts` increments
-it only *after* `sendEmail` resolved and the row was written `SENT`. It is not
-the quiet-sweep trap described above, which is about an EMPTY queue.
+**Three of the four have now left.** On 2026-09-12 an account was registered on
+staging and then a reset was asked for, and the sweep answered
+`verificationEmailsSent: 1` and, later, `resetEmailsSent: 1`.
 
-Still unexercised by anything real: the DISPATCH mail (needs an order marked
-SHIPPED *with* a tracking number — staging's one order has neither) and the
-PASSWORD RESET mail (shipped 2026-09-12, nobody has asked for one yet).
+| Mail | Proved | How |
+|---|---|---|
+| Confirmation | 2026-09-10 | order `ALT-20260910-1253`, `email_status = SENT` |
+| Verification | 2026-09-12 | `verificationEmailsSent: 1` |
+| Password reset | 2026-09-12 | `resetEmailsSent: 1`, the day it shipped |
+| Dispatch | ⬜ **never** | needs an order marked SHIPPED **with** a tracking number |
+
+⚠️ **Those counters are evidence, and the distinction matters.** Each one is
+incremented only *after* `sendEmail` resolved **and** the row was written `SENT`
+— see `drainVerificationEmails` and `drainPasswordResetEmails`. That is not the
+quiet-sweep trap described above, which is about an **empty** queue reporting
+success whether the provider works or not. A queue with one item in it that
+comes back `sent: 1` has actually been through Resend.
+
+The dispatch mail is the last one, and it does **not** depend on the supplier:
+marking a staging order SHIPPED with a tracking number by hand exercises it.
 
 ⚠️ And the question a `SENT` cannot answer is still open for all of them:
-whether any of this lands in an inbox or in a spam folder. DMARC is at `p=none`.
+whether any of this lands in an inbox or in a spam folder. DMARC is at `p=none`,
+and as of 2026-09-12 two real messages are sitting in a Gmail account waiting
+for somebody to look.
 
 ## The supplier, and how an order reaches him
 

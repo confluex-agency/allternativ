@@ -70,6 +70,49 @@ function mintVerification(): NewVerification {
   };
 }
 
+/**
+ * What the host's cron is set to for `sweep`.
+ *
+ * Nothing reads this. It is here so the reset lifetime below can be justified
+ * against a real number rather than a feeling, and so that shortening that
+ * lifetime past the interval fails a test instead of failing a customer.
+ */
+export const SWEEP_INTERVAL_MINUTES = 15;
+
+/**
+ * How long a password reset link lives — and why it is minutes, not the
+ * seventy-two hours its sibling above gets.
+ *
+ * The two links are not the same kind of object. A verification link can only
+ * ever mark an address proven; the worst a stolen one does is open a history to
+ * somebody who already had the mailbox it was sent to. **A reset link IS the
+ * account**: whoever holds it chooses the password. So it gets a credential's
+ * lifetime, not a courtesy's.
+ *
+ * ⚠️ It cannot simply be as short as possible, and the floor is peculiar to how
+ * this shop sends mail. **The database is the outbox and the sweep is the
+ * postman**, so a link is minted now and posted up to `SWEEP_INTERVAL_MINUTES`
+ * later. A lifetime near that interval would mail people links that had already
+ * expired in the queue — the cruellest possible failure, because it looks like
+ * the shop is broken and the person has no way to tell it from a typo.
+ *
+ * Sixty minutes is four sweeps of headroom, leaves the recipient forty-five
+ * minutes in the worst case, and is the figure a bank would recognise.
+ */
+export const PASSWORD_RESET_TTL_MINUTES = 60;
+
+export interface NewPasswordReset {
+  token: string;
+  expiresAt: Date;
+}
+
+function mintPasswordReset(): NewPasswordReset {
+  return {
+    token: randomBytes(32).toString("base64url"),
+    expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000),
+  };
+}
+
 export type RegisterResult =
   | { ok: true; customerId: string; email: string; verification: NewVerification }
   | { ok: false; reason: "already-registered" };
@@ -427,6 +470,134 @@ export async function updateCustomerProfile(
         : {}),
     },
   });
+}
+
+/**
+ * Mint a reset link, or decide there is nothing to reset.
+ *
+ * ⚠️ Returns null when the address has no account — and **the route above this
+ * must answer identically either way**. That is not belt-and-braces, it is the
+ * whole security of an unauthenticated endpoint that takes an email address:
+ * anything that differs between "has an account" and "does not" turns this into
+ * an oracle anybody can walk a list of addresses through, at whatever speed the
+ * limiter allows.
+ *
+ * ⚠️ Yes, `registerCustomer` already leaks that same bit through its
+ * `already-registered` reply, and that trade is documented up there. It is not
+ * a licence to leak it again. Two oracles are worse than one: they have
+ * different limiter keys, so a script blocked on one simply uses the other, and
+ * closing register's one day would fix nothing while this one stands.
+ *
+ * A guest row falls in here too, and correctly. A row with no password has
+ * never been an account, so there is nothing to reset — the way back in for
+ * that person is to register, which adopts the row.
+ *
+ * Always a NEW token, for the reason `reissueVerification` gives: re-sending an
+ * old one means a link from a forwarded email still opens the account.
+ */
+export async function requestPasswordReset(
+  rawEmail: string,
+): Promise<NewPasswordReset | null> {
+  const email = rawEmail.trim().toLowerCase();
+  const customer = await prisma.customer.findUnique({
+    where: { email },
+    select: { id: true, passwordHash: true },
+  });
+  if (!customer?.passwordHash) return null;
+
+  const reset = mintPasswordReset();
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: {
+      passwordResetToken: reset.token,
+      passwordResetExpiresAt: reset.expiresAt,
+      resetEmailStatus: "PENDING",
+      resetEmailAttempts: 0,
+      resetEmailLastError: null,
+    },
+  });
+  return reset;
+}
+
+export type PasswordResetResult =
+  | { ok: true; customerId: string; email: string }
+  | { ok: false; reason: "unknown" | "expired" };
+
+/**
+ * Spend a reset link and set the new password.
+ *
+ * Three things happen in the one write, and each is load-bearing:
+ *
+ *  1. **The token is cleared**, so the link works exactly once. A link that
+ *     still works after use is a credential sitting in an inbox for ever.
+ *
+ *  2. **`passwordChangedAt` moves**, which kills every session that existed
+ *     before this moment — including the attacker's, in the case this flow is
+ *     most needed for. Somebody who registered with a victim's address and
+ *     holds a password on that row loses it the instant the real owner of the
+ *     mailbox resets: they had the password, the victim had the mailbox, and
+ *     the mailbox wins. That is the correct outcome and it is why a reset is a
+ *     security feature and not only a convenience.
+ *
+ *  3. **The address becomes verified** if it was not already. This is not a
+ *     shortcut: receiving mail at an address and using what it contained is the
+ *     same proof the verification link asks for, delivered by a stronger act.
+ *     Withholding order history from somebody who has just demonstrated control
+ *     of the mailbox would be theatre. Any pending verification token is
+ *     cleared in the same write, so an older link cannot later re-stamp the row
+ *     and sign the person out again for no reason.
+ *
+ * `resetEmailStatus` is deliberately left alone, exactly as
+ * `consumeVerificationToken` leaves `verifyEmailStatus`: that column records
+ * what happened to a message, not what state the account reached.
+ */
+export async function consumePasswordReset(
+  token: string,
+  newPassword: string,
+): Promise<PasswordResetResult> {
+  const customer = await prisma.customer.findUnique({
+    where: { passwordResetToken: token },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      emailVerifiedAt: true,
+      passwordResetExpiresAt: true,
+    },
+  });
+  if (!customer) return { ok: false, reason: "unknown" };
+
+  // A row that lost its password between the request and the click is not an
+  // account any more, and this token should not be able to recreate one.
+  if (!customer.passwordHash) return { ok: false, reason: "unknown" };
+
+  if (
+    customer.passwordResetExpiresAt &&
+    customer.passwordResetExpiresAt.getTime() < Date.now()
+  ) {
+    return { ok: false, reason: "expired" };
+  }
+
+  const now = new Date();
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: {
+      passwordHash: await hash(newPassword, BCRYPT_ROUNDS),
+      passwordChangedAt: now,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
+      ...(customer.emailVerifiedAt
+        ? {}
+        : {
+            emailVerifiedAt: now,
+            emailVerificationToken: null,
+            emailVerificationExpiresAt: null,
+          }),
+    },
+  });
+
+  return { ok: true, customerId: customer.id, email: customer.email };
 }
 
 /** Changing a password kills every token issued before it. */

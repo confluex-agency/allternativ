@@ -504,6 +504,25 @@ model Customer {
   verifyEmailSentAt          DateTime?         @map("verify_email_sent_at")
   verifyEmailAttempts        Int               @default(0) @map("verify_email_attempts")
   verifyEmailLastError       String?           @map("verify_email_last_error") @db.Text
+
+  // ─ Getting back in without us ──────────────────────────────────────────────
+  //
+  // ⚠️ These are SEPARATE columns from the verification ones above, and reusing
+  // those would have been the natural-looking mistake. The two links do
+  // opposite-sized things: a verification link can only ever mark an address
+  // proven, while a reset link IS the account — whoever holds it sets the
+  // password. One column pair holding both would mean a token minted for the
+  // smaller job could be spent on the larger one.
+  //
+  // They also queue independently: somebody can ask for a reset while their
+  // verification mail is still sitting unsent, and one failing must not
+  // describe the other. Same reasoning as the order's two mails.
+  passwordResetToken     String?           @unique @map("password_reset_token")
+  passwordResetExpiresAt DateTime?         @map("password_reset_expires_at")
+  resetEmailStatus       QueuedEmailStatus @default(SKIPPED) @map("reset_email_status")
+  resetEmailSentAt       DateTime?         @map("reset_email_sent_at")
+  resetEmailAttempts     Int               @default(0) @map("reset_email_attempts")
+  resetEmailLastError    String?           @map("reset_email_last_error") @db.Text
   // ─ Section 25 is explicit: having an account is NOT marketing consent. These
   //   are stored separately and the timestamp is the proof of when it was given. ─
   marketingConsent   Boolean   @default(false) @map("marketing_consent")
@@ -518,6 +537,9 @@ model Customer {
 
   // The queue query: accounts whose verification mail has not gone out yet.
   @@index([verifyEmailStatus])
+  // The same, for the reset queue. A separate index because it is a separate
+  // queue with a separate drain.
+  @@index([resetEmailStatus])
   @@map("customers")
 }
 

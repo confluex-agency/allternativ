@@ -1,7 +1,7 @@
 /**
  * Housekeeping for the payment path. Safe to run as often as you like.
  *
- * Five jobs:
+ * Six jobs:
  *
  * 1. Hand expired stock reservations back. Abandoned checkouts release
  *    themselves on the next purchase attempt anyway, but a shop with no traffic
@@ -24,6 +24,11 @@
  *    history, because a `Customer` row is created by the Stripe webhook for
  *    every guest buyer and an unproven address must not open one.
  *
+ * 6. Drain the password-reset queue. ⚠️ The one where being late is itself the
+ *    failure: a reset link is worth about an hour, so a sweep that does not run
+ *    does not merely delay this mail, it makes it worthless. The drain refuses
+ *    to post a link that has already expired.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -38,6 +43,7 @@ import {
   buildOrderConfirmation,
   buildDispatchNotification,
   buildEmailVerification,
+  buildPasswordReset,
   sendEmail,
   outcomeForFailure,
   EMAIL_MAX_ATTEMPTS,
@@ -347,6 +353,94 @@ async function drainVerificationEmails(): Promise<{
   return { sent, retrying, gaveUp, blocked };
 }
 
+/**
+ * Drain the password-reset queue.
+ *
+ * ⚠️ **This queue is the one where lateness is itself the failure.** The other
+ * three carry messages that are still correct an hour late; a reset link is
+ * valid for about sixty minutes from the moment it is minted, so a sweep that
+ * does not run posts a link that arrives dead. That is why the expiry is in the
+ * query — a link already past its time is never sent, because "here is your
+ * reset link" followed by "this link has expired" is worse than nothing and
+ * reads to the customer as a shop that does not work.
+ *
+ * Like the verification drain, the condition is the token rather than the
+ * status alone: a reset that has been used clears its token and drops out,
+ * whatever the column says.
+ */
+async function drainPasswordResetEmails(): Promise<{
+  sent: number;
+  retrying: number;
+  gaveUp: number;
+  blocked: string | null;
+}> {
+  const queued = await prisma.customer.findMany({
+    where: {
+      resetEmailStatus: "PENDING",
+      passwordResetToken: { not: null },
+      passwordResetExpiresAt: { gt: new Date() },
+      resetEmailAttempts: { lt: EMAIL_MAX_ATTEMPTS },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 50,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      passwordResetToken: true,
+      passwordResetExpiresAt: true,
+      resetEmailAttempts: true,
+    },
+  });
+
+  let sent = 0;
+  let retrying = 0;
+  let gaveUp = 0;
+  let blocked: string | null = null;
+
+  for (const customer of queued) {
+    try {
+      await sendEmail(
+        buildPasswordReset(customer.email, {
+          name: customer.name,
+          token: customer.passwordResetToken!,
+          expiresAt: customer.passwordResetExpiresAt!,
+        }),
+      );
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          resetEmailStatus: "SENT",
+          resetEmailSentAt: new Date(),
+          resetEmailAttempts: { increment: 1 },
+          resetEmailLastError: null,
+        },
+      });
+      sent++;
+    } catch (error) {
+      const outcome = outcomeForFailure(customer.resetEmailAttempts, error);
+
+      if (outcome.kind === "keep") {
+        blocked = outcome.reason;
+        break;
+      }
+
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          resetEmailStatus: outcome.kind === "giveUp" ? "FAILED" : "PENDING",
+          resetEmailAttempts: outcome.attempts,
+          resetEmailLastError: outcome.error,
+        },
+      });
+      if (outcome.kind === "giveUp") gaveUp++;
+      else retrying++;
+    }
+  }
+
+  return { sent, retrying, gaveUp, blocked };
+}
+
 export async function sweepOrders(): Promise<JobResult> {
   const warnings: string[] = [];
 
@@ -355,11 +449,13 @@ export async function sweepOrders(): Promise<JobResult> {
   const mail = await drainOrderEmails();
   const dispatch = await drainDispatchEmails();
   const verify = await drainVerificationEmails();
+  const reset = await drainPasswordResetEmails();
 
-  // Said once even when all three queues are stuck, because they stall for the
-  // same single reason — no provider — and saying it three times would read as
-  // three faults.
-  const blocked = mail.blocked ?? dispatch.blocked ?? verify.blocked;
+  // Said once even when all four queues are stuck, because they stall for the
+  // same single reason — no provider — and saying it four times would read as
+  // four faults.
+  const blocked =
+    mail.blocked ?? dispatch.blocked ?? verify.blocked ?? reset.blocked;
   if (blocked) {
     warnings.push(`Email queue is not draining: ${blocked}`);
   }
@@ -382,6 +478,33 @@ export async function sweepOrders(): Promise<JobResult> {
       `${verify.gaveUp} account(s) could not be sent a verification link. ` +
         `Those people can sign in but will never see their own order history ` +
         `until somebody sorts the address out.`,
+    );
+  }
+
+  if (reset.gaveUp > 0) {
+    warnings.push(
+      `${reset.gaveUp} password reset(s) could not be emailed. Those people ` +
+        `asked to get back into their account and were not answered.`,
+    );
+  }
+
+  // ⚠️ Unlike the other three backlogs, this one is measured against the CLOCK
+  // and not only against the queue. A reset link is worth about an hour, so a
+  // reset still sitting here unsent is minutes away from being worthless — and
+  // once it expires it leaves the queue silently, with the person still waiting
+  // and nothing anywhere saying so. Counting it while it is still alive is the
+  // only moment there is anything to count.
+  const waitingForReset = await prisma.customer.count({
+    where: {
+      resetEmailStatus: "PENDING",
+      passwordResetToken: { not: null },
+      passwordResetExpiresAt: { gt: new Date() },
+    },
+  });
+  if (waitingForReset > 0) {
+    warnings.push(
+      `${waitingForReset} password reset link(s) still unsent, and they expire ` +
+        `within the hour. If the sweep is late these people get nothing.`,
     );
   }
 
@@ -476,6 +599,9 @@ export async function sweepOrders(): Promise<JobResult> {
       verificationEmailsSent: verify.sent,
       verificationEmailsRetrying: verify.retrying,
       verificationEmailsGivenUp: verify.gaveUp,
+      resetEmailsSent: reset.sent,
+      resetEmailsRetrying: reset.retrying,
+      resetEmailsGivenUp: reset.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

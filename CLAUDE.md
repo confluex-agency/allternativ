@@ -276,6 +276,26 @@ Analytics is open to every role, so **nothing customer-identifying may be added
 to those payloads**. `/api/analytics/sales` uses an explicit `select` for that
 reason; a bare `findMany` returns the whole Order row, shipping address included.
 
+⚠️ **`include` without `select` returns every scalar column**, not only the
+relations it names — and this has now been the same bug in three routes. The
+admin order list was fixed on 2026-09-11 (it was shipping the supplier's cost).
+`/api/customers` was one route over and was not, so it kept answering with
+`password_hash` and `email_verification_token` on every row.
+
+**On 2026-09-12 that stopped being a disclosure and became a takeover.** Password
+reset added `password_reset_token`, and that token is not a fingerprint of
+anything — it *is* the account: `/api/account/password/reset/confirm` takes it
+from anybody, with no session, sets a password and stamps `emailVerifiedAt`.
+Every customer who had clicked "Forgotten your password?" within the hour would
+have been listed with a live one, readable by any `ECOMMERCE_ADMIN`.
+
+So the query moved to `src/lib/customers-admin.ts` behind a named whitelist,
+which is the part that matters: **a column added to `Customer` tomorrow is not
+published until somebody decides it should be.** The rule is held by a test that
+asserts the *property* — `NEVER_EXPOSED_CUSTOMER_FIELDS` must be absent — rather
+than re-listing the fields it expects, because a test that lists them just
+agrees with whatever the code does. That is how the first one survived.
+
 Admin **pages** are guarded by `requireAdminPage()` in `src/lib/admin-guard.ts`,
 not by `src/proxy.ts` alone. The proxy only verifies the token signature; it
 cannot check `passwordChangedAt` without a database read on every request. Before
@@ -738,13 +758,22 @@ is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
 
-There are **three** of them, queued the same way and counted separately:
+There are **four** of them, queued the same way and counted separately:
 
 | Mail | Becomes due when | Promised by |
 |---|---|---|
 | Confirmation | the order is paid | `/checkout/success` |
 | Dispatch, with the tracking number | the order is marked SHIPPED **and** has a tracking number | the confirmation email itself, and the client's own point 06 of 2026-08-20 |
 | Account verification | somebody registers | the account page, which says the history is waiting on it |
+| Password reset | somebody asks on `/account/forgot` | the login page, which now links to it |
+
+⚠️ **The fourth is the only one where being LATE is itself the failure.** The
+other three carry a message that is still correct an hour after it was due; a
+reset link is worth about sixty minutes from the moment it is minted, so a sweep
+that does not run does not delay this mail, it makes it worthless. The drain
+refuses to post a link that has already expired, because "here is your reset
+link" followed by "this link has expired" reads to the customer as a shop that
+does not work. See "Getting back in" below.
 
 The third one lives on `Customer` rather than `Order` and is the only one with
 teeth: until it is clicked, a customer cannot see their own order history. See
@@ -816,9 +845,18 @@ something to attempt. **The evidence is in `orders.email_status`**, not in the
 cron's output, and that is the column to look at when somebody asks whether
 mail works.
 
+**The VERIFICATION mail has now left too.** On 2026-09-12 an account was
+registered on staging and the sweep answered `verificationEmailsSent: 1` — and
+that counter is evidence rather than noise, because `sweep-orders.ts` increments
+it only *after* `sendEmail` resolved and the row was written `SENT`. It is not
+the quiet-sweep trap described above, which is about an EMPTY queue.
+
 Still unexercised by anything real: the DISPATCH mail (needs an order marked
 SHIPPED *with* a tracking number — staging's one order has neither) and the
-account VERIFICATION mail (needs somebody to register).
+PASSWORD RESET mail (shipped 2026-09-12, nobody has asked for one yet).
+
+⚠️ And the question a `SENT` cannot answer is still open for all of them:
+whether any of this lands in an inbox or in a spam folder. DMARC is at `p=none`.
 
 ## The supplier, and how an order reaches him
 
@@ -1101,13 +1139,64 @@ cookie gets a redirect to `/admin/login` and a 401 from `/api/orders`.
   `marketingConsentAt` is cleared on withdrawal rather than left behind
   describing a consent that no longer exists (section 25).
 
-### Not built yet
+### Getting back in: the fourth queued email
 
-**There is no self-service password reset.** It needs the same mail provider
-everything else is waiting on, and the login page says so out loud rather than
-offering a link that cannot send. Wishlist persistence, an address book, and
-signing in *during* checkout are also still open — the cart and the wishlist
-remain in the browser exactly as before.
+⚠️ This section used to say there was no self-service reset and that the login
+page admitted as much. **It shipped on 2026-09-12**, once the mail path had been
+watched working twice — a confirmation on 09-10 and a verification link on
+09-12. The apology on the login page is a link now.
+
+`/account/forgot` asks, `/account/reset?token=` spends, and the queue is the
+same shape as the other three: `Customer.passwordResetToken` plus
+`resetEmailStatus`, drained by the `sweep`.
+
+⚠️ **The columns are separate from the verification ones, and that is the whole
+design.** The two links are not the same kind of object. A verification link can
+only ever mark an address proven; **a reset link IS the account** — whoever
+opens it chooses the password. Sharing one token column would let a token minted
+for the small job be spent on the large one.
+
+Four consequences, each of which is easy to get backwards:
+
+- **The lifetime is 60 minutes, not 72 hours.** A credential gets a
+  credential's life. ⚠️ But it cannot be as short as instinct wants, and the
+  floor is peculiar to this shop: **the database is the outbox and the sweep is
+  the postman**, so a link is minted now and posted up to 15 minutes later. A
+  lifetime near the sweep interval mails people links that expired in the
+  queue. `PASSWORD_RESET_TTL_MINUTES` against `SWEEP_INTERVAL_MINUTES` is
+  asserted in the tests as a *relationship*, so shortening it fails there
+  instead of failing a customer.
+- **A reset proves the address.** Receiving mail at an address and using what it
+  contained is the same proof the verification link asks for, delivered by a
+  stronger act, so `emailVerifiedAt` is stamped and order history opens. The
+  pending verification token is cleared in the same write, or an older link
+  could later re-stamp the row and sign the person out for nothing.
+- ⚠️ **The request endpoint answers identically to everybody** — `200
+  {queued:true}` for an address with an account, one that only ever bought as a
+  guest, one nobody has seen, and a string that is not an address at all. It is
+  unauthenticated and takes an email, so any difference at all makes it an
+  enumeration oracle. `requestPasswordReset` returning null is deliberately not
+  looked at in the route: there is nothing to branch on, so nobody can add a
+  branch later. Rate-limited on **two** keys — by address (or one attacker
+  mail-bombs one inbox in our name) and by IP (or one machine walks a list).
+  Yes, `registerCustomer` already leaks the same bit; that is a documented trade,
+  not a licence to open a second oracle with a different limiter key.
+- ⚠️ **The confirm endpoint checks length and NOT `passwordIsTooCloseToEmail`**,
+  unlike registration. That check needs the account's address, and this is the
+  one flow where the holder may not have it: a stolen link lets somebody set a
+  password but not sign in, because signing in also needs the address. Answering
+  "too close to your email" would leak that address back a guess at a time.
+
+**Nobody is signed in afterwards.** The reset moves `passwordChangedAt`, which
+kills every session that existed before — including the attacker's, which is the
+point. Minting a fresh token in that same instant is the exact `iat`-floor
+collision documented above, so the screen says to sign in instead. Verifying
+already behaves this way, so the two now read alike.
+
+### Still not built
+
+Wishlist persistence, an address book, and signing in *during* checkout — the
+cart and the wishlist remain in the browser exactly as before.
 
 ## Admin roles
 

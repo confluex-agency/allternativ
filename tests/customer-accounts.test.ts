@@ -8,6 +8,10 @@ import {
   listCustomerOrders,
   changeCustomerPassword,
   updateCustomerProfile,
+  requestPasswordReset,
+  consumePasswordReset,
+  PASSWORD_RESET_TTL_MINUTES,
+  SWEEP_INTERVAL_MINUTES,
 } from "@/lib/customer-accounts";
 import {
   signCustomerToken,
@@ -16,6 +20,10 @@ import {
 } from "@/lib/customer-auth";
 import { signToken, verifyToken } from "@/lib/auth";
 import { safeNext } from "@/lib/safe-next";
+import {
+  listCustomersForAdmin,
+  NEVER_EXPOSED_CUSTOMER_FIELDS,
+} from "@/lib/customers-admin";
 
 // Emails carry RUN so `cleanUp()` finds them; see tests/helpers.ts.
 const email = (label: string) => `${label}.${RUN}@example.com`;
@@ -435,5 +443,202 @@ describe("small rules that are easy to get wrong", () => {
         `safeNext(${JSON.stringify(probe)}) escaped the origin`,
       ).toBe("https://allternativ.com");
     }
+  });
+});
+
+describe("getting back in without us", () => {
+  it("says nothing about whether the address has an account", async () => {
+    // ⚠️ The property this whole flow rests on, asserted at the only level it
+    // can be: `requestPasswordReset` is allowed to know the difference, and the
+    // route above it is not allowed to show it. What is checked here is that
+    // the three cases below are genuinely distinguishable ONLY by the return
+    // value the route is documented to ignore — an unknown address and a guest
+    // row both queue nothing, and neither throws, so the route has nothing to
+    // branch on even if somebody later tried.
+    const stranger = await requestPasswordReset(email("never-seen"));
+    expect(stranger).toBeNull();
+
+    const guestAddress = email("guest-row-reset");
+    await prisma.customer.create({ data: { email: guestAddress } });
+    expect(await requestPasswordReset(guestAddress)).toBeNull();
+
+    const real = email("has-an-account");
+    const registered = await registerCustomer({ email: real, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+    expect(await requestPasswordReset(real)).not.toBeNull();
+  });
+
+  it("queues the mail and mints a link that outlives the sweep", async () => {
+    const address = email("reset-queued");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+
+    const reset = must(await requestPasswordReset(address), "the reset");
+
+    const row = must(
+      await prisma.customer.findUnique({ where: { email: address } }),
+      "the customer",
+    );
+    expect(row.passwordResetToken).toBe(reset.token);
+    // PENDING is the only way into the sweep's queue; SKIPPED is what every
+    // row that never asked for a reset keeps.
+    expect(row.resetEmailStatus).toBe("PENDING");
+
+    // ⚠️ The constraint that is peculiar to this shop: the database is the
+    // outbox and the sweep is the postman, so a link shorter than the sweep
+    // interval would be posted already dead. Asserted as the relationship
+    // rather than as the number, so shortening the lifetime past the interval
+    // fails here instead of failing a customer.
+    expect(PASSWORD_RESET_TTL_MINUTES).toBeGreaterThan(SWEEP_INTERVAL_MINUTES * 2);
+  });
+
+  it("spends the link once, sets the password, and kills what came before", async () => {
+    const address = email("reset-spend");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+
+    const before = must(
+      await prisma.customer.findUnique({ where: { email: address } }),
+      "the customer before",
+    );
+
+    const reset = must(await requestPasswordReset(address), "the reset");
+    const NEW_PASSWORD = "a-completely-different-one";
+
+    const result = await consumePasswordReset(reset.token, NEW_PASSWORD);
+    expect(result.ok).toBe(true);
+
+    // The new password works and the old one does not.
+    expect(
+      await authenticateCustomer({ email: address, password: NEW_PASSWORD }),
+    ).not.toBeNull();
+    expect(
+      await authenticateCustomer({ email: address, password: PASSWORD }),
+    ).toBeNull();
+
+    const after = must(
+      await prisma.customer.findUnique({ where: { email: address } }),
+      "the customer after",
+    );
+
+    // Every session issued before this moment dies — including the one held by
+    // somebody who registered with an address that was not theirs. They had the
+    // password; the person with the mailbox has just taken it back.
+    expect(after.passwordChangedAt!.getTime()).toBeGreaterThan(
+      before.passwordChangedAt!.getTime(),
+    );
+
+    // The link is not a credential any more.
+    expect(after.passwordResetToken).toBeNull();
+    const again = await consumePasswordReset(reset.token, "yet-another-one-here");
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.reason).toBe("unknown");
+  });
+
+  it("proves the address, because receiving the mail is the same proof", async () => {
+    const address = email("reset-proves");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+
+    // Unverified to start with: order history is closed.
+    expect(await listCustomerOrders(registered.customerId)).toBeNull();
+
+    const reset = must(await requestPasswordReset(address), "the reset");
+    expect((await consumePasswordReset(reset.token, "a-brand-new-password")).ok).toBe(
+      true,
+    );
+
+    // Using a link that arrived in the mailbox demonstrates control of the
+    // mailbox, which is exactly what the verification link asks for. So the
+    // history opens, and the now-pointless verification token is gone with it —
+    // otherwise an older link could later re-stamp the row and sign the person
+    // out for no reason.
+    expect(await listCustomerOrders(registered.customerId)).toEqual([]);
+    const row = must(
+      await prisma.customer.findUnique({ where: { email: address } }),
+      "the customer",
+    );
+    expect(row.emailVerifiedAt).not.toBeNull();
+    expect(row.emailVerificationToken).toBeNull();
+  });
+
+  it("tells an expired link apart from an unknown one", async () => {
+    const address = email("reset-expired");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+
+    const reset = must(await requestPasswordReset(address), "the reset");
+    await prisma.customer.update({
+      where: { id: registered.customerId },
+      data: { passwordResetExpiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const expired = await consumePasswordReset(reset.token, "a-new-password-here");
+    expect(expired.ok).toBe(false);
+    if (!expired.ok) expect(expired.reason).toBe("expired");
+
+    // And the old password still works, which is what the email promises: the
+    // account is unchanged unless the link is actually used.
+    expect(
+      await authenticateCustomer({ email: address, password: PASSWORD }),
+    ).not.toBeNull();
+
+    const unknown = await consumePasswordReset("not-a-token-we-issued", "whatever-ok");
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(unknown.reason).toBe("unknown");
+  });
+
+  it("retires the previous link when another is asked for", async () => {
+    const address = email("reset-twice");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+
+    const first = must(await requestPasswordReset(address), "the first reset");
+    const second = must(await requestPasswordReset(address), "the second reset");
+    expect(second.token).not.toBe(first.token);
+
+    // Somebody who asks twice gets two emails and must be safe using either the
+    // newest — a stale link in an old message cannot still open the account.
+    const stale = await consumePasswordReset(first.token, "a-new-password-here");
+    expect(stale.ok).toBe(false);
+    expect((await consumePasswordReset(second.token, "a-new-password-here")).ok).toBe(
+      true,
+    );
+  });
+});
+
+describe("what the admin customer list may publish", () => {
+  // ⚠️ The guard for the mistake that has now been made twice in two routes:
+  // `include` without `select` returns EVERY scalar column, so a query that
+  // named no columns published `password_hash` and `email_verification_token`
+  // with every row — and, once password reset shipped, a live
+  // `password_reset_token`, which anybody can spend for the account.
+  //
+  // Asserted as a PROPERTY: the payload must not contain these names. A test
+  // that re-listed the fields it expected would simply agree with whatever the
+  // code did, which is how the first one survived.
+  it("never returns a secret, whatever columns Customer grows", async () => {
+    const address = email("admin-list");
+    const registered = await registerCustomer({ email: address, password: PASSWORD });
+    if (!registered.ok) throw new Error("registration failed");
+    // A reset in flight is the dangerous state: this is the row that would have
+    // carried a spendable token.
+    await requestPasswordReset(address);
+
+    const { customers } = await listCustomersForAdmin({ page: 1, pageSize: 100 });
+    const row = must(
+      customers.find((c) => c.email === address),
+      "the customer in the admin list",
+    );
+
+    for (const field of NEVER_EXPOSED_CUSTOMER_FIELDS) {
+      expect(row).not.toHaveProperty(field);
+    }
+
+    // And the thing the screen is actually for still arrives, so this is a
+    // whitelist and not just an absence.
+    expect(row.email).toBe(address);
+    expect(row).toHaveProperty("orderCount");
+    expect(row).toHaveProperty("resetEmailStatus");
   });
 });

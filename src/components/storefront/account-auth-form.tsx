@@ -209,14 +209,21 @@ export function AccountAuthForm({
           .
         </p>
 
-        {/* ⚠️ Said out loud rather than left for somebody to discover: there is
-            no "forgot password" yet, because it needs a mail provider and the
-            shop does not have one wired end to end. Promising a reset link that
-            cannot be sent would be worse than admitting there is none. */}
+        {/* This used to be a sentence admitting there was no reset, because a
+            reset needs a mail provider and nothing had been observed leaving
+            one. That was the right thing to say while it was true: promising a
+            link that cannot be sent is worse than admitting there is none.
+
+            It stopped being true on 2026-09-12, when a verification link left
+            through Resend and was accepted, so the apology became a link. */}
         {!registering && (
-          <p className="mt-3 text-xs leading-relaxed text-brand-muted">
-            Forgotten your password? Write to us and we will sort it out — the
-            self-service reset is not built yet.
+          <p className="mt-3 text-sm text-brand-ink-soft">
+            <Link
+              href="/account/forgot"
+              className="text-brand-ink underline underline-offset-4"
+            >
+              Forgotten your password?
+            </Link>
           </p>
         )}
       </div>

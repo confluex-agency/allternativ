@@ -1,4 +1,11 @@
-// The two emails a buyer receives: what they say, and how they leave.
+// The four emails this shop sends: what they say, and how they leave.
+//
+// Two are about an order (confirmation, dispatch) and two are about an account
+// (verify an address, reset a password). All four are queued on a row and
+// drained by the sweep, for the reason below. ⚠️ This header said "the two
+// emails" until 2026-09-12, having been written when there were two and never
+// corrected as the third and fourth arrived — the same way a comment always
+// goes stale. If a fifth is added, this line is part of the work.
 //
 // ── Why it is queued and not sent from the webhook ──────────────────────────
 // The webhook is the only place an order is created, and it answers Stripe
@@ -318,6 +325,65 @@ export function buildEmailVerification(
   ].join("\n");
 
   return { to, subject: "Confirm your Allternativ account", text };
+}
+
+/**
+ * The fourth queued email: getting back in without us.
+ *
+ * ⚠️ This is the only one of the four that is a CREDENTIAL. The confirmation
+ * and dispatch mails describe something that already happened; the verification
+ * link can at most mark an address proven. This one hands over the account to
+ * whoever opens it, which is why its token lives about an hour instead of three
+ * days — see `PASSWORD_RESET_TTL_MINUTES`.
+ *
+ * Two consequences for what it says, and both are security rather than copy:
+ *
+ *  * It states that **nothing has changed yet**. A reset mail that reads like a
+ *    completed action makes a person who did not ask for it panic, and a
+ *    panicked person clicks the link in the mail to "check" — which is exactly
+ *    the thing that must not happen. The safe action for the wrong recipient is
+ *    to do nothing, so the mail says so plainly and says it costs them nothing.
+ *
+ *  * It never says whether the address has an account. The request endpoint
+ *    answers identically either way; putting "we found your account" in the one
+ *    place the answer is visible would give the whole thing back, to anybody
+ *    who can see the mailbox.
+ *
+ * Built from `NEXT_PUBLIC_APP_URL`, with the same warning as the rest: it is
+ * inlined at build time, and a wrong value mails people a link to localhost.
+ */
+export function buildPasswordReset(
+  to: string,
+  opts: { name: string | null; token: string; expiresAt: Date },
+): EmailMessage {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const url = `${base.replace(/\/+$/, "")}/account/reset?token=${encodeURIComponent(opts.token)}`;
+  const minutes = Math.max(
+    5,
+    Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 1000)),
+  );
+
+  const text = [
+    opts.name ? `Hello ${opts.name},` : `Hello,`,
+    ``,
+    `Somebody asked to reset the password for an Allternativ account using this`,
+    `email address. If that was you, choose a new one here:`,
+    ``,
+    `  ${url}`,
+    ``,
+    `The link works once and expires in about ${minutes} minutes.`,
+    ``,
+    `Nothing has changed yet. Your current password still works, and it keeps`,
+    `working unless you open the link above and choose a different one.`,
+    ``,
+    `If this was NOT you, do nothing at all. Ignoring this email leaves the`,
+    `account exactly as it is — whoever asked cannot do anything without the`,
+    `link, and the link is only in this message. Do not forward it to anybody.`,
+    ``,
+    `Allternativ`,
+  ].join("\n");
+
+  return { to, subject: "Reset your Allternativ password", text };
 }
 
 // ── How it leaves ───────────────────────────────────────────────────────────

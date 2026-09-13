@@ -6,12 +6,27 @@ import { formatCurrency } from "@/lib/utils";
 import { MARKETS, type MarketKey } from "@/lib/markets";
 import { PLACEHOLDER_IMAGE_PREFIX } from "@/lib/catalogue-source";
 import { ProductStatusBadge } from "@/components/admin/badges";
+import { StockControl } from "@/components/admin/stock-control";
+import { COMMERCIAL_ROLES, hasRole } from "@/lib/roles";
 
 // One model: its colourways, its stock, its SKUs, its prices and what is
 // actually published about it.
 //
-// Read-only, for the reason on the list page. See that comment before adding a
-// form here.
+// ⚠️ **Stock is editable here since 2026-09-13; everything else on this page is
+// still read-only, and the line between them is not arbitrary.**
+//
+// Stock was never blocked. The claim that the whole screen was waiting on
+// `prisma/seed.ts` turned out to be true of the COPY and of `priceCents` — the
+// seed replays `catalogue-source.ts` over those on every run — and false of
+// stock, which the seed writes on create only and never refreshes, precisely so
+// that re-seeding a shop that has sold something cannot put the sold units back
+// on the shelf. `market_prices` is already safe too: its upsert uses
+// `update: {}` with a comment saying it is so a price edit is not silently
+// temporary.
+//
+// So what still needs the seed to change before it can be edited is the product
+// copy and `Product.priceCents`. Adding a form for either before that is
+// shipping a form that loses work.
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +35,10 @@ export default async function AdminProductPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  await requireAdminPage();
+  const user = await requireAdminPage();
+  // Stock is money, so the route that writes it is behind COMMERCIAL_ROLES.
+  // Asked once, here, from the same shared list the route uses.
+  const canEditStock = hasRole(user.role, COMMERCIAL_ROLES);
 
   const { slug } = await params;
   // ⚠️ `select`, never `include`, and the list page carries the same rule with
@@ -184,6 +202,24 @@ export default async function AdminProductPage({
                     <span className="ml-2 text-xs font-normal text-red-600">
                       oversold — needs a person
                     </span>
+                  )}
+                  {/* ⚠️ Offered only to the roles that may actually save.
+                      This page is readable by ANY signed-in admin — it carries
+                      no customer data and no cost — but stock is money, so the
+                      API route is behind COMMERCIAL_ROLES. Rendering the
+                      control for a CONTENT_ADMIN would hand them a form that
+                      403s, which reads as a broken admin rather than as a
+                      permission they do not have.
+
+                      The route stays the enforcement; this only decides what is
+                      offered. Same split the sidebar already uses, and the same
+                      shared list, so the two cannot drift into disagreeing. */}
+                  {canEditStock && (
+                    <StockControl
+                      variantId={v.id}
+                      sku={v.sku}
+                      quantity={v.stockQuantity}
+                    />
                   )}
                 </td>
                 <td className="px-4 py-3 text-neutral-500">

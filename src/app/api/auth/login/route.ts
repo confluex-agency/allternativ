@@ -34,7 +34,24 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.adminUser.findUnique({ where: { email } });
 
-    if (!user || !(await compare(password, user.passwordHash))) {
+    // ⚠️ Three refusals that all answer the same thing on purpose, because
+    // telling them apart would say more about the staff list than a stranger at
+    // the login form should learn:
+    //
+    //   * no such admin;
+    //   * invited but has never set a password (`passwordHash` is null) — the
+    //     invitation link is the only way in, and this form is not it;
+    //   * deactivated. ⚠️ This one is the reason the check is HERE and not only
+    //     in the guard: taking somebody's access away has to stop them signing
+    //     in again, not merely expire what they already held.
+    //
+    // The wrong password lands in the same place, as it always did.
+    if (
+      !user ||
+      !user.isActive ||
+      !user.passwordHash ||
+      !(await compare(password, user.passwordHash))
+    ) {
       return NextResponse.json(
         { error: "Invalid credentials" },
         { status: 401 },

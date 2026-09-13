@@ -72,8 +72,21 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Protect all /admin routes except /admin/login
-  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
+  // ⚠️ Two /admin paths are reachable without a session, and both have to be.
+  //
+  //   /admin/login          the obvious one.
+  //   /admin/accept-invite  where an invited person chooses their password.
+  //                         They have no session yet — that is the entire point
+  //                         of an invitation — so guarding this would redirect
+  //                         them to a login form they cannot pass, and the only
+  //                         way in would be a link that bounces.
+  //
+  // Neither is unguarded: the login form has the rate limiter, and accept-invite
+  // needs a 32-byte single-use token that was emailed to the address the account
+  // is named after. What they lack is a COOKIE, which is a different thing.
+  const OPEN_ADMIN_PATHS = ["/admin/login", "/admin/accept-invite"];
+
+  if (pathname.startsWith("/admin") && !OPEN_ADMIN_PATHS.includes(pathname)) {
     const token = request.cookies.get(COOKIE_NAME)?.value;
 
     if (!token) {

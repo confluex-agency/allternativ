@@ -10,8 +10,12 @@ export default function AdminDashboardLayout({
 }) {
   const pathname = usePathname();
 
-  // Login page gets no sidebar
-  if (pathname === "/admin/login") {
+  // ⚠️ The two signed-out pages get no sidebar, and the list has to match the
+  // one in `proxy.ts`. The sidebar calls `useAuth`, which asks `/api/auth/me`;
+  // on a page reached WITHOUT a session that request 401s, and the person
+  // accepting an invitation would watch a navigation they cannot use flicker
+  // beside the form. Same reason the login page never had one.
+  if (pathname === "/admin/login" || pathname === "/admin/accept-invite") {
     return <>{children}</>;
   }
 

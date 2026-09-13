@@ -1,11 +1,15 @@
-// The four emails this shop sends: what they say, and how they leave.
+// The five emails this shop sends: what they say, and how they leave.
 //
-// Two are about an order (confirmation, dispatch) and two are about an account
-// (verify an address, reset a password). All four are queued on a row and
-// drained by the sweep, for the reason below. ⚠️ This header said "the two
-// emails" until 2026-09-12, having been written when there were two and never
-// corrected as the third and fourth arrived — the same way a comment always
-// goes stale. If a fifth is added, this line is part of the work.
+// Two are about an order (confirmation, dispatch), two are about a customer
+// account (verify an address, reset a password), and one is for staff (an admin
+// invitation). All five are queued on a row and drained by the sweep, for the
+// reason below.
+//
+// ⚠️ This header said "the two emails" until 2026-09-12, having been written
+// when there were two and never corrected as the others arrived — the ordinary
+// way a comment goes stale. It was corrected to four that day and to five on
+// 2026-09-13, which is the point: if a sixth is added, this line is part of the
+// work, not an afterthought.
 //
 // ── Why it is queued and not sent from the webhook ──────────────────────────
 // The webhook is the only place an order is created, and it answers Stripe
@@ -394,6 +398,70 @@ export function buildPasswordReset(
   ].join("\n");
 
   return { to, subject: "Reset your Allternativ password", text };
+}
+
+/**
+ * The fifth queued email, and the only one that is not for a customer.
+ *
+ * ⚠️ This is the most valuable message this system sends. The reset link
+ * returns an account to somebody who already owned it; **this one grants staff
+ * access that did not exist before, with a role attached to it.**
+ *
+ * Which changes what it has to say, in a way the customer mails do not:
+ *
+ *  * It names **who invited them**, because the recipient was not expecting
+ *    this. An unexpected mail offering access to a company's admin is the exact
+ *    shape of a phishing attempt, and the only thing that separates the real one
+ *    from a forgery in the reader's mind is a name they recognise.
+ *  * It names **the role**, so that the person accepting knows what they are
+ *    being handed — and so that a wrong role gets questioned by the one person
+ *    guaranteed to read this message.
+ *  * It does **not** say "click to verify your account" or anything that reads
+ *    like routine housekeeping. If this arrives by mistake, the right reaction
+ *    is to tell somebody, not to ignore it quietly.
+ */
+export function buildAdminInvitation(
+  to: string,
+  opts: {
+    name: string | null;
+    role: string;
+    invitedByEmail: string | null;
+    token: string;
+    expiresAt: Date;
+  },
+): EmailMessage {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const url = `${base.replace(/\/+$/, "")}/admin/accept-invite?token=${encodeURIComponent(opts.token)}`;
+  const hours = Math.max(
+    1,
+    Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 60 * 1000)),
+  );
+
+  const text = [
+    opts.name ? `Hello ${opts.name},` : `Hello,`,
+    ``,
+    opts.invitedByEmail
+      ? `${opts.invitedByEmail} has given you access to the Allternativ admin.`
+      : `You have been given access to the Allternativ admin.`,
+    ``,
+    `Your access level is: ${opts.role}`,
+    ``,
+    `Choose a password and sign in here:`,
+    ``,
+    `  ${url}`,
+    ``,
+    `The link works once and expires in about ${hours} hours. Ask whoever`,
+    `invited you for another if it runs out.`,
+    ``,
+    `⚠️ If you were NOT expecting this, do not use the link — tell the person`,
+    `named above straight away. This grants access to orders, customers and`,
+    `prices, so an invitation that arrives by surprise is worth one message to`,
+    `check before anybody clicks anything.`,
+    ``,
+    `Allternativ`,
+  ].join("\n");
+
+  return { to, subject: "Your Allternativ admin access", text };
 }
 
 // ── How it leaves ───────────────────────────────────────────────────────────

@@ -179,6 +179,19 @@ export async function cleanUp() {
   });
   await prisma.productVariant.deleteMany({ where: { sku: { contains: RUN } } });
   await prisma.product.deleteMany({ where: { slug: { contains: RUN } } });
+
+  // ⚠️ Admin users the suite invented, and the audit rows they produced.
+  //
+  // The audit rows go FIRST and are matched on `entityLabel`, which froze the
+  // email at the time. `AuditLog` has no foreign key to `admin_users` — it
+  // deliberately keeps `adminEmail` as a plain string so the trail outlives the
+  // person — which means nothing deletes these rows for us and a run would
+  // otherwise leave a trail of invented owners behind in the real table.
+  await prisma.auditLog.deleteMany({
+    where: { entityType: "admin_user", entityLabel: { contains: RUN } },
+  });
+  await prisma.auditLog.deleteMany({ where: { adminEmail: { contains: RUN } } });
+  await prisma.adminUser.deleteMany({ where: { email: { contains: RUN } } });
 }
 
 /**

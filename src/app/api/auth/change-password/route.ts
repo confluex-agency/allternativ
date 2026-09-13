@@ -41,7 +41,15 @@ export async function POST(request: NextRequest) {
       where: { id: auth.sub },
     });
 
-    if (!user || !(await compare(currentPassword, user.passwordHash))) {
+    // A row with no `passwordHash` is an invitation nobody has accepted yet, so
+    // there is no current password to be correct. Reaching here with one would
+    // mean holding a valid session for an account that has never had a password
+    // — impossible today, and this is where it stays impossible.
+    if (
+      !user ||
+      !user.passwordHash ||
+      !(await compare(currentPassword, user.passwordHash))
+    ) {
       return NextResponse.json(
         { error: "Current password is incorrect" },
         { status: 401 },

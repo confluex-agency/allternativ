@@ -1,7 +1,7 @@
 /**
  * Housekeeping for the payment path. Safe to run as often as you like.
  *
- * Six jobs:
+ * Seven jobs:
  *
  * 1. Hand expired stock reservations back. Abandoned checkouts release
  *    themselves on the next purchase attempt anyway, but a shop with no traffic
@@ -29,6 +29,10 @@
  *    does not merely delay this mail, it makes it worthless. The drain refuses
  *    to post a link that has already expired.
  *
+ * 7. Drain the admin-invitation queue. The only one that is not about a
+ *    customer, and the one whose message is worth the most: it grants staff
+ *    access that did not exist before, with a role attached.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -44,6 +48,7 @@ import {
   buildDispatchNotification,
   buildEmailVerification,
   buildPasswordReset,
+  buildAdminInvitation,
   sendEmail,
   outcomeForFailure,
   EMAIL_MAX_ATTEMPTS,
@@ -441,6 +446,97 @@ async function drainPasswordResetEmails(): Promise<{
   return { sent, retrying, gaveUp, blocked };
 }
 
+/**
+ * Drain the admin-invitation queue.
+ *
+ * ⚠️ The only queue here that is not about a customer, and the one whose
+ * message is worth the most: an invitation grants staff access that did not
+ * exist before, with a role attached.
+ *
+ * Same shape as the others — token present, not expired, PENDING — and the
+ * expiry is in the query for the reason the reset drain has it: a link posted
+ * after it died is worse than one never sent, because the recipient sees a
+ * broken company rather than nothing at all.
+ */
+async function drainAdminInviteEmails(): Promise<{
+  sent: number;
+  retrying: number;
+  gaveUp: number;
+  blocked: string | null;
+}> {
+  const queued = await prisma.adminUser.findMany({
+    where: {
+      inviteEmailStatus: "PENDING",
+      isActive: true,
+      passwordHash: null,
+      inviteToken: { not: null },
+      inviteExpiresAt: { gt: new Date() },
+      inviteEmailAttempts: { lt: EMAIL_MAX_ATTEMPTS },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      invitedByEmail: true,
+      inviteToken: true,
+      inviteExpiresAt: true,
+      inviteEmailAttempts: true,
+    },
+  });
+
+  let sent = 0;
+  let retrying = 0;
+  let gaveUp = 0;
+  let blocked: string | null = null;
+
+  for (const admin of queued) {
+    try {
+      await sendEmail(
+        buildAdminInvitation(admin.email, {
+          name: admin.name,
+          role: admin.role,
+          invitedByEmail: admin.invitedByEmail,
+          token: admin.inviteToken!,
+          expiresAt: admin.inviteExpiresAt!,
+        }),
+      );
+      await prisma.adminUser.update({
+        where: { id: admin.id },
+        data: {
+          inviteEmailStatus: "SENT",
+          inviteEmailSentAt: new Date(),
+          inviteEmailAttempts: { increment: 1 },
+          inviteEmailLastError: null,
+        },
+      });
+      sent++;
+    } catch (error) {
+      const outcome = outcomeForFailure(admin.inviteEmailAttempts, error);
+
+      if (outcome.kind === "keep") {
+        blocked = outcome.reason;
+        break;
+      }
+
+      await prisma.adminUser.update({
+        where: { id: admin.id },
+        data: {
+          inviteEmailStatus: outcome.kind === "giveUp" ? "FAILED" : "PENDING",
+          inviteEmailAttempts: outcome.attempts,
+          inviteEmailLastError: outcome.error,
+        },
+      });
+      if (outcome.kind === "giveUp") gaveUp++;
+      else retrying++;
+    }
+  }
+
+  return { sent, retrying, gaveUp, blocked };
+}
+
 export async function sweepOrders(): Promise<JobResult> {
   const warnings: string[] = [];
 
@@ -450,12 +546,17 @@ export async function sweepOrders(): Promise<JobResult> {
   const dispatch = await drainDispatchEmails();
   const verify = await drainVerificationEmails();
   const reset = await drainPasswordResetEmails();
+  const invites = await drainAdminInviteEmails();
 
-  // Said once even when all four queues are stuck, because they stall for the
-  // same single reason — no provider — and saying it four times would read as
-  // four faults.
+  // Said once even when all five queues are stuck, because they stall for the
+  // same single reason — no provider — and saying it five times would read as
+  // five faults.
   const blocked =
-    mail.blocked ?? dispatch.blocked ?? verify.blocked ?? reset.blocked;
+    mail.blocked ??
+    dispatch.blocked ??
+    verify.blocked ??
+    reset.blocked ??
+    invites.blocked;
   if (blocked) {
     warnings.push(`Email queue is not draining: ${blocked}`);
   }
@@ -478,6 +579,14 @@ export async function sweepOrders(): Promise<JobResult> {
       `${verify.gaveUp} account(s) could not be sent a verification link. ` +
         `Those people can sign in but will never see their own order history ` +
         `until somebody sorts the address out.`,
+    );
+  }
+
+  if (invites.gaveUp > 0) {
+    warnings.push(
+      `${invites.gaveUp} admin invitation(s) could not be emailed. Those ` +
+        `people have a staff account they cannot reach, and somebody is ` +
+        `waiting on them.`,
     );
   }
 
@@ -602,6 +711,9 @@ export async function sweepOrders(): Promise<JobResult> {
       resetEmailsSent: reset.sent,
       resetEmailsRetrying: reset.retrying,
       resetEmailsGivenUp: reset.gaveUp,
+      adminInvitesSent: invites.sent,
+      adminInvitesRetrying: invites.retrying,
+      adminInvitesGivenUp: invites.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

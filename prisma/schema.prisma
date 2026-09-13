@@ -26,16 +26,55 @@ enum AdminRole {
 model AdminUser {
   id                 String    @id @default(cuid())
   email              String    @unique
-  passwordHash       String    @map("password_hash")
+  // ⚠️ Nullable since 2026-09-13, and the null means something specific: this
+  // person has been INVITED and has not set a password yet. There is no admin
+  // self-registration and there must never be — the default role would hand a
+  // stranger the dashboards — so an admin row is always created by an OWNER,
+  // and it exists before its password does.
+  //
+  // Every path that authenticates must treat null as "not an account yet",
+  // exactly as `Customer.passwordHash` null means "guest, never registered".
+  passwordHash       String?   @map("password_hash")
   name               String
   // Least-privileged default on purpose: a row created without an explicit role
   // can read dashboards and nothing else.
   role               AdminRole @default(ANALYTICS_VIEWER)
   mustChangePassword Boolean   @default(true) @map("must_change_password")
   passwordChangedAt  DateTime  @default(now()) @map("password_changed_at")
+
+  // ─ Taking access away without losing who did what ──────────────────────────
+  //
+  // ⚠️ Deactivated, never deleted — the same rule retired products follow. The
+  // audit trail freezes `adminEmail` as a string so it survives either way, but
+  // a deleted row makes "who is this person in the log" unanswerable, and the
+  // whole point of the trail is that somebody can ask that later.
+  isActive       Boolean   @default(true) @map("is_active")
+  deactivatedAt  DateTime? @map("deactivated_at")
+
+  // ─ The invitation ──────────────────────────────────────────────────────────
+  //
+  // Same shape as the customer's password reset, and for the same reasons: the
+  // database is the outbox, the sweep is the postman, and the token is stored
+  // as it is sent because the row has to be able to produce the link at send
+  // time. ⚠️ But this token is worth MORE than a customer's reset link — it
+  // hands over a staff account with a role attached — so it lives half as long.
+  // See `ADMIN_INVITE_TTL_HOURS`.
+  //
+  // `invitedByEmail` is frozen as a string, like `AuditLog.adminEmail`, so it
+  // still answers "who let this person in" after that person is gone.
+  inviteToken       String?           @unique @map("invite_token")
+  inviteExpiresAt   DateTime?         @map("invite_expires_at")
+  invitedByEmail    String?           @map("invited_by_email")
+  inviteEmailStatus QueuedEmailStatus @default(SKIPPED) @map("invite_email_status")
+  inviteEmailSentAt DateTime?         @map("invite_email_sent_at")
+  inviteEmailAttempts Int             @default(0) @map("invite_email_attempts")
+  inviteEmailLastError String?        @map("invite_email_last_error") @db.Text
+
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
+  // The queue query: invitations whose mail has not gone out yet.
+  @@index([inviteEmailStatus])
   @@map("admin_users")
 }
 

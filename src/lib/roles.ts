@@ -17,6 +17,17 @@ import type { AdminRole } from "@/generated/prisma/enums";
 export const COMMERCIAL_ROLES: AdminRole[] = ["OWNER", "ECOMMERCE_ADMIN"];
 
 /**
+ * Who may grant access. Exactly one role, and the list exists so the sidebar
+ * can ask the same question the page and the API routes ask.
+ *
+ * ⚠️ Do not add to it. Every other list here is a set of roles that share a
+ * privilege; this one is the privilege that hands out the others. A second
+ * role on it could invite itself a third account as OWNER, and the whole
+ * table above becomes decoration.
+ */
+export const OWNER_ONLY: AdminRole[] = ["OWNER"];
+
+/**
  * Roles that may read dashboards. All of them — ANALYTICS_VIEWER exists for
  * exactly this and nothing else.
  */

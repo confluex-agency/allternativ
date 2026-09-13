@@ -113,9 +113,14 @@ export async function getAuthFromCookies(): Promise<JWTPayload | null> {
 
   const user = await prisma.adminUser.findUnique({
     where: { id: payload.sub },
-    select: { passwordChangedAt: true },
+    select: { passwordChangedAt: true, role: true, isActive: true },
   });
   if (!user) return null;
+
+  // ⚠️ Access taken away has to stop working NOW, not when the cookie expires.
+  // Deactivating somebody who is signed in is the case this exists for — it is
+  // the one time anybody deactivates an account in a hurry.
+  if (!user.isActive) return null;
 
   // ⚠️ The second of tolerance is not slack, it is the unit `iat` is measured
   // in — and without it this check fires on the very token it is meant to
@@ -137,7 +142,23 @@ export async function getAuthFromCookies(): Promise<JWTPayload | null> {
     return null;
   }
 
-  return payload;
+  // ⚠️ **The role comes from the ROW, never from the token**, and this line is
+  // newer than the rest of this function for a reason worth keeping.
+  //
+  // A JWT is a snapshot of what was true when it was signed. That was harmless
+  // while roles never changed — there was exactly one admin, made by the seed,
+  // and `role` was effectively a constant. The moment an OWNER can change
+  // somebody's role, the token's copy is **stale and authoritative at the same
+  // time**, which is the worst combination: demote somebody from OWNER and
+  // their cookie keeps saying OWNER for up to seven days, across every
+  // `requireRole` check in the app.
+  //
+  // The database read is already happening two lines up for `passwordChangedAt`,
+  // so reading the live role costs nothing. A promotion takes effect on the next
+  // request, a demotion likewise, and neither signs anybody out — which also
+  // means an OWNER fixing a role they mis-clicked does not have to explain to
+  // somebody why they were logged out.
+  return { ...payload, role: user.role };
 }
 
 /**

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { COMMERCIAL_ROLES, hasRole } from "@/lib/roles";
+import { COMMERCIAL_ROLES, OWNER_ONLY, hasRole } from "@/lib/roles";
 
 // ⚠️ Only routes that EXIST belong here.
 //
@@ -29,6 +29,11 @@ const navItems = [
   // No customer data and no cost figures on this one, so any signed-in admin
   // may read it — including ANALYTICS_VIEWER, which is the default role.
   { href: "/admin/products", label: "Products", icon: "◻", roles: null },
+  // ⚠️ OWNER only, and this is the one link where the narrower list is the
+  // whole point: this screen decides who may use every other screen. An
+  // ECOMMERCE_ADMIN who could reach it would simply invite themselves a second
+  // account as OWNER, and the role system would be decoration.
+  { href: "/admin/users", label: "People", icon: "◻", roles: OWNER_ONLY },
 ];
 
 /** Screens the sidebar promised before they existed. Shown, not linked. */

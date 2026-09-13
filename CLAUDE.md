@@ -296,6 +296,8 @@ exactly how `/api/orders` and `/api/customers` ended up with no check at all.
 | `GET /api/customers` | ✅ | ✅ | ❌ | ❌ |
 | `GET /api/erp/*` | ✅ | ✅ | ❌ | ❌ |
 | `GET /api/analytics/*` | ✅ | ✅ | ✅ | ✅ |
+| `PATCH /api/inventory/*` | ✅ | ✅ | ❌ | ❌ |
+| `/api/admin-users/*` | ✅ | ❌ | ❌ | ❌ |
 
 401 and 403 mean different things and are returned separately: not signed in
 versus signed in without the right role.
@@ -778,7 +780,7 @@ the same reason the encoder refuses a cart it cannot fit instead of truncating.
 The old single `items` key is still read, so a session created minutes before a
 deploy still becomes an order.
 
-### The four emails are queued, not sent
+### The five emails are queued, not sent
 
 The webhook answers Stripe synchronously, and that is what gives the payment
 path its durability: a failure returns 5xx and Stripe retries for three days.
@@ -792,7 +794,8 @@ is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
 
-There are **four** of them, queued the same way and counted separately:
+There are **five** of them, queued the same way and counted separately. Four are
+for customers; the fifth is for staff.
 
 | Mail | Becomes due when | Promised by |
 |---|---|---|
@@ -800,6 +803,7 @@ There are **four** of them, queued the same way and counted separately:
 | Dispatch, with the tracking number | the order is marked SHIPPED **and** has a tracking number | the confirmation email itself, and the client's own point 06 of 2026-08-20 |
 | Account verification | somebody registers | the account page, which says the history is waiting on it |
 | Password reset | somebody asks on `/account/forgot` | the login page, which now links to it |
+| Admin invitation | an OWNER invites somebody on `/admin/users` | nothing — it IS the grant |
 
 ⚠️ **The fourth is the only one where being LATE is itself the failure.** The
 other three carry a message that is still correct a day after it was due; a
@@ -1262,6 +1266,134 @@ cart and the wishlist remain in the browser exactly as before.
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,
 `CONTENT_ADMIN`, `ANALYTICS_VIEWER`. The enum default is `ANALYTICS_VIEWER` on
 purpose, so a row created without an explicit role can edit nothing.
+
+### There is no admin sign-up, and there must never be
+
+⚠️ **The default role is the reason.** `ANALYTICS_VIEWER` can read every
+dashboard in the business, so a self-registration form would hand the company's
+numbers to whoever typed an email address. An admin row is created by an OWNER
+or it does not exist.
+
+Until 2026-09-13 there was exactly one way for one to exist — the seed made it —
+which is why there had only ever been one. `/admin/users` is the door now:
+OWNER-only, it invites by email, and the person sets their own password through
+a link. `src/lib/admin-users.ts` holds every rule.
+
+- **`AdminUser.passwordHash` is nullable, and the null means "invited, has not
+  chosen a password yet".** Every path that authenticates reads it that way,
+  exactly as `Customer.passwordHash` null means "guest, never registered".
+- **The invitation token is never returned by the API.** Handing it back would
+  let an OWNER paste the link into a chat, which quietly undoes the point of
+  mailing it: accepting is what proves the person controls the address the
+  account is named after.
+- **Admins are deactivated, never deleted** — the rule retired products follow.
+  `AuditLog` freezes `adminEmail` as a string so the trail survives either way,
+  but a deleted row makes "who is this person in the log" unanswerable, and
+  being able to ask that later is the whole point of keeping it.
+- **Twenty-four hours on the link**, against the customer reset's three. Not
+  because it is worth less — it is worth far more — but because an invitation
+  arrives *unannounced*, at somebody who was not waiting for it and has no idea
+  it is time-limited. Same lesson as 2026-09-12, applied before it cost anything.
+
+### ⚠️ Two things that were harmless until roles became editable
+
+Both were fine while there was one admin whose role never changed, and both are
+wrong the moment an OWNER can grant and revoke.
+
+1. **`getAuthFromCookies` used to return the role from inside the TOKEN.** A JWT
+   is a snapshot of what was true when it was signed — stale *and* authoritative
+   at once. Demote somebody from OWNER and their cookie would keep saying OWNER
+   for up to seven days, across every `requireRole` in the app. **The role now
+   comes from the row**, which costs nothing because the same read already
+   happens for `passwordChangedAt`, and which means a promotion or a demotion
+   takes effect on the next request without signing anybody out.
+2. **Deactivation has to bite immediately**, not when the cookie expires — that
+   being the one time anybody deactivates an account in a hurry. Checked in the
+   guard (for the live session) *and* in the login route (so they cannot come
+   back in).
+
+### ⚠️ The last OWNER cannot be demoted or deactivated
+
+OWNER is the only role that can grant roles. So stranding the last one means
+**nobody can ever grant anything again**, and the only way back is a person
+running SQL against production by hand. Two ordinary routes there: an OWNER
+tidying up their own account, and an OWNER demoting the *other* OWNER without
+noticing they were the remaining one. `wouldStrandTheBuilding()` refuses both.
+
+⚠️ **An invited OWNER who has not accepted does NOT count as a way out.** They
+have no password, so they cannot sign in, so they cannot grant. Treating a
+pending invitation as cover is how the building gets locked with the key still
+in the post.
+
+⚠️ That guard is **global by nature** — it counts every active owner in the
+database — so it cannot be tested against a private copy. The test borrows the
+seeded owner and puts it back, the way `captureCaseStock` borrows the case-stock
+singletons. The first version of that test failed all three assertions, and the
+guard was right: this is exactly the shape of a test somebody "fixes" by
+weakening the thing it checks.
+
+## Changing stock by hand
+
+`/admin/products/[slug]` has been read-only since it was built; **stock became
+editable on 2026-09-13 and everything else on that page did not.** The line is
+not arbitrary.
+
+⚠️ **The claim that the whole screen was blocked by `prisma/seed.ts` was only
+half true, and the half matters.** The seed replays `catalogue-source.ts` over
+the product COPY and `Product.priceCents` on every run, so a form for either
+would lose work. It does **not** touch `stockQuantity` — that is written on
+create only, precisely so re-seeding a shop that has sold something cannot put
+the sold units back — and `market_prices` already upserts with `update: {}` for
+the same reason. So stock was never blocked; the copy and `priceCents` still
+are.
+
+### ⚠️ Why this is not a "set stock to N" form
+
+Stock is taken by a conditional `UPDATE` when a checkout opens, and that single
+statement is the entire guarantee against overselling.
+
+A naive form breaks it silently. Somebody opens the page at 12, two sell while
+they are typing, they submit "12" meaning *leave it alone* — and the write puts
+12 back, **un-selling a pair the shop has already been paid for**. No error, no
+failed row; it surfaces when a parcel cannot be packed.
+
+So `src/lib/inventory-admin.ts` never writes a number it did not check:
+
+| | |
+|---|---|
+| `adjustVariantStock` | a **delta** — "twenty arrived", "two damaged". Composes with whatever sold meanwhile. |
+| `setVariantStock` | the counted figure **plus the number the person was looking at**. If the row moved, it refuses and hands back reality. |
+
+⚠️ **A negative delta cannot take stock below zero.** Negative stock has one
+meaning here — the shop has taken money for pairs it does not hold — and
+`reserveStock` refuses every further sale of that colourway on the strength of
+it. A typo must not be able to manufacture that state; only a real sale may.
+Correcting a genuine oversold is done by *adding* what arrived.
+
+⚠️ **The reason is mandatory, and it is the field somebody will want to remove.**
+The question asked three weeks later is never "what is the stock", it is "why is
+this eleven when the invoice says twelve" — and an audit row reading `11 → 12`
+with no sentence answers nothing.
+
+### What the video brief asked for, and what was refused
+
+A reference video (2026-09-13) described a stock-and-orders admin. Most of it
+already existed; three things were deliberately **not** taken:
+
+- **"Total Gross Sales Revenue" as one figure.** Six currencies; see the
+  dashboard rules above. Ours is grouped and net of refunds.
+- **A status dropdown offering Shipped and Delivered.** See "Changing an order
+  from the admin" — SHIPPED is what a tracking number *means*, and a status
+  picker that can reach it produces orders the dispatch sweep skips for ever.
+- **"Populate the entities with mock data and orders."** `catalogue-source.ts`
+  holds real commercial data — the file was renamed *from* `mock-data.ts`
+  because that name invited exactly this. Mock orders would also pollute the
+  margin figures and the ERP feed the supplier has been reading since 24/08.
+
+⚠️ Also raised and still undecided: **showing shoppers the stock NUMBER.**
+"3 left" is a scarcity lever, and it also publishes the inventory position — on
+300 total units that tells a competitor what was bought. Sold-out marking is
+already live; the number is the founders' call, not a feature.
 
 ## Commands
 

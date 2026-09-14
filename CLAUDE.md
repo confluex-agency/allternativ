@@ -1551,10 +1551,32 @@ nowhere near the real cause.
 
 ## The provider the client still has to choose
 
-**Image storage.** Uploaded admin images **cannot live on the app's disk** — it
-is rebuilt on every deploy. Cloudinary recommended. This blocks more than it
-used to: there is now real product photography waiting to replace the
-placeholders under `/catalog/`.
+**Image storage — and ⚠️ it blocks LESS than this said until 2026-09-14.**
+
+This used to read "this blocks more than it used to: there is real product
+photography waiting". That was wrong, and it was wrong in the expensive
+direction — it parked the launch photography behind a provider decision it never
+needed.
+
+**Two different problems were being treated as one:**
+
+| | |
+|---|---|
+| Getting the launch photography live | **Not blocked.** Commit it, like `public/catalog/` already is — 80 files, 3.4 MB of webp, in git, served as static assets. |
+| Letting the founders upload a photo from the browser | **Blocked**, and this is the real E2. Section 19 asks for it: upload, replace, reorder, assign to a variant. |
+
+⚠️ **What genuinely cannot work is writing to the app's disk at runtime**, and
+the mechanism is worth knowing rather than guessing at. Hostinger runs the app
+through Passenger from `hbuilds/current/nodejs`, where **`current` is a symlink**
+that each deploy repoints at a freshly built directory. A file written into the
+running app is therefore not deleted — it is *orphaned* in the previous build the
+moment that symlink moves, and pruned later. The `.htaccess` in `public_html`
+survives because it is the Apache document root, which is a different place from
+the app.
+
+So Cloudinary is still the recommendation **for the upload feature**, and it is
+not on the critical path to selling. Photography that arrives as files goes in
+the repo; convert it first — the current set came down from 195 MB to 3.4 MB.
 
 ### Transactional email — chosen and configured, kept here for the reasoning
 

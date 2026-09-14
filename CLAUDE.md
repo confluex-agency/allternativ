@@ -123,6 +123,41 @@ the new route answering. **A route that 404s immediately after a push has not
 failed yet** — check `hosting_listNodeJSBuildsV1` for the build state before
 going looking for a bug.
 
+#### ⚠️ `STAGING_PASSWORD` is two switches wearing one name
+
+`isStaging` is just `stagingPassword.length > 0`, and `robots.ts` reads it:
+
+```ts
+if (isStaging) return { rules: [{ userAgent: "*", disallow: "/" }] };
+```
+
+So setting that variable makes a deployment **private AND unindexable**, and
+clearing it makes it **open AND indexable**. They were tied together on purpose,
+so that nobody could leave a preview half-exposed. The consequence is that the
+obvious-looking small favour — *"take the password off so the founders can browse
+without the prompt this week"* — also invites Google into a half-built shop under
+the brand's own name, with placeholder photography and legal pages that say "not
+final". That outlives the staging server by months, and when the real domain
+launches it is **the same content on two hostnames**, with the older one already
+indexed.
+
+Asked and declined on 2026-09-14: the password stays, because a browser
+remembers it after the first prompt and the friction is one dialog a week.
+⚠️ **Any username works** — the check reads everything after the first colon, so
+only the password matters. Worth saying when handing it to somebody, because the
+two-field dialog implies otherwise.
+
+If it ever does need to come off while staying unindexed, do not just delete the
+variable: split the two meanings first, and derive the noindex from
+`NEXT_PUBLIC_APP_URL` rather than a new flag of its own. That variable is already
+required, already validated, and already has to be right for the checkout to
+work — so it is the one signal here that cannot be quietly forgotten.
+
+⚠️ **And the reverse is the launch-day trap.** `STAGING_PASSWORD` must be ABSENT
+from the production deployment. Carried over, the real shop asks every customer
+for a password and tells Google not to index it — invisible, on launch day, with
+nothing in any log to say so.
+
 ⚠️ **The same is true of the seed.** Nothing in the deploy runs it either, so a
 change to `catalogue-source.ts` — a corrected SKU, a newly confirmed spec —
 reaches production only when a person runs `npx prisma db seed` against it. On

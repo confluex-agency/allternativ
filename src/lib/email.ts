@@ -1,15 +1,15 @@
-// The five emails this shop sends: what they say, and how they leave.
+// The six emails this shop sends: what they say, and how they leave.
 //
 // Two are about an order (confirmation, dispatch), two are about a customer
-// account (verify an address, reset a password), and one is for staff (an admin
-// invitation). All five are queued on a row and drained by the sweep, for the
-// reason below.
+// account (verify an address, reset a password), and two are for staff (an
+// admin invitation and an admin password reset). All six are queued on a row
+// and drained by the sweep, for the reason below.
 //
 // ⚠️ This header said "the two emails" until 2026-09-12, having been written
 // when there were two and never corrected as the others arrived — the ordinary
 // way a comment goes stale. It was corrected to four that day and to five on
-// 2026-09-13, which is the point: if a sixth is added, this line is part of the
-// work, not an afterthought.
+// 2026-09-13 and to six on 2026-09-14, which is the point: if a seventh is
+// added, this line is part of the work and not an afterthought.
 //
 // ── Why it is queued and not sent from the webhook ──────────────────────────
 // The webhook is the only place an order is created, and it answers Stripe
@@ -462,6 +462,55 @@ export function buildAdminInvitation(
   ].join("\n");
 
   return { to, subject: "Your Allternativ admin access", text };
+}
+
+/**
+ * The sixth: a staff account getting back in.
+ *
+ * ⚠️ Deliberately NOT the same message as an invitation, even though both end
+ * in the same screen. An invitation says "you now have access" to somebody who
+ * did not have it; this says "choose a new password" to somebody who already
+ * does. Sending the wrong one of those is not a typo — it tells the reader that
+ * something happened to their account that did not.
+ *
+ * Like the customer reset, it says plainly that **nothing has changed yet**,
+ * because a staff member who did not ask for this needs the safe action to be
+ * "do nothing" rather than "click it to check".
+ */
+export function buildAdminPasswordReset(
+  to: string,
+  opts: { name: string | null; token: string; expiresAt: Date },
+): EmailMessage {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const url = `${base.replace(/\/+$/, "")}/admin/reset?token=${encodeURIComponent(opts.token)}`;
+  const minutes = Math.max(
+    5,
+    Math.round((opts.expiresAt.getTime() - Date.now()) / (60 * 1000)),
+  );
+  const lifetime =
+    minutes >= 120 ? `${Math.round(minutes / 60)} hours` : `${minutes} minutes`;
+
+  const text = [
+    opts.name ? `Hello ${opts.name},` : `Hello,`,
+    ``,
+    `Somebody asked to reset the password on your Allternativ admin account.`,
+    `If that was you, choose a new one here:`,
+    ``,
+    `  ${url}`,
+    ``,
+    `The link works once and expires in about ${lifetime}.`,
+    ``,
+    `Nothing has changed yet. Your current password still works unless you open`,
+    `the link above and choose a different one.`,
+    ``,
+    `⚠️ If this was NOT you, do not use the link, and tell the rest of the team.`,
+    `This account can see orders, customers and prices, so an unexpected reset`,
+    `request is worth one message to check rather than ignoring.`,
+    ``,
+    `Allternativ`,
+  ].join("\n");
+
+  return { to, subject: "Reset your Allternativ admin password", text };
 }
 
 // ── How it leaves ───────────────────────────────────────────────────────────

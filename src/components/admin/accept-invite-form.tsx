@@ -4,7 +4,15 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 
 /**
- * Claim a staff account with an emailed link.
+ * Set a password against an emailed token — for a new invitation, or for a
+ * reset on an account that already exists.
+ *
+ * ⚠️ One component for both, deliberately. The two screens ask for exactly the
+ * same thing — a password, typed twice, against a token — and the password rule
+ * is the part most likely to change. Two copies would be two places to change
+ * it, and the second one is the one somebody forgets.
+ *
+ * What differs is the endpoint and the words, so those are the props.
  *
  * ⚠️ The token is spent by this POST, never by the page load — the same rule
  * the customer verify and reset pages follow, and it matters more here. A link
@@ -12,7 +20,31 @@ import Link from "next/link";
  * that grants staff access, and the only way to recover is for an OWNER to
  * notice and send another.
  */
-export function AcceptInviteForm({ token }: { token: string | null }) {
+const COPY = {
+  invite: {
+    endpoint: "/api/admin-users/accept",
+    heading: "Choose a password.",
+    doneHeading: "You are set up.",
+    intro:
+      "This account can see orders, customers and prices, so the rule is stricter than the shop's:",
+  },
+  reset: {
+    endpoint: "/api/auth/reset/confirm",
+    heading: "Choose a new password.",
+    doneHeading: "Password changed.",
+    intro:
+      "Same rule as before, and stricter than the shop's because this account can see orders, customers and prices:",
+  },
+} as const;
+
+export function AcceptInviteForm({
+  token,
+  mode = "invite",
+}: {
+  token: string | null;
+  mode?: "invite" | "reset";
+}) {
+  const copy = COPY[mode];
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [done, setDone] = useState(false);
@@ -36,7 +68,7 @@ export function AcceptInviteForm({ token }: { token: string | null }) {
     setError("");
     setBusy(true);
     try {
-      const res = await fetch("/api/admin-users/accept", {
+      const res = await fetch(copy.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
@@ -58,9 +90,12 @@ export function AcceptInviteForm({ token }: { token: string | null }) {
     <div className="mx-auto mt-24 max-w-md px-6">
       {done ? (
         <>
-          <h1 className="text-2xl font-semibold">You are set up.</h1>
+          <h1 className="text-2xl font-semibold">{copy.doneHeading}</h1>
           <p className="mt-3 text-sm text-neutral-600">
             Sign in with your email address and the password you just chose.
+            {mode === "reset"
+              ? " Anything that was already signed in to this account has been signed out."
+              : ""}
           </p>
           <Link
             href="/admin/login"
@@ -71,11 +106,10 @@ export function AcceptInviteForm({ token }: { token: string | null }) {
         </>
       ) : (
         <>
-          <h1 className="text-2xl font-semibold">Choose a password.</h1>
+          <h1 className="text-2xl font-semibold">{copy.heading}</h1>
           <p className="mt-3 text-sm text-neutral-600">
-            This account can see orders, customers and prices, so the rule is
-            stricter than the shop&apos;s: at least 12 characters, with an
-            upper case letter, a lower case letter, a number and a symbol.
+            {copy.intro} at least 12 characters, with an upper case letter, a
+            lower case letter, a number and a symbol.
           </p>
 
           <form onSubmit={submit} className="mt-8 space-y-4">

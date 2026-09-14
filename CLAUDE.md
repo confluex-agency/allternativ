@@ -1390,10 +1390,23 @@ already existed; three things were deliberately **not** taken:
   because that name invited exactly this. Mock orders would also pollute the
   margin figures and the ERP feed the supplier has been reading since 24/08.
 
-⚠️ Also raised and still undecided: **showing shoppers the stock NUMBER.**
-"3 left" is a scarcity lever, and it also publishes the inventory position — on
-300 total units that tells a competitor what was bought. Sold-out marking is
-already live; the number is the founders' call, not a feature.
+### ✅ Decided 2026-09-14: shoppers never see the stock number
+
+Raised as an open question when the video brief assumed it, and **answered no**.
+"3 left" is a scarcity lever, but it publishes the inventory position — on 300
+total units it tells a competitor exactly what was bought. Sold-out marking
+stays; the figure is for the team.
+
+⚠️ **Do not add it back as a conversion experiment without asking.** It reads
+like a pure UX tweak and it is a disclosure decision.
+
+⚠️ And note what the ask underneath it actually was: *"así ven qué lentes se
+venden más"*. **That is a reporting question, not a stock-display one** — and it
+is not answered by a number on a product page, which shows what is LEFT rather
+than what MOVED. Twenty units left says nothing without knowing whether it
+started at twenty-five or a hundred. The honest answer is the Analytics screens,
+which do not exist yet: the four `/api/analytics/*` routes are built and
+role-checked, and nothing renders them.
 
 ## Commands
 

@@ -8,7 +8,12 @@ import {
   listAdminUsers,
   NEVER_EXPOSED_ADMIN_FIELDS,
   ADMIN_INVITE_TTL_HOURS,
+  ADMIN_RESET_TTL_MINUTES,
+  requestAdminPasswordReset,
+  consumeAdminPasswordReset,
+  resendAdminAccessLink,
 } from "@/lib/admin-users";
+import { SWEEP_INTERVAL_MINUTES } from "@/lib/customer-accounts";
 import type { JWTPayload } from "@/lib/auth";
 
 const email = (label: string) => `${label}.${RUN}@example.com`;
@@ -342,5 +347,178 @@ describe("what the people screen may publish", () => {
     expect(row.role).toBe("CONTENT_ADMIN");
     expect(row.hasAccepted).toBe(false);
     expect(row.invitedByEmail).toBe(owner.email);
+  });
+});
+
+describe("a way back in for an admin who forgot their password", () => {
+  // ⚠️ These exist because shipping invitations on 2026-09-13 left no recovery
+  // at all: `/api/auth` had only `change-password` (requires being signed in)
+  // and `inviteAdminUser` refuses an address that already exists, so an OWNER
+  // could not re-send either. The only way back was SQL by hand.
+
+  it("says nothing about who works here", async () => {
+    // ⚠️ The property that matters most on a STAFF endpoint. Telling "no such
+    // admin" apart from "wrong password" would let anybody with a browser
+    // enumerate the staff list, which is the first step of every targeted
+    // phish — and the login route already answers all its refusals
+    // identically, so a difference here gives back exactly what that protects.
+    //
+    // Asserted at the level the route is documented to ignore: all three
+    // non-cases return null, so there is nothing for a route to branch on.
+    expect(await requestAdminPasswordReset(email("no-such-admin"))).toBeNull();
+
+    const invited = await inviteAdminUser({
+      email: email("never-accepted"),
+      name: "Never Accepted",
+      role: "ANALYTICS_VIEWER",
+      invitedBy: owner,
+    });
+    if (!invited.ok) throw new Error("invite failed");
+    // An invitation is the way into an account with no password. This is not.
+    expect(
+      await requestAdminPasswordReset(email("never-accepted")),
+    ).toBeNull();
+
+    const address = email("can-reset");
+    const live = await inviteAdminUser({
+      email: address,
+      name: "Can Reset",
+      role: "ECOMMERCE_ADMIN",
+      invitedBy: owner,
+    });
+    if (!live.ok) throw new Error("invite failed");
+    await acceptAdminInvite(live.invite.token, PASSWORD);
+    expect(await requestAdminPasswordReset(address)).not.toBeNull();
+
+    // And a deactivated account is not a way in either.
+    await setAdminActive({
+      targetId: live.adminUserId,
+      isActive: false,
+      actor: owner,
+    });
+    expect(await requestAdminPasswordReset(address)).toBeNull();
+  });
+
+  it("spends the link once and kills what came before", async () => {
+    const address = email("resets");
+    const invited = await inviteAdminUser({
+      email: address,
+      name: "Resets",
+      role: "ECOMMERCE_ADMIN",
+      invitedBy: owner,
+    });
+    if (!invited.ok) throw new Error("invite failed");
+    await acceptAdminInvite(invited.invite.token, PASSWORD);
+
+    const before = must(
+      await prisma.adminUser.findUnique({ where: { email: address } }),
+      "the admin before",
+    );
+
+    const reset = must(
+      await requestAdminPasswordReset(address),
+      "the reset link",
+    );
+    const NEW = "A-Different-One2!";
+    expect((await consumeAdminPasswordReset(reset.token, NEW)).ok).toBe(true);
+
+    const after = must(
+      await prisma.adminUser.findUnique({ where: { email: address } }),
+      "the admin after",
+    );
+    expect(after.passwordHash).not.toBe(before.passwordHash);
+    expect(after.passwordResetToken).toBeNull();
+    // Every session issued before this dies — the point, when the reason for
+    // the reset is that somebody else had the old password.
+    expect(after.passwordChangedAt.getTime()).toBeGreaterThan(
+      before.passwordChangedAt.getTime(),
+    );
+
+    const again = await consumeAdminPasswordReset(reset.token, NEW);
+    expect(again.ok).toBe(false);
+  });
+
+  it("refuses an expired link and tells it apart from an unknown one", async () => {
+    const address = email("stale-reset");
+    const invited = await inviteAdminUser({
+      email: address,
+      name: "Stale Reset",
+      role: "ANALYTICS_VIEWER",
+      invitedBy: owner,
+    });
+    if (!invited.ok) throw new Error("invite failed");
+    await acceptAdminInvite(invited.invite.token, PASSWORD);
+
+    const reset = must(
+      await requestAdminPasswordReset(address),
+      "the reset link",
+    );
+    await prisma.adminUser.update({
+      where: { email: address },
+      data: { passwordResetExpiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const expired = await consumeAdminPasswordReset(reset.token, "A-New-One2!x");
+    expect(expired.ok).toBe(false);
+    if (!expired.ok) expect(expired.reason).toBe("expired");
+
+    const unknown = await consumeAdminPasswordReset("nope", "A-New-One2!x");
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(unknown.reason).toBe("unknown");
+
+    // ⚠️ Shorter than the invitation because the account is live, longer than
+    // the sweep because the sweep is the postman. Asserted as the relationship.
+    expect(ADMIN_RESET_TTL_MINUTES).toBeLessThan(ADMIN_INVITE_TTL_HOURS * 60);
+    expect(ADMIN_RESET_TTL_MINUTES).toBeGreaterThan(SWEEP_INTERVAL_MINUTES * 4);
+  });
+
+  it("sends the link the ROW calls for, not the one the caller asks for", async () => {
+    // ⚠️ An account that never accepted gets a fresh INVITATION; one with a
+    // password gets a RESET. If the screen could choose, it would be possible
+    // to tell somebody who has had access for a month that they have just been
+    // granted it — which is not a typo, it is telling them something happened
+    // to their account that did not.
+    const pending = await inviteAdminUser({
+      email: email("resend-pending"),
+      name: "Pending",
+      role: "ANALYTICS_VIEWER",
+      invitedBy: owner,
+    });
+    if (!pending.ok) throw new Error("invite failed");
+    const asInvite = await resendAdminAccessLink({
+      targetId: pending.adminUserId,
+      actor: owner,
+    });
+    expect(asInvite.ok && asInvite.kind).toBe("invite");
+
+    const settledAddress = email("resend-settled");
+    const settled = await inviteAdminUser({
+      email: settledAddress,
+      name: "Settled",
+      role: "ANALYTICS_VIEWER",
+      invitedBy: owner,
+    });
+    if (!settled.ok) throw new Error("invite failed");
+    await acceptAdminInvite(settled.invite.token, PASSWORD);
+
+    const asReset = await resendAdminAccessLink({
+      targetId: settled.adminUserId,
+      actor: owner,
+    });
+    expect(asReset.ok && asReset.kind).toBe("reset");
+
+    // A deactivated account is refused rather than quietly reactivated:
+    // getting access back is a decision, made by the switch that took it away.
+    await setAdminActive({
+      targetId: settled.adminUserId,
+      isActive: false,
+      actor: owner,
+    });
+    const refused = await resendAdminAccessLink({
+      targetId: settled.adminUserId,
+      actor: owner,
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.reason).toBe("inactive");
   });
 });

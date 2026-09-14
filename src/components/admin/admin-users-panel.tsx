@@ -91,6 +91,36 @@ export function AdminUsersPanel({
     }
   }
 
+  async function resend(id: string) {
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin-users/${id}/resend`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Something went wrong");
+        return;
+      }
+      // ⚠️ Which link went out is decided by the ROW, not by this screen — an
+      // account that never accepted gets a fresh invitation, one that already
+      // has a password gets a reset. Reported back rather than assumed, so the
+      // OWNER can tell the person what to expect in their inbox.
+      setNotice(
+        data.sent === "reset"
+          ? "A password reset link is queued. It goes out with the next sweep, within fifteen minutes."
+          : "A fresh invitation is queued. It goes out with the next sweep, within fifteen minutes.",
+      );
+      router.refresh();
+    } catch {
+      setError("Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function patch(id: string, body: Record<string, unknown>) {
     setError("");
     setNotice("");
@@ -180,21 +210,37 @@ export function AdminUsersPanel({
                     {/* ⚠️ Deactivating yourself is not offered. The API refuses
                         to strand the last owner, but a button that is usually
                         a mistake should not be sitting there at all. */}
-                    {!isSelf && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          patch(u.id, { isActive: !u.isActive })
-                        }
-                        className="text-xs underline disabled:opacity-50"
-                      >
-                        {u.isActive ? "Deactivate" : "Reactivate"}
-                      </button>
-                    )}
-                    {isSelf && (
-                      <span className="text-xs text-neutral-400">you</span>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {/* Offered for anybody active, including yourself: the
+                          self-service form on the sign-in page covers the case
+                          where you cannot get in, and this covers the far more
+                          common one where somebody asks you. */}
+                      {u.isActive && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => resend(u.id)}
+                          className="text-xs underline disabled:opacity-50"
+                        >
+                          {u.hasAccepted ? "Send reset link" : "Resend invite"}
+                        </button>
+                      )}
+                      {!isSelf && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            patch(u.id, { isActive: !u.isActive })
+                          }
+                          className="text-xs underline disabled:opacity-50"
+                        >
+                          {u.isActive ? "Deactivate" : "Reactivate"}
+                        </button>
+                      )}
+                      {isSelf && (
+                        <span className="text-xs text-neutral-400">you</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

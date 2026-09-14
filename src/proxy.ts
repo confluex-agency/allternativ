@@ -72,19 +72,26 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // ⚠️ Two /admin paths are reachable without a session, and both have to be.
+  // ⚠️ Four /admin paths are reachable without a session, and all four have to
+  // be. Every one of them exists for somebody who CANNOT sign in — guarding
+  // them would redirect that person to the login form they are trying to get
+  // past, which is the one place a redirect helps nobody.
   //
   //   /admin/login          the obvious one.
-  //   /admin/accept-invite  where an invited person chooses their password.
-  //                         They have no session yet — that is the entire point
-  //                         of an invitation — so guarding this would redirect
-  //                         them to a login form they cannot pass, and the only
-  //                         way in would be a link that bounces.
+  //   /admin/accept-invite  an invited person choosing their first password.
+  //   /admin/forgot         asking for a reset link.
+  //   /admin/reset          spending one.
   //
-  // Neither is unguarded: the login form has the rate limiter, and accept-invite
-  // needs a 32-byte single-use token that was emailed to the address the account
-  // is named after. What they lack is a COOKIE, which is a different thing.
-  const OPEN_ADMIN_PATHS = ["/admin/login", "/admin/accept-invite"];
+  // None is unguarded, which is a different thing from uncookied: the login
+  // form and both reset routes are behind the rate limiter, and the two
+  // token-bearing pages need 32 random bytes that were emailed to the address
+  // the account is named after.
+  const OPEN_ADMIN_PATHS = [
+    "/admin/login",
+    "/admin/accept-invite",
+    "/admin/forgot",
+    "/admin/reset",
+  ];
 
   if (pathname.startsWith("/admin") && !OPEN_ADMIN_PATHS.includes(pathname)) {
     const token = request.cookies.get(COOKIE_NAME)?.value;

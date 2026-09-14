@@ -81,6 +81,21 @@ export default function AdminLoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+
+          {/* ⚠️ Not a nicety. Until 2026-09-14 there was no way back into a
+              staff account at all: `/api/auth` had only `change-password`,
+              which requires being signed in, and `inviteAdminUser` refuses an
+              address that already exists — so an OWNER could not re-send
+              either. An admin who forgot their password was locked out until
+              somebody ran SQL against production by hand. */}
+          <p className="mt-4 text-center text-sm">
+            <a
+              href="/admin/forgot"
+              className="text-neutral-500 underline underline-offset-2 hover:text-black"
+            >
+              Forgotten your password?
+            </a>
+          </p>
         </CardContent>
       </Card>
     </div>

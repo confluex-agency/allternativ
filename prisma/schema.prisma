@@ -70,11 +70,35 @@ model AdminUser {
   inviteEmailAttempts Int             @default(0) @map("invite_email_attempts")
   inviteEmailLastError String?        @map("invite_email_last_error") @db.Text
 
+  // ─ Getting back in ─────────────────────────────────────────────────────────
+  //
+  // ⚠️ Separate from the invitation columns above, even though both flows end
+  // in "set a password through an emailed link". They are not the same event
+  // and the difference is visible from the row: an INVITATION goes to a
+  // `passwordHash` that is null and says "you now have access"; a RESET goes to
+  // an account that already works and says "choose a new password". The sweep's
+  // two queues are told apart by exactly that, the two messages say opposite
+  // things, and one token doing both would mean the wrong message could carry
+  // the wrong meaning.
+  //
+  // ⚠️ These exist because shipping invitations without them was a hole. An
+  // admin who forgot their password had NO way back: `/api/auth` only ever had
+  // `change-password`, which requires being signed in, and `inviteAdminUser`
+  // refuses an address that already exists — so an OWNER could not even
+  // re-send. The only recovery was SQL against production by hand.
+  passwordResetToken     String?           @unique @map("password_reset_token")
+  passwordResetExpiresAt DateTime?         @map("password_reset_expires_at")
+  resetEmailStatus       QueuedEmailStatus @default(SKIPPED) @map("reset_email_status")
+  resetEmailSentAt       DateTime?         @map("reset_email_sent_at")
+  resetEmailAttempts     Int               @default(0) @map("reset_email_attempts")
+  resetEmailLastError    String?           @map("reset_email_last_error") @db.Text
+
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   // The queue query: invitations whose mail has not gone out yet.
   @@index([inviteEmailStatus])
+  @@index([resetEmailStatus])
   @@map("admin_users")
 }
 

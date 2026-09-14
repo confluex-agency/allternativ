@@ -73,6 +73,9 @@ export const NEVER_EXPOSED_ADMIN_FIELDS = [
   "inviteToken",
   "inviteExpiresAt",
   "inviteEmailLastError",
+  "passwordResetToken",
+  "passwordResetExpiresAt",
+  "resetEmailLastError",
 ] as const;
 
 /** The staff list, as the OWNER screen shows it. */
@@ -317,4 +320,197 @@ export async function setAdminActive(input: {
   });
 
   return { ok: true };
+}
+
+/**
+ * How long a reset link for a STAFF account lives.
+ *
+ * Two hours, and it sits deliberately between the customer's three and the
+ * invitation's twenty-four, because the two constraints pull opposite ways:
+ *
+ *  * Like the customer reset and unlike an invitation, this one is EXPECTED —
+ *    the person clicked "forgot my password" seconds earlier. So the floor from
+ *    2026-09-12 is satisfied without a generous window: nobody is surprised by
+ *    it hours later.
+ *  * Unlike a customer's, the account behind it reads orders, customers and
+ *    prices. So it gets less than three hours rather than more.
+ *
+ * Still eight sweeps of headroom over the postman. See
+ * `SWEEP_INTERVAL_MINUTES` in `customer-accounts.ts` for why that floor exists.
+ */
+export const ADMIN_RESET_TTL_MINUTES = 120;
+
+function mintReset(): NewAdminInvite {
+  return {
+    token: randomBytes(32).toString("base64url"),
+    expiresAt: new Date(Date.now() + ADMIN_RESET_TTL_MINUTES * 60 * 1000),
+  };
+}
+
+/**
+ * Mint a reset link for an admin who cannot get in.
+ *
+ * ⚠️ Returns null when there is nothing to reset, and **the route above must
+ * answer identically either way** — same rule as `requestPasswordReset` on the
+ * customer side, and it matters more here. A staff login form that distinguished
+ * "no such admin" from "wrong password" would let anybody with a browser
+ * enumerate who works at this company, which is the first step of every
+ * targeted phish. The existing login route already answers the same for all
+ * refusals; this must not undo that.
+ *
+ * Null covers three cases and tells none of them apart: no such address, an
+ * invited account that has never had a password (the invitation is the way in,
+ * not this), and a deactivated one.
+ */
+export async function requestAdminPasswordReset(
+  rawEmail: string,
+): Promise<NewAdminInvite | null> {
+  const email = rawEmail.trim().toLowerCase();
+  const user = await prisma.adminUser.findUnique({
+    where: { email },
+    select: { id: true, passwordHash: true, isActive: true },
+  });
+  if (!user?.passwordHash) return null;
+  if (!user.isActive) return null;
+
+  const reset = mintReset();
+  await prisma.adminUser.update({
+    where: { id: user.id },
+    data: {
+      passwordResetToken: reset.token,
+      passwordResetExpiresAt: reset.expiresAt,
+      resetEmailStatus: "PENDING",
+      resetEmailAttempts: 0,
+      resetEmailLastError: null,
+    },
+  });
+  return reset;
+}
+
+/**
+ * Spend a reset link and set the new password.
+ *
+ * Mirrors `acceptAdminInvite` and `consumePasswordReset`: the token is cleared
+ * in the same write that sets the hash, and `passwordChangedAt` moves — so every
+ * session that existed before this dies, which is the point when the reason for
+ * the reset is that somebody else had the old password.
+ */
+export async function consumeAdminPasswordReset(
+  token: string,
+  password: string,
+): Promise<AcceptResult> {
+  const user = await prisma.adminUser.findUnique({
+    where: { passwordResetToken: token },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      isActive: true,
+      passwordResetExpiresAt: true,
+    },
+  });
+  if (!user) return { ok: false, reason: "unknown" };
+
+  // Deactivated between asking and clicking, or a row that lost its password.
+  // Neither is an account this link may recreate.
+  if (!user.isActive || !user.passwordHash) {
+    return { ok: false, reason: "unknown" };
+  }
+
+  if (
+    user.passwordResetExpiresAt &&
+    user.passwordResetExpiresAt.getTime() < Date.now()
+  ) {
+    return { ok: false, reason: "expired" };
+  }
+
+  await prisma.adminUser.update({
+    where: { id: user.id },
+    data: {
+      passwordHash: await hash(password, BCRYPT_ROUNDS),
+      passwordChangedAt: new Date(),
+      mustChangePassword: false,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
+    },
+  });
+
+  return { ok: true, adminUserId: user.id, email: user.email };
+}
+
+export type ResendResult =
+  | { ok: true; kind: "invite" | "reset" }
+  | { ok: false; reason: "not-found" | "inactive" };
+
+/**
+ * The OWNER's version of the same rescue: send this person a link again.
+ *
+ * ⚠️ Which link depends on the row, and the caller does not get to choose. An
+ * account that never accepted its invitation gets a fresh INVITATION; one that
+ * has a password gets a RESET. Letting the screen pick would make it possible
+ * to send "you now have access" to somebody who has had it for a month, or a
+ * reset to somebody who has never had a password to reset.
+ *
+ * This exists alongside the self-service form rather than instead of it. The
+ * self-service one is what covers the OWNER themselves — if the only way back
+ * were another OWNER, then the person who grants access would be the single
+ * point of failure for their own account.
+ */
+export async function resendAdminAccessLink(input: {
+  targetId: string;
+  actor: JWTPayload;
+}): Promise<ResendResult> {
+  const target = await prisma.adminUser.findUnique({
+    where: { id: input.targetId },
+    select: { id: true, email: true, passwordHash: true, isActive: true },
+  });
+  if (!target) return { ok: false, reason: "not-found" };
+  // Deliberately refused rather than silently reactivating: getting access back
+  // after it was taken away is a decision, and it is made by the switch that
+  // took it away.
+  if (!target.isActive) return { ok: false, reason: "inactive" };
+
+  if (target.passwordHash) {
+    const reset = mintReset();
+    await prisma.adminUser.update({
+      where: { id: target.id },
+      data: {
+        passwordResetToken: reset.token,
+        passwordResetExpiresAt: reset.expiresAt,
+        resetEmailStatus: "PENDING",
+        resetEmailAttempts: 0,
+        resetEmailLastError: null,
+      },
+    });
+    await recordAudit({
+      actor: input.actor,
+      action: "update",
+      entityType: "admin_user",
+      entityId: target.id,
+      entityLabel: target.email,
+      newValue: { sent: "password reset link" },
+    });
+    return { ok: true, kind: "reset" };
+  }
+
+  const invite = mintInvite();
+  await prisma.adminUser.update({
+    where: { id: target.id },
+    data: {
+      inviteToken: invite.token,
+      inviteExpiresAt: invite.expiresAt,
+      inviteEmailStatus: "PENDING",
+      inviteEmailAttempts: 0,
+      inviteEmailLastError: null,
+    },
+  });
+  await recordAudit({
+    actor: input.actor,
+    action: "update",
+    entityType: "admin_user",
+    entityId: target.id,
+    entityLabel: target.email,
+    newValue: { sent: "fresh invitation" },
+  });
+  return { ok: true, kind: "invite" };
 }

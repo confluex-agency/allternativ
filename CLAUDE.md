@@ -227,6 +227,43 @@ sharing the module: `npm run job sweep`.
   retry re-run a sweep that succeeded. `ok: false` in the body is the signal,
   and Hostinger records the response as the cron's output.
 
+## ⚠️ Going live is not four switches
+
+Asked on 2026-09-14 — *"if we have the company registered, Stripe in live mode
+and the photos, can we just go?"* — and the honest answer is that **the selling
+machinery is finished and the launch still needs a session of its own.**
+
+What is done is genuinely done: a real purchase on staging, three pairs, correct
+SKUs, stock taken once, confirmation email delivered, and the order reaching the
+supplier with the case colours intact. None of the list below is code.
+
+**Three of these fail SILENTLY, which is what makes the list worth keeping:**
+
+| | |
+|---|---|
+| ⚠️ Remove `STAGING_PASSWORD` | Carried over, the real shop asks every customer for a password **and** tells Google not to index it. See the section above — one variable, two switches. |
+| ⚠️ Create a **new** Stripe webhook, in LIVE mode | Test-mode endpoints do not receive live events. Without it, the card is charged, the buyer sees the success page, and **no order is created** — exactly the 2026-08-24 failure. `webhook_events` stays empty, which means *nothing arrived*, not *something failed*. |
+| ⚠️ Set `NEXT_PUBLIC_APP_URL` **and rebuild** | It is inlined at build time. Changing the variable and restarting serves the old value — the bug that once sent a paying customer to `localhost:3000`. |
+| Re-point the three cron jobs | They call `staging.allternativ.com`. Left alone, the production shop never sends a single email. |
+| Upstash on production | Or nobody can sign in to the admin: the login limiter fails closed on purpose. |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | The defaults are committed and therefore in git history. |
+| Fill in `legal.ts` | Legal name, registered address, company number, VAT, IOSS. The "not final" notice on the five legal pages disappears on its own once they are set. |
+| Set up `allternativ.com` as a Node app | Only `staging.` is one today; the apex is `website_type: "other"`. That is a deploy step, not a code change. |
+| Apply migrations, then push | See the ordering rule above. |
+
+**Still unexercised in the selling path**, and neither needs the client:
+
+- The **dispatch email** has never been sent. It needs an order marked SHIPPED
+  *with* a tracking number, which can be simulated on staging.
+- **DELIVERED is written by nobody.** It is in the enum, the dashboard counts it,
+  the WooCommerce façade maps it, and no code path sets it — so an order stays
+  SHIPPED for ever. Whether the carrier reports delivery through Dianxiaomi is a
+  question for **Daniel**, not Max.
+
+**What is genuinely outside our hands:** Stripe in live mode (needs the company
+and a bank account), the company's registered details, and `lensCategory` —
+which needs one answer from Max about which colourways carry the gradient lens.
+
 ## Security
 
 ### Fixing vulnerabilities
@@ -1446,6 +1483,28 @@ Correcting a genuine oversold is done by *adding* what arrived.
 The question asked three weeks later is never "what is the stock", it is "why is
 this eleven when the invoice says twelve" — and an audit row reading `11 → 12`
 with no sentence answers nothing.
+
+### The promotions screen is the one circuit still half-built
+
+⚠️ **The engine is finished and the management is not**, which is an unusual way
+round and easy to misread as "promotions are not built".
+
+What exists: a code field with an Apply button in `/cart`, the total moving for
+real, and — the part no off-the-shelf brief asks for — `evaluateDiscountForBasket`
+refusing a code that would sell below cost, **before the Stripe session exists**.
+
+What does not: the codes themselves are **Stripe coupons**, created in Stripe's
+own dashboard, and there is no screen here to create or switch one off.
+
+⚠️ **A second brief (2026-09-14) asked for "an internal database collection for
+active discounts", and that part should be declined.** Moving the codes into our
+own table means taking on what Stripe already does for free — expiry, maximum
+redemptions, per-customer limits, per-currency minimums — and, worse, **computing
+the charged amount ourselves** and counting redemptions against a race that is
+the same shape as overselling. The thing actually missing is a screen, and it can
+be built on Stripe's API: create a code, switch it off, and show the margin floor
+at the moment of creating it. *"What did that promo cost?"* is already answerable
+without any of it, because `Order.discountCents` is frozen on every order.
 
 ### What the video brief asked for, and what was refused
 

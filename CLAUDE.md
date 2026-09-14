@@ -780,7 +780,7 @@ the same reason the encoder refuses a cart it cannot fit instead of truncating.
 The old single `items` key is still read, so a session created minutes before a
 deploy still becomes an order.
 
-### The five emails are queued, not sent
+### The six emails are queued, not sent
 
 The webhook answers Stripe synchronously, and that is what gives the payment
 path its durability: a failure returns 5xx and Stripe retries for three days.
@@ -794,8 +794,8 @@ is the queue: `Order.emailStatus` is `PENDING`, and the `sweep` job
 drains it. No broker, for the same reason there is no broker on the payment
 path — one column and one script answer the whole requirement.
 
-There are **five** of them, queued the same way and counted separately. Four are
-for customers; the fifth is for staff.
+There are **six** of them, queued the same way and counted separately. Four are
+for customers; two are for staff.
 
 | Mail | Becomes due when | Promised by |
 |---|---|---|
@@ -804,6 +804,7 @@ for customers; the fifth is for staff.
 | Account verification | somebody registers | the account page, which says the history is waiting on it |
 | Password reset | somebody asks on `/account/forgot` | the login page, which now links to it |
 | Admin invitation | an OWNER invites somebody on `/admin/users` | nothing — it IS the grant |
+| Admin password reset | an admin asks on `/admin/forgot`, or an OWNER sends one from `/admin/users` | the sign-in page, which links to it |
 
 ⚠️ **The fourth is the only one where being LATE is itself the failure.** The
 other three carry a message that is still correct a day after it was due; a
@@ -1266,6 +1267,42 @@ cart and the wishlist remain in the browser exactly as before.
 Named after section 18 of the brief: `OWNER`, `ECOMMERCE_ADMIN`,
 `CONTENT_ADMIN`, `ANALYTICS_VIEWER`. The enum default is `ANALYTICS_VIEWER` on
 purpose, so a row created without an explicit role can edit nothing.
+
+### ⚠️ An admin who forgets their password must have a way back
+
+Shipping invitations on 2026-09-13 left none, and the shape of that is worth
+keeping because it was invisible from inside the feature that caused it.
+`/api/auth` had only `change-password`, which requires being signed in — fine
+while there was ONE account whose password lived in somebody's manager.
+Invitations changed the picture without touching that route: several people
+with their own accounts, and `inviteAdminUser` refuses an address that already
+exists, so an OWNER could not even re-send. **Locked out permanently, recoverable
+only by SQL run by hand.** Section 18 asks for it in as many words: *"Password
+reset and appropriate authentication/security controls."*
+
+Two doors now, and they are not redundant:
+
+- **`/admin/forgot`**, self-service. Needed because if the person locked out is
+  the OWNER, there is no other OWNER to rescue them — that would make the
+  grantor a single point of failure for their own account.
+- **"Send reset link" on `/admin/users`**, for the ordinary case where somebody
+  asks you.
+
+⚠️ **Which link goes out is decided by the ROW, never by the caller.** An account
+that never accepted gets a fresh INVITATION; one with a password gets a RESET.
+If the screen could choose, it would be possible to tell somebody who has had
+access for a month that they have just been granted it — not a typo, but telling
+them something happened to their account that did not.
+
+⚠️ **`/api/auth/reset` answers `{queued:true}` to everybody**, and this matters
+more than the customer equivalent. A staff endpoint that distinguished "no such
+admin" from "wrong password" lets anybody enumerate **who works here**, which is
+where every targeted phish starts — and the login route already answers all its
+refusals identically, so a difference here hands back exactly what that protects.
+
+The TTL is **2 hours**: under the invitation's 24 because the account is live,
+over the customer's 3 because it reads orders and prices, and comfortably over
+the sweep interval because the sweep is the postman.
 
 ### There is no admin sign-up, and there must never be
 

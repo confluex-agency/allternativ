@@ -8,6 +8,7 @@ import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
 import {
   quoteShipping,
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
+  MAX_PAIRS_PER_ORDER,
 } from "@/lib/shipping";
 import { evaluateDiscountForBasket } from "@/lib/promotions";
 import { encodeItemsMetadata } from "@/lib/checkout-metadata";
@@ -69,9 +70,22 @@ export async function POST(request: NextRequest) {
     }
     const { items, currency, destinationCountry, promotionCode } = parsed.data;
 
+    const pairs = items.reduce((n, i) => n + i.quantity, 0);
+
+    // C3, 2026-09-19: three pairs per order. The basket already stops there,
+    // but it lives in localStorage and a basket saved before the cap still
+    // holds more, so this is the check that counts. Before any stock is taken.
+    if (pairs > MAX_PAIRS_PER_ORDER) {
+      return NextResponse.json(
+        {
+          error: `Orders are limited to ${MAX_PAIRS_PER_ORDER} pairs. Please remove ${pairs - MAX_PAIRS_PER_ORDER} to continue.`,
+        },
+        { status: 400 },
+      );
+    }
+
     // Refuse a destination we have no quoted rate for rather than guessing one.
     // Shipping something at an invented price is worse than not selling it.
-    const pairs = items.reduce((n, i) => n + i.quantity, 0);
     const shipping = quoteShipping(destinationCountry, pairs, currency);
     if (!shipping) {
       return NextResponse.json(

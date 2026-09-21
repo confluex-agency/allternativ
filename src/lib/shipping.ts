@@ -175,19 +175,49 @@ export function usdCentsTo(
 export const FREE_SHIPPING_FROM_PAIRS = 2;
 
 /**
- * ...but only up to four. Manuel and Belu closed this on 2026-08-21: "hasta 4
- * lentes seria el descuento de envio gratis".
+ * The most pairs one order can hold. Point C3 of the client's consolidated
+ * answer, 2026-09-19: "máximo de 3 pares por pedido".
  *
- * Their original text said "FREE SHIPPING ON 2+ PAIRS", with no ceiling, which
- * would have given away delivery on an order of any size. This is the ceiling.
+ * It replaced the 2026-08-21 rule, free delivery up to four pairs and paid
+ * from the fifth. That rule had a step in it: the fifth pair cost its own price
+ * plus the whole parcel's delivery, so the cart got dearer exactly where the
+ * order got more profitable. A hard cap has no step to fall off.
  *
- * ⚠️ It creates a step at the fifth pair, and the step is not small: a fifth
- * pair costs the customer its own price plus the whole parcel's delivery, so
- * the cart is at its most expensive exactly where the order is at its most
- * profitable. The numbers, and the alternative reading of their sentence, are
- * in the vault under "Preguntas a Manuel y Belu". Implemented as written.
+ * Their reason is also customs, not only simplicity. At the €39 European price
+ * three pairs is €117 and four is €156, and €150 is the low-value consignment
+ * threshold that matters if IOSS is ever used. Shipping is DDP for launch
+ * (Daniel, 2026-09-19), so the threshold is not binding today, but the cap
+ * keeps it true for free.
+ *
+ * ⚠️ Enforced twice on purpose. The basket refuses a fourth pair so nobody is
+ * told at the payment step, and the checkout route refuses it again because
+ * the basket lives in localStorage and can be edited.
  */
-export const FREE_SHIPPING_MAX_PAIRS = 4;
+export const MAX_PAIRS_PER_ORDER = 3;
+
+/**
+ * Free delivery runs from two pairs to the cap. They are the same number now,
+ * which is the point of C3: no order that can be placed loses free delivery by
+ * growing. Kept as its own name because the pages say "2 to 3 pairs".
+ */
+export const FREE_SHIPPING_MAX_PAIRS = MAX_PAIRS_PER_ORDER;
+
+/** How many more pairs fit in a bag that already holds `pairsInBag`. */
+export function pairsLeftInOrder(pairsInBag: number): number {
+  return Math.max(0, MAX_PAIRS_PER_ORDER - pairsInBag);
+}
+
+/**
+ * Said next to the free-delivery line once the bag is at the cap, or past it.
+ * Past it happens to a basket saved before the cap existed.
+ */
+export function orderLimitMessage(pairs: number): string | null {
+  if (pairs < MAX_PAIRS_PER_ORDER) return null;
+  if (pairs === MAX_PAIRS_PER_ORDER)
+    return `Maximum ${MAX_PAIRS_PER_ORDER} pairs per order.`;
+  const extra = pairs - MAX_PAIRS_PER_ORDER;
+  return `Orders are limited to ${MAX_PAIRS_PER_ORDER} pairs. Please remove ${extra} pair${extra === 1 ? "" : "s"} to continue.`;
+}
 
 /** Countries the shop will deliver to, derived from the quote above. */
 export const SHIPPABLE_COUNTRIES = Object.keys(SUPPLIER_SHIPPING_USD).sort();
@@ -227,9 +257,10 @@ export function quoteShipping(
     pairs >= FREE_SHIPPING_FROM_PAIRS && pairs <= FREE_SHIPPING_MAX_PAIRS;
 
   // A single pair is charged from the quotation's first column. Above the free
-  // window the quotation still has columns to read as far as five pairs, and
-  // past that the cost side's extrapolation is charged - at cost and with no
-  // markup, like every other delivery here.
+  // window, which since C3 is also above the most an order can hold, the
+  // quotation's own figure is still returned rather than null: null here means
+  // "we do not ship there", and the checkout refuses an oversized basket with
+  // its own message before it ever asks.
   const usdCents =
     pairs <= 1 ? tiers[0] * 100 : supplierCostUsdCents(country, pairs);
 
@@ -248,10 +279,10 @@ export function quoteShipping(
  *
  * Question 6 of the supplier document asked exactly what happens above three
  * pairs, and Quot-260825 answers it: the quotation now runs to five. Every
- * parcel the free-shipping window can produce — one to four pairs — is
- * therefore a quoted figure now, not an estimate. That matters because four
- * pairs is the most expensive parcel the shop gives away, so it is the number
- * the whole rule has to justify itself against.
+ * parcel an order can produce — one to three pairs since C3 — is therefore a
+ * quoted figure, not an estimate. That matters because three pairs is the
+ * most expensive parcel the shop gives away, so it is the number the whole
+ * rule has to justify itself against.
  *
  * ⚠️ Six pairs and up is still extrapolated, by the marginal step between the
  * last two quoted tiers. Those orders are charged, not absorbed, and the
@@ -286,6 +317,8 @@ export function supplierCostUsdCents(country: string, pairs: number): number {
  */
 export function freeShippingMessage(pairs: number): string | null {
   if (pairs <= 0) return null;
+  // Past the cap the order cannot be placed at all, and `orderLimitMessage`
+  // says so. Congratulating the same bag on free delivery would contradict it.
   if (pairs > FREE_SHIPPING_MAX_PAIRS) return null;
   if (pairs >= FREE_SHIPPING_FROM_PAIRS)
     return "You've unlocked free shipping.";

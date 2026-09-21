@@ -10,7 +10,11 @@ import { useCartDrawer } from "@/hooks/useCartDrawer";
 import { useDestination } from "@/hooks/useDestination";
 import { priceIn, useMarket } from "@/components/storefront/price";
 import { caseLabel } from "@/lib/product-options";
-import { freeShippingMessage } from "@/lib/shipping";
+import {
+  freeShippingMessage,
+  orderLimitMessage,
+  pairsLeftInOrder,
+} from "@/lib/shipping";
 import { formatPrice } from "@/lib/utils";
 import { MARKETS } from "@/lib/markets";
 import type { CartItem } from "@/types";
@@ -97,6 +101,9 @@ export function CartDrawer() {
   // into two slightly different sentences.
   const nudge = freeShippingMessage(pairs);
   const freeAlready = pairs >= 2;
+  // C3: three pairs per order. The + buttons stop at it, and this says why.
+  const bagFull = pairsLeftInOrder(pairs) === 0;
+  const limit = orderLimitMessage(pairs);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -185,8 +192,9 @@ export function CartDrawer() {
                             onClick={() =>
                               updateQuantity(item.lineId, item.quantity + 1)
                             }
+                            disabled={bagFull}
                             aria-label={`Increase quantity of ${item.name}`}
-                            className="grid size-8 place-items-center rounded-full text-brand-ink fluid-transition hover:bg-brand-ink/5"
+                            className="grid size-8 place-items-center rounded-full text-brand-ink fluid-transition hover:bg-brand-ink/5 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                           >
                             +
                           </button>
@@ -220,6 +228,11 @@ export function CartDrawer() {
                     className={`mb-4 text-sm ${freeAlready ? "text-emerald-800" : "text-brand-ink"}`}
                   >
                     {nudge}
+                  </p>
+                )}
+                {limit && (
+                  <p className="-mt-2 mb-4 text-xs text-brand-muted">
+                    {limit}
                   </p>
                 )}
 

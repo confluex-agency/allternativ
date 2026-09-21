@@ -77,7 +77,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
   function handleAdd() {
     if (!variant) return;
     const image = images[0]?.url ?? "";
-    addItem({
+    const added = addItem({
       lineId: cartLineId(variant.id, caseColor),
       variantId: variant.id,
       productId: product.id,
@@ -93,6 +93,13 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
       quantity: 1,
       imageUrl: image,
     });
+    // A full bag adds nothing. The panel still opens, because it is where the
+    // three-pair limit is spelled out, next to what is already in the bag.
+    // Recording an add that did not happen would inflate the funnel.
+    if (!added) {
+      openCart();
+      return;
+    }
     trackAddToCart(variant.sku, 1);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 2000);

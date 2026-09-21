@@ -203,8 +203,9 @@ export async function evaluateDiscountForBasket(opts: {
   const economics = {
     revenueCents,
     goodsCostCents: goodsCostCentsFor(lines, currency),
-    // What the parcel COSTS, not what was charged for it. Between two and four
-    // pairs those two numbers are as far apart as they get: the customer pays
+    // What the parcel COSTS, not what was charged for it. Between two and
+    // three pairs, the whole free window and since C3 the most an order can
+    // hold, those two numbers are as far apart as they get: the customer pays
     // nothing and the whole thing comes out of the margin.
     shippingCostCents:
       usdCentsTo(supplierCostUsdCents(destinationCountry, pairs), currency) ?? 0,

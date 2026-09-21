@@ -14,6 +14,9 @@ import { trackCheckoutStart } from "@/lib/tracking";
 import {
   quoteShipping,
   freeShippingMessage,
+  orderLimitMessage,
+  pairsLeftInOrder,
+  MAX_PAIRS_PER_ORDER,
 } from "@/lib/shipping";
 
 // English country names without shipping a list of our own. Falls back to the
@@ -74,6 +77,11 @@ export function CartView() {
   const pairs = items.reduce((n, i) => n + i.quantity, 0);
   const shipping = shipTo ? quoteShipping(shipTo, pairs, currency) : null;
   const nudge = freeShippingMessage(pairs);
+  // C3: three pairs per order. The route refuses more anyway; this is so the
+  // shopper learns it here and not from an error after pressing pay.
+  const bagFull = pairsLeftInOrder(pairs) === 0;
+  const limit = orderLimitMessage(pairs);
+  const overLimit = pairs > MAX_PAIRS_PER_ORDER;
 
   // What a discount is worth depends on the whole basket, not just the code:
   // the same percentage comes off a different subtotal, and the floor it has to
@@ -265,8 +273,9 @@ export function CartView() {
                 <span className="text-sm w-6 text-center">{item.quantity}</span>
                 <button
                   onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
+                  disabled={bagFull}
                   aria-label="Increase quantity"
-                  className="w-7 h-7 border text-sm hover:bg-neutral-100"
+                  className="w-7 h-7 border text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   +
                 </button>
@@ -420,6 +429,13 @@ export function CartView() {
             {nudge}
           </p>
         )}
+        {limit && (
+          <p
+            className={`mt-2 text-xs ${overLimit ? "text-red-600" : "text-neutral-500"}`}
+          >
+            {limit}
+          </p>
+        )}
 
         <p className="mt-2 text-xs text-neutral-500">
           Tracked delivery, 8–15 business days.
@@ -433,7 +449,7 @@ export function CartView() {
             delivery price to quote and no country to pin the payment page to. */}
         <Button
           onClick={handleCheckout}
-          disabled={submitting || !shipTo}
+          disabled={submitting || !shipTo || overLimit}
           className="w-full mt-6 py-6 text-sm font-medium tracking-wide"
           size="lg"
         >

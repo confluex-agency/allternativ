@@ -6,6 +6,10 @@ import {
   FX,
   FREE_SHIPPING_FROM_PAIRS,
   FREE_SHIPPING_MAX_PAIRS,
+  MAX_PAIRS_PER_ORDER,
+  pairsLeftInOrder,
+  orderLimitMessage,
+  freeShippingMessage,
 } from "@/lib/shipping";
 
 // The tariff table is the one place in this codebase where a typing slip costs
@@ -74,7 +78,7 @@ describe("what a parcel costs Allternativ", () => {
     // rule has to justify itself against. Under the July quotation it was an
     // extrapolation; the point of the August one is that it no longer is.
     expect(FREE_SHIPPING_MAX_PAIRS).toBeLessThanOrEqual(5);
-    expect(supplierCostUsdCents("MT", FREE_SHIPPING_MAX_PAIRS)).toBe(2692);
+    expect(supplierCostUsdCents("MT", FREE_SHIPPING_MAX_PAIRS)).toBe(2261);
   });
 
   it("extends by the last quoted step beyond five pairs", () => {
@@ -109,7 +113,7 @@ describe("what the customer is charged", () => {
     expect(quote.amountCents).toBe(Math.round(11.03 * 100 * FX.perUsd.EUR));
   });
 
-  it("gives delivery away from two pairs to four", () => {
+  it("gives delivery away from two pairs to three", () => {
     for (
       let pairs = FREE_SHIPPING_FROM_PAIRS;
       pairs <= FREE_SHIPPING_MAX_PAIRS;
@@ -121,15 +125,41 @@ describe("what the customer is charged", () => {
     }
   });
 
-  it("charges the quoted five-pair rate at the fifth pair", () => {
-    // The step the client accepted on 2026-08-21: the fifth pair pays for the
-    // whole parcel. It should pay the quoted figure, not an extrapolation.
-    const quote = quoteShipping("MT", 5, "EUR")!;
-    expect(quote.free).toBe(false);
-    expect(quote.amountCents).toBe(Math.round(31.06 * 100 * FX.perUsd.EUR));
+  it("has no paid step inside an order that can be placed", () => {
+    // C3 (2026-09-19) replaced "free up to four, paid from the fifth" with a
+    // cap of three. The point was that no order loses free delivery by
+    // growing, so the free window must reach exactly as far as the cap.
+    expect(FREE_SHIPPING_MAX_PAIRS).toBe(MAX_PAIRS_PER_ORDER);
+    expect(MAX_PAIRS_PER_ORDER).toBe(3);
   });
 
   it("refuses a country outside the quotation", () => {
     expect(quoteShipping("JP", 1, "EUR")).toBeNull();
+  });
+});
+
+describe("the three-pair cap", () => {
+  it("counts the room left in the bag, never below zero", () => {
+    expect(pairsLeftInOrder(0)).toBe(3);
+    expect(pairsLeftInOrder(2)).toBe(1);
+    expect(pairsLeftInOrder(3)).toBe(0);
+    // A basket saved before the cap existed.
+    expect(pairsLeftInOrder(5)).toBe(0);
+  });
+
+  it("says nothing until the bag is full", () => {
+    expect(orderLimitMessage(1)).toBeNull();
+    expect(orderLimitMessage(2)).toBeNull();
+    expect(orderLimitMessage(3)).toBe("Maximum 3 pairs per order.");
+  });
+
+  it("asks an oversized basket to shrink, by the right amount", () => {
+    expect(orderLimitMessage(4)).toMatch(/remove 1 pair to continue/);
+    expect(orderLimitMessage(5)).toMatch(/remove 2 pairs to continue/);
+  });
+
+  it("does not congratulate a basket that cannot be ordered", () => {
+    expect(freeShippingMessage(3)).toBe("You've unlocked free shipping.");
+    expect(freeShippingMessage(4)).toBeNull();
   });
 });

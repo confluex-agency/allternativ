@@ -539,6 +539,13 @@ units are recorded all the same, so the launch inventory is complete.
 **From two pairs up, delivery is free and absorbed whole.** That is the client's
 AOV lever, and the copy in the cart is theirs word for word.
 
+⚠️ **An order holds at most three pairs** (`MAX_PAIRS_PER_ORDER`, point C3 of the
+client's answer of 2026-09-19), so the free window is two to three and there is
+no paid step inside an order that can be placed. It replaced "free up to four,
+paid from the fifth". It is enforced twice on purpose: `useCart` never lets the
+bag grow past it, and `/api/checkout` refuses more, because the bag lives in
+localStorage and a basket saved before the cap can still hold five.
+
 **The destination is chosen in the cart, before the Stripe session exists.** Not
 a preference — Stripe's documentation is explicit that *"the hosted page
 integration in Stripe Checkout does not support dynamically customizing shipping
@@ -702,8 +709,9 @@ two failures that nothing caught.
 value at **500 characters**, and the whole cart was one value. Measured against
 the real SKUs, four lines came to 448 characters and five to 557: Stripe refused
 the session, the reservation was handed back, and the shopper saw an error. Free
-delivery runs from two to four pairs, so the large cart is precisely the one the
-shop pushes people towards. The payload is now split across `items_0`, `items_1`
+delivery then ran from two to four pairs, so the large cart was precisely the one
+the shop pushed people towards. (Since 2026-09-19 an order holds at most three
+pairs, but a three-pair cart can still be three lines, and the split stays.) The payload is now split across `items_0`, `items_1`
 … , which puts the ceiling far past the 32 lines the catalogue can even produce.
 
 Two things make the lines small enough for that to be comfortable. `sku` is no

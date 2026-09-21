@@ -151,7 +151,8 @@ async function main() {
 
   // Seed the launch catalogue. Each entry becomes one Product row, each
   // colourway a ProductVariant (the buyable unit, carrying the SKU and the
-  // stock), and the stand-in imagery a ProductImage with no variant.
+  // stock), and each photo a ProductImage on its colourway, or on no variant
+  // when it shows no readable colour.
   let productCount = 0;
   let variantCount = 0;
   let unitCount = 0;
@@ -319,22 +320,51 @@ async function main() {
       data: { stockQuantity: live._sum.stockQuantity ?? 0 },
     });
 
-    // Stand-in imagery, attached to the model and to no colourway. Replaced
-    // wholesale on every run so the set always matches the source file.
-    await prisma.productImage.deleteMany({
-      where: { productId: product.id, variantId: null },
-    });
-    if (sp.placeholderImages.length) {
+    // The photography, each image on the colourway it shows or on the model
+    // when no colour can be read in it. Replaced wholesale on every run so the
+    // set always matches the source file.
+    //
+    // ⚠️ Colourway images included, which the stand-ins never had. Nobody can
+    // upload a photo from the admin yet (E2, Cloudinary), so nothing edited
+    // there is lost; the day they can, this must stop deleting.
+    await prisma.productImage.deleteMany({ where: { productId: product.id } });
+    if (sp.images.length) {
+      const variantIdByKey = new Map(
+        (
+          await prisma.productVariant.findMany({
+            where: { productId: product.id },
+            select: { id: true, colorKey: true },
+          })
+        ).map((v) => [v.colorKey, v.id]),
+      );
+      // The card's base image is the first studio shot (section 05), so that
+      // is the one marked primary; failing that, the first image.
+      const primary = Math.max(
+        0,
+        sp.images.findIndex((img) => img.type === "PRODUCT"),
+      );
       await prisma.productImage.createMany({
-        data: sp.placeholderImages.map((img, i) => ({
-          productId: product.id,
-          variantId: null,
-          url: img.url,
-          altText: sp.name,
-          type: img.type,
-          position: i,
-          isPrimary: i === 0,
-        })),
+        data: sp.images.map((img, i) => {
+          const variantId =
+            img.colorway === null ? null : variantIdByKey.get(img.colorway);
+          if (variantId === undefined) {
+            // A typo in a colourway key would otherwise hang the photo on the
+            // model and show it for every colour, which is the claim the key
+            // exists to prevent.
+            throw new Error(
+              `${sp.slug}: image ${img.url} names colourway "${img.colorway}", which does not exist`,
+            );
+          }
+          return {
+            productId: product.id,
+            variantId,
+            url: img.url,
+            altText: sp.name,
+            type: img.type,
+            position: i,
+            isPrimary: i === primary,
+          };
+        }),
       });
     }
 
@@ -353,10 +383,6 @@ async function main() {
 
   console.log(
     `Catalogue: ${productCount} models | ${variantCount} colourways | ${unitCount} pairs`,
-  );
-  console.log(
-    "⚠️  All product imagery is a placeholder. Purge with:\n" +
-      "    DELETE FROM product_images WHERE url LIKE '/catalog/%';",
   );
   console.log("Seed complete!");
 }

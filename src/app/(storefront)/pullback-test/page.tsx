@@ -20,16 +20,15 @@ export default function PullbackTestPage() {
   const orbital = catalogueProducts.find((p) => p.slug === "orbital");
   if (!orbital) notFound();
 
-  // One strip of the model's stand-in imagery. The colourways no longer carry
-  // galleries of their own: there is no real photography yet, so no photo may
-  // claim to be a particular colourway.
+  // One strip of the model's photography, every colourway together. This is a
+  // layout test page, not a product page, so no photo here claims a colour.
   const strip = {
     name: orbital.name,
     colorways: [
       {
         key: "placeholder",
-        name: "Placeholder imagery",
-        gallery: orbital.placeholderImages.map((i) => i.url),
+        name: "All photography",
+        gallery: orbital.images.map((i) => i.url),
       },
     ],
   };

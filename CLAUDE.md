@@ -484,26 +484,42 @@ whose SKU embeds a code, so the two can never drift again.
 
 Fill anything still null in only from supplier documentation.
 
-### All product photography is a placeholder
+### The product photography, and what a photo on a colourway claims
 
-There is **no real photography of any Allternativ product yet**, for any of the
-six models. Everything under `public/catalog/` is stand-in imagery, and which
-folder stands in for which model is arbitrary.
+**Since 2026-09-21 the product pages carry the client's own photography**: renders
+made with an image model, delivered in a folder per model. 54 of their 158 are in
+`public/products/<slug>/`, converted to webp at 1600 px (121 MB became 3.9 MB). The
+list, and which colourway each one is on, is `images` in `catalogue-source.ts`.
+The old stand-ins stay in `public/catalog/` and no product uses them.
 
-Two rules follow:
+⚠️ **A photo hung on a colourway is a claim** that this is what that colourway
+looks like, so the rules are:
 
-1. **Placeholders attach to the product, never to a colourway**
-   (`ProductImage.variantId` is null). A photo hung on "Black / Blue" asserts
-   that this is what Black / Blue looks like. Hung on the model, it is set
-   dressing. `catalog.ts` exposes them as `sharedImages` and every image helper
-   falls back to them.
-2. **They are all under `/catalog/`, and the real photography will not be**, so
-   purging them is one query:
-   `DELETE FROM product_images WHERE url LIKE '/catalog/%';`
+1. A photo goes on a colourway only when that colourway is what it shows.
+2. A colourway with photos of its own shows **only those** (`galleryFor`).
+3. `colorway: null` is for a photo that is true of the colourways *without*
+   photos, and only they see it. Today that is Corinthian's two distant shots,
+   for Black / Double Grey, whose frame is the same black.
+4. **A colourway with nothing shows a line saying its photography is on its
+   way**, never another colour's photo. Orbital Sand Black and Prism Demi / Black
+   are in that state, and `tests/catalogue-specs.test.ts` lists them, so filling
+   one in has to update the test.
+5. The colour badge over the gallery goes only on the colourway's own photos.
 
-`Prism` ships as `DRAFT` for this reason: the stand-in folders ran out, and the
-only one left was already standing in for `SYNC`. Its codes, colourways and fifty
-units are recorded all the same, so the launch inventory is complete.
+⚠️ **"Colour-neutral" turned out not to exist in this set.** The first pass hung
+distant rooftop shots on the model for every colourway; at full size the frame's
+colour reads in every one of them (a silver Orbital under "Sand Black"). Check a
+shared photo at full size before calling it neutral.
+
+⚠️ Not used on purpose: Prism's close-up in a tortoise frame with a **purple**
+lens, which is 3980 C6, the colourway Max prepared by mistake and we do not sell.
+
+The seed now deletes and rewrites **all** of a product's images, colourway ones
+included. That is safe only while nobody can upload from the admin (E2): the day
+they can, it must stop.
+
+`Prism` is still `DRAFT`. It has photos now; what it waits for is Max confirming
+the Demi units are the black lens (see its SKU note).
 
 ### Buying something
 

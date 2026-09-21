@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { catalogueProducts } from "@/lib/catalogue-source";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import {
+  catalogueProducts,
+  PLACEHOLDER_IMAGE_PREFIX,
+} from "@/lib/catalogue-source";
 
 // The published specification is the one part of the catalogue where being
 // nearly right is worse than being empty. The client's instruction is literal:
@@ -96,5 +101,61 @@ describe("the transcribed specs", () => {
     // Guards the guard: a rename that drops every code would otherwise leave
     // this test passing over nothing.
     expect(checked).toBe(7);
+  });
+});
+
+// A photo hung on a colourway is a claim about what that colourway looks like.
+// These hold the ways the source file can make that claim wrongly without
+// anything failing: a key that names no colourway, and a colourway quietly left
+// with an empty gallery. The seed throws on the first; nothing else would
+// notice the second.
+describe("the photography", () => {
+  it("hangs every photo on a colourway the model has, or on none", () => {
+    for (const p of catalogueProducts) {
+      const keys = new Set(p.colorways.map((c) => c.key));
+      for (const img of p.images) {
+        if (img.colorway !== null) {
+          expect(keys.has(img.colorway), `${p.slug}: ${img.url}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("leaves only the known colourways without photography", () => {
+    // A colourway with nothing shows a line saying its photos are on their way
+    // (decided 2026-09-21) rather than another colour's. That is a deliberate
+    // state, so it is listed here: filling one in, or losing one by accident,
+    // has to change this list.
+    const withoutPhotos = catalogueProducts.flatMap((p) => {
+      const shared = p.images.some((i) => i.colorway === null);
+      return p.colorways
+        .filter((c) => !shared && !p.images.some((i) => i.colorway === c.key))
+        .map((c) => `${p.slug}/${c.key}`);
+    });
+    expect(withoutPhotos.sort()).toEqual(["orbital/sand-black", "prism/demi-black"]);
+  });
+
+  it("uses shared photos only where some colourway has none of its own", () => {
+    // A shared photo is shown ONLY to colourways without their own, so on a
+    // model where every colourway has photos it would never be seen.
+    for (const p of catalogueProducts) {
+      if (!p.images.some((i) => i.colorway === null)) continue;
+      const bare = p.colorways.filter(
+        (c) => !p.images.some((i) => i.colorway === c.key),
+      );
+      expect(bare.length, p.slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses none of the stand-in imagery", () => {
+    for (const p of catalogueProducts) {
+      for (const img of p.images) {
+        expect(img.url.startsWith(PLACEHOLDER_IMAGE_PREFIX), img.url).toBe(false);
+        expect(
+          existsSync(join(process.cwd(), "public", img.url)),
+          `${img.url} is not in public/`,
+        ).toBe(true);
+      }
+    }
   });
 });

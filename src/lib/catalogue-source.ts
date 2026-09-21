@@ -29,7 +29,16 @@
 export type SourceImageType =
   "PRODUCT" | "MODEL" | "DETAIL" | "CASE" | "LIFESTYLE" | "PACKAGING";
 
-export type SourceImage = { url: string; type: SourceImageType };
+export type SourceImage = {
+  url: string;
+  type: SourceImageType;
+  /**
+   * The colourway the photo shows, by `SourceColorway.key`, or null when the
+   * frame's colour cannot be read in it (a figure across a rooftop, a pair
+   * held in a hand). See the note above `catalogueProducts`.
+   */
+  colorway: string | null;
+};
 
 export type SourceColorway = {
   /** Stable key, unique within the product. Also the selector's identity. */
@@ -206,59 +215,41 @@ export type SourceProduct = {
    * else. See SourceSpecs.
    */
   specs: SourceSpecs;
-  /**
-   * Stand-in imagery, shared across the colourways rather than attached to any
-   * one of them. See PLACEHOLDER_IMAGE_PREFIX below.
-   */
-  placeholderImages: SourceImage[];
+  /** The model's photography, in gallery order. See the note below. */
+  images: SourceImage[];
   colorways: SourceColorway[];
 };
 
 /**
- * ⚠️ EVERY IMAGE IN THIS FILE IS A PLACEHOLDER. None of them is a photograph of
- * an Allternativ product; there is no real product photography yet, for any of
- * the six models. The client is preparing it and will deliver it in the agreed
- * folder structure (`product-01`, `model-01`, `detail-01`, ...).
+ * The launch photography, delivered by the client on 2026-09-21 in a folder per
+ * model ("Allternativ web" in `para nico/archivos varios/`). They are the
+ * brand's own renders, made with an image model, and 54 of their 158 are used:
+ * five to ten per model, without the near-duplicates. Converted to webp at
+ * 1600 px, which took them from 121 MB to 3.9 MB.
  *
- * They are attached to the PRODUCT and not to a colourway, deliberately: a
- * photo hung on "Black / Blue" is a claim that this is what Black / Blue looks
- * like. Hung on the product, it is set dressing.
+ * ⚠️ A photo is hung on a colourway only when that colourway is what it shows,
+ * because hung there it is a claim: whoever picks "Mercury Black" is told this
+ * is what Mercury Black looks like. A colourway with photos of its own shows
+ * only those.
  *
- * Which folder went to which model is ARBITRARY, chosen so the staging site
- * looks coherent. It carries no information.
+ * `colorway: null` is for a photo that is true of a colourway WITHOUT photos
+ * of its own, and it is shown only to those. Corinthian's two distant shots
+ * are the one case: the frame is black, which Black / Double Grey's is too.
  *
- * They are all under `/catalog/`, and the real photography will not be, so
- * purging them is one query:
+ * ⚠️ Two colourways have nothing, and show a line saying their photography is
+ * on its way rather than another colour's: Orbital Sand Black (a beige frame;
+ * every Orbital render is silver or black) and Prism Demi / Black. Checked at
+ * full size on 2026-09-21: no render in the folder is colour-neutral enough to
+ * stand in, the frames read in all of them.
  *
- *   DELETE FROM product_images WHERE url LIKE '/catalog/%';
+ * ⚠️ Not used, on purpose: Prism's close-up in a tortoise frame with a PURPLE
+ * lens. That is 3980 C6 Demi/Purple, the colourway Max prepared by mistake and
+ * that the shop does not sell (see the Prism SKU note below).
+ *
+ * `/catalog/` still holds the stand-in imagery that was here before, and
+ * `PLACEHOLDER_IMAGE_PREFIX` stays so the admin can say whether any is left.
  */
 export const PLACEHOLDER_IMAGE_PREFIX = "/catalog/";
-
-/** `/catalog/<folder>/<folder>-1.webp` … `-<count>.webp` */
-const shots = (
-  folder: string,
-  count: number,
-  type: SourceImageType = "PRODUCT",
-): SourceImage[] =>
-  Array.from({ length: count }, (_, i) => ({
-    url: `${PLACEHOLDER_IMAGE_PREFIX}${folder}/${folder}-${i + 1}.webp`,
-    type,
-  }));
-
-/** The eight lifestyle frames that sit loose inside `/catalog/halo/`. */
-const HALO_LIFESTYLE: SourceImage[] = [
-  "WhatsApp Image 2026-07-15 at 14.44.13.webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (1).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (2).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (3).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (4).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (5).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (6).webp",
-  "WhatsApp Image 2026-07-15 at 14.44.13 (7).webp",
-].map((file) => ({
-  url: `${PLACEHOLDER_IMAGE_PREFIX}halo/${file}`,
-  type: "MODEL" as const,
-}));
 
 /**
  * €39 across every model and every colourway, in every market's own currency.
@@ -291,7 +282,18 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "48-17-142",
       weightGrams: 22,
     },
-    placeholderImages: shots("prisma", 9),
+    images: [
+      { url: "/products/the-corinthian/the-corinthian-01.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/the-corinthian/the-corinthian-02.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/the-corinthian/the-corinthian-03.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/the-corinthian/the-corinthian-04.webp", type: "LIFESTYLE", colorway: "black-black" },
+      { url: "/products/the-corinthian/the-corinthian-05.webp", type: "MODEL", colorway: "olive-green" },
+      { url: "/products/the-corinthian/the-corinthian-06.webp", type: "MODEL", colorway: "olive-green" },
+      { url: "/products/the-corinthian/the-corinthian-07.webp", type: "MODEL", colorway: "olive-green" },
+      { url: "/products/the-corinthian/the-corinthian-08.webp", type: "LIFESTYLE", colorway: "olive-green" },
+      { url: "/products/the-corinthian/the-corinthian-09.webp", type: "LIFESTYLE", colorway: null },
+      { url: "/products/the-corinthian/the-corinthian-10.webp", type: "LIFESTYLE", colorway: null },
+    ],
     colorways: [
       {
         key: "olive-green",
@@ -342,9 +344,17 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "65-18-130",
       weightGrams: 34,
     },
-    placeholderImages: [
-      ...shots("orbital-silver", 9),
-      ...shots("orbital-black", 8),
+    images: [
+      { url: "/products/orbital/orbital-01.webp", type: "PRODUCT", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-02.webp", type: "PRODUCT", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-03.webp", type: "DETAIL", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-04.webp", type: "MODEL", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-05.webp", type: "LIFESTYLE", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-06.webp", type: "LIFESTYLE", colorway: "mercury-black" },
+      { url: "/products/orbital/orbital-07.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/orbital/orbital-08.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/orbital/orbital-09.webp", type: "LIFESTYLE", colorway: "black-black" },
+      { url: "/products/orbital/orbital-10.webp", type: "LIFESTYLE", colorway: "black-black" },
     ],
     colorways: [
       {
@@ -395,7 +405,18 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "68-18-133",
       weightGrams: 32.6,
     },
-    placeholderImages: shots("vortex", 8),
+    images: [
+      { url: "/products/neon-shift/neon-shift-01.webp", type: "MODEL", colorway: "red-black" },
+      { url: "/products/neon-shift/neon-shift-02.webp", type: "MODEL", colorway: "red-black" },
+      { url: "/products/neon-shift/neon-shift-03.webp", type: "PRODUCT", colorway: "black-black" },
+      { url: "/products/neon-shift/neon-shift-04.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/neon-shift/neon-shift-05.webp", type: "DETAIL", colorway: "black-black" },
+      { url: "/products/neon-shift/neon-shift-06.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/neon-shift/neon-shift-07.webp", type: "PRODUCT", colorway: "black-blue" },
+      { url: "/products/neon-shift/neon-shift-08.webp", type: "PRODUCT", colorway: "black-blue" },
+      { url: "/products/neon-shift/neon-shift-09.webp", type: "DETAIL", colorway: "black-blue" },
+      { url: "/products/neon-shift/neon-shift-10.webp", type: "MODEL", colorway: "black-blue" },
+    ],
     colorways: [
       {
         key: "red-black",
@@ -445,7 +466,17 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "56-18-135",
       weightGrams: 32.7,
     },
-    placeholderImages: [...shots("halo", 9), ...HALO_LIFESTYLE],
+    images: [
+      { url: "/products/sync/sync-01.webp", type: "PRODUCT", colorway: "gold-black" },
+      { url: "/products/sync/sync-02.webp", type: "DETAIL", colorway: "gold-black" },
+      { url: "/products/sync/sync-03.webp", type: "MODEL", colorway: "gold-black" },
+      { url: "/products/sync/sync-04.webp", type: "LIFESTYLE", colorway: "gold-black" },
+      { url: "/products/sync/sync-05.webp", type: "MODEL", colorway: "silver-black" },
+      { url: "/products/sync/sync-06.webp", type: "LIFESTYLE", colorway: "silver-black" },
+      { url: "/products/sync/sync-07.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/sync/sync-08.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/sync/sync-09.webp", type: "LIFESTYLE", colorway: "black-black" },
+    ],
     colorways: [
       {
         key: "gold-black",
@@ -495,7 +526,18 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "67-20-145",
       weightGrams: 15.4,
     },
-    placeholderImages: shots("nocturne", 9),
+    images: [
+      { url: "/products/amplify/amplify-01.webp", type: "PRODUCT", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-02.webp", type: "PRODUCT", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-03.webp", type: "DETAIL", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-04.webp", type: "DETAIL", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-05.webp", type: "MODEL", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-06.webp", type: "MODEL", colorway: "hawksbill-brown" },
+      { url: "/products/amplify/amplify-07.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/amplify/amplify-08.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/amplify/amplify-09.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/amplify/amplify-10.webp", type: "LIFESTYLE", colorway: "black-black" },
+    ],
     colorways: [
       {
         key: "black-black",
@@ -543,7 +585,13 @@ export const catalogueProducts: SourceProduct[] = [
       dimensionsMm: "49-23-140",
       weightGrams: 34.7,
     },
-    placeholderImages: [],
+    images: [
+      { url: "/products/prism/prism-01.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/prism/prism-02.webp", type: "MODEL", colorway: "black-black" },
+      { url: "/products/prism/prism-03.webp", type: "LIFESTYLE", colorway: "black-black" },
+      { url: "/products/prism/prism-04.webp", type: "LIFESTYLE", colorway: "black-black" },
+      { url: "/products/prism/prism-05.webp", type: "LIFESTYLE", colorway: "black-black" },
+    ],
     colorways: [
       {
         key: "black-black",

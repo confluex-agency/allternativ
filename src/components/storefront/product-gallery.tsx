@@ -29,11 +29,24 @@ export function ProductGallery({
 }: Props) {
   const [angle, setAngle] = useState(0);
 
-  if (images.length === 0) return null;
+  // A colourway with no photography yet. Said in words rather than filled with
+  // another colour's photo, which would tell the buyer that is what they get.
+  if (images.length === 0) {
+    return (
+      <div className="relative aspect-[4/3] w-full min-w-0 rounded-[1.5rem] border border-brand-ink/10 md:rounded-[2rem]">
+        <p className="eyebrow absolute inset-0 flex items-center justify-center p-8 text-center text-brand-muted">
+          Photography of {variantName} is on its way
+        </p>
+      </div>
+    );
+  }
 
   // The rail is keyed by variant so switching colour resets to the first angle
   // instead of keeping an index the new set may not have.
   const current = Math.min(angle, images.length - 1);
+  // The badge names the colourway, so it goes only over that colourway's own
+  // photos. Over a shared one it would label a photo as a colour it may not be.
+  const badge = showColorBadge && images[current]?.variantId !== null;
 
   return (
     <div className="space-y-3 md:space-y-4" key={variantName}>
@@ -52,7 +65,7 @@ export function ProductGallery({
             }`}
           />
         ))}
-        {showColorBadge && (
+        {badge && (
           <span className="eyebrow pointer-events-none absolute bottom-3 left-4 rounded-full bg-brand-ink/70 px-3 py-1 text-[10px] text-brand-beige backdrop-blur">
             {variantName}
           </span>

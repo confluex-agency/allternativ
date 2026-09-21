@@ -18,6 +18,8 @@ export type CatalogImage = {
   altText: string | null;
   type: ImageType;
   isPrimary: boolean;
+  /** Null when the photo hangs on the model rather than on a colourway. */
+  variantId: string | null;
 };
 
 export type CatalogVariant = {
@@ -92,8 +94,8 @@ export type CatalogProduct = {
   /**
    * Images that belong to the model rather than to one colourway
    * (`ProductImage.variantId` is null). A photo attached to a colourway is a
-   * statement about what that colourway looks like; a shared one is not, which
-   * is where the stand-in imagery lives until the real shoot is delivered.
+   * statement about what that colourway looks like. A shared one is shown only
+   * to colourways with no photos of their own; see `galleryFor`.
    */
   sharedImages: CatalogImage[];
 };
@@ -136,6 +138,7 @@ const toCatalogImage = (i: ProductRow["images"][number]): CatalogImage => ({
   altText: i.altText,
   type: i.type,
   isPrimary: i.isPrimary,
+  variantId: i.variantId,
 });
 
 /**
@@ -412,8 +415,10 @@ export function cardImages(product: CatalogProduct): {
 /**
  * Product gallery in the order the brief asks for.
  *
- * A colourway with no photography of its own falls back to the model's shared
- * images, so the page never renders a blank gallery.
+ * The colourway's own photos when it has any. Otherwise the model's shared
+ * ones, which `catalogue-source.ts` only fills with photos that are true of the
+ * colourways left without their own. It can be empty, and the gallery then
+ * says the photography is on its way instead of showing another colour.
  */
 export function galleryFor(
   product: CatalogProduct,

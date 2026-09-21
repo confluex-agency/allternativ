@@ -10,6 +10,7 @@ import {
   type DispatchOrder,
   buildPasswordReset,
 } from "@/lib/email";
+import { COMPANY } from "@/lib/legal";
 
 // The confirmation email is queued on the order and drained by
 // scripts/sweep-orders.ts, so the two things worth testing without a provider
@@ -130,6 +131,25 @@ describe("what the buyer reads", () => {
       totalCents: 20010,
     });
     expect(discounted.text).toContain("Discount");
+  });
+
+  it("speaks in the client's own words around the order", () => {
+    // Point D3 of their answer of 2026-09-19, as written.
+    const mail = buildOrderConfirmation("buyer@example.com", order);
+    expect(mail.text.startsWith("THANK YOU FOR YOUR ORDER.")).toBe(true);
+    expect(mail.text).toContain("You've just entered the ALLTERNATIV frequency.");
+    expect(mail.text).toContain("ORDER ALT-20260905-2814");
+    expect(mail.text).toContain("SHIPPING TO");
+    expect(mail.text).toContain("including your tracking details");
+    expect(mail.text.endsWith("ALLTERNATIV\nEscape the ordinary.")).toBe(true);
+  });
+
+  it("gives the same support address the site does", () => {
+    // Their drafts named three different ones. Whichever they choose, the mail
+    // must not disagree with the contact page, and never names a Gmail.
+    const mail = buildOrderConfirmation("buyer@example.com", order);
+    expect(mail.text).toContain(`Questions? Contact us at ${COMPANY.contactEmail}`);
+    expect(mail.text).not.toContain("gmail.com");
   });
 
   it("carries the address the parcel is going to", () => {

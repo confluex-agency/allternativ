@@ -31,6 +31,7 @@
 
 import { formatCurrency } from "@/lib/utils";
 import { DELIVERY_ESTIMATE_BUSINESS_DAYS } from "@/lib/shipping";
+import { COMPANY } from "@/lib/legal";
 
 /** Give up after this many tries and stop retrying for ever. */
 export const EMAIL_MAX_ATTEMPTS = 5;
@@ -136,6 +137,17 @@ export interface EmailMessage {
  * time precisely so that what the buyer is told matches what they bought, even
  * if the catalogue is edited in between. Reading the live product here would
  * throw that away and could mail somebody a description of a different pair.
+ *
+ * The words around the order are the client's, point D3 of their consolidated
+ * answer of 2026-09-19, reproduced as written. They decided two things in the
+ * same document: every transactional detail the test purchase showed stays,
+ * and "including your tracking details" is added, which is true because the
+ * dispatch mail is never sent without a tracking number.
+ *
+ * ⚠️ The support address is `COMPANY.contactEmail`, the one the contact page
+ * and every policy quote. Their drafts have named a Gmail address, "support@"
+ * and "info@", and which is real is still their call. Read from one place, that
+ * answer is a one-line change and the mail cannot disagree with the site.
  */
 export function buildOrderConfirmation(
   to: string,
@@ -178,20 +190,31 @@ export function buildOrderConfirmation(
   totals.push(`  Total           ${money(order.totalCents)}`);
 
   const text = [
-    `Thank you for your order.`,
+    `THANK YOU FOR YOUR ORDER.`,
     ``,
-    `Order ${order.orderNumber}`,
+    `You've just entered the ALLTERNATIV frequency.`,
+    ``,
+    `This is not just a purchase — it's a shift in perception. Your piece is being carefully prepared and will soon be on its way to you.`,
+    ``,
+    `Every ALLTERNATIV accessory is designed to exist in moments that feel different — light, movement, music and escape.`,
+    ``,
+    `ORDER ${order.orderNumber}`,
     ``,
     ...lines,
     ``,
     ...totals,
     ``,
-    `Shipping to:`,
+    `SHIPPING TO`,
     ...address,
     ``,
-    `We'll email you again with tracking as soon as it ships.`,
+    `We'll notify you as soon as your order ships, including your tracking details.`,
     ``,
-    `Allternativ`,
+    `Stay in the frequency.`,
+    ``,
+    `Questions? Contact us at ${COMPANY.contactEmail}`,
+    ``,
+    `ALLTERNATIV`,
+    `Escape the ordinary.`,
   ].join("\n");
 
   return { to, subject: `Your Allternativ order ${order.orderNumber}`, text };

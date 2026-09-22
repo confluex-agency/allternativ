@@ -780,6 +780,32 @@ for customers; two are for staff.
 | Admin invitation | an OWNER invites somebody on `/admin/users` | nothing — it IS the grant |
 | Admin password reset | an admin asks on `/admin/forgot`, or an OWNER sends one from `/admin/users` | the sign-in page, which links to it |
 
+### A seventh, the contact form, and it is shaped differently
+
+`/contact` posts to `/api/contact`, and **the message goes to `info@`, never to
+the visitor.** It was a mock until 2026-09-22: "Send" reloaded the page and the
+message was lost. The logic is `src/lib/contact.ts`, the table is
+`contact_messages`, and it is proved on staging (a message reached `info@`).
+
+- **It tries once immediately, then queues.** The row is written first, and
+  "received" is shown only after that. A failed first attempt stays PENDING
+  for the sweep, so "received" is always true.
+- ⚠️ **No acknowledgement mail to the visitor, ever.** A form that mails the
+  address it is given is a relay anybody can aim at a stranger from our sending
+  domain, and a burned domain is what puts the order confirmations in spam.
+- ⚠️ **Its limiters are `critical`, unlike the other cost guards.** It shares
+  the Resend daily allowance with the order confirmations, so an unthrottled
+  form spends the buyers' mail. Per IP (3 / 10 min) *and* a global 50 a day,
+  because `x-forwarded-for` rotates and only the global one survives that.
+- The subject is built from `CONTACT_TOPICS`, a closed list, and the name is
+  flattened by `oneLine`. The origin check compares `Origin` with the request's
+  own host, not `NEXT_PUBLIC_APP_URL`, so the shop can answer on `www.` too.
+- ⚠️ **The sweep counts `contact_messages` every run**, so pushing this code
+  before its migration would have broken the sweep for every queue, not only
+  this one. Same ordering rule as always: migrate, then push.
+- Deleted after `CONTACT_RETENTION_DAYS` by the weekly cleanup; the privacy page
+  and the line under the form read the same constant.
+
 ⚠️ **The fourth is the only one where being LATE is itself the failure.** The
 other three carry a message that is still correct a day after it was due; a
 reset link is worth a few hours from the moment it is minted, so a sweep that

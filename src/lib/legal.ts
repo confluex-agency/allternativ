@@ -31,12 +31,12 @@ export const COMPANY = {
   /**
    * Where customer questions go.
    *
-   * ⚠️ NOT CONFIRMED. This is the address the contact page has always shown,
-   * kept as the single source so the site cannot end up quoting two different
-   * ones. It is question D2 of the build plan; change it here and it changes
-   * everywhere at once.
+   * Confirmed 22/09 (question D2 of the build plan): `info@` is the mailbox,
+   * and `hola@` and `support@` are aliases that forward to it. Kept as the
+   * single source so the site cannot end up quoting two different addresses;
+   * change it here and it changes everywhere at once.
    */
-  contactEmail: "hola@allternativ.com",
+  contactEmail: "info@allternativ.com",
 };
 
 /** True once the policies can be presented as final. */

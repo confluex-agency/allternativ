@@ -787,6 +787,28 @@ export async function sweepOrders(): Promise<JobResult> {
     );
   }
 
+  // ⚠️ The supplier tried to WRITE something and we did not take it. The only
+  // writes Dianxiaomi makes are tracking numbers, so each of these is very
+  // likely a parcel that left while its buyer was never told. It is logged
+  // whole in `woo_request_logs` either way; this is what makes somebody look.
+  // An unknown route and a known route that refused (an order id we could not
+  // find, say) are the same failure from the buyer's side.
+  const refusedWrites = await prisma.wooRequestLog.count({
+    where: {
+      authenticated: true,
+      method: { not: "GET" },
+      OR: [{ matched: false }, { responseStatus: { gte: 400 } }],
+      createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    },
+  });
+  if (refusedWrites > 0) {
+    warnings.push(
+      `${refusedWrites} write(s) from the supplier's system were refused in the ` +
+        `last 7 days. Probably tracking numbers: read woo_request_logs and add ` +
+        `the route or field it used.`,
+    );
+  }
+
   // Anything sitting here needs a person, so say so loudly rather than
   // finishing quietly as if all were well.
   const stuck = await prisma.webhookEvent.count({ where: { status: "FAILED" } });

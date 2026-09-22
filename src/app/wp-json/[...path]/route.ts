@@ -85,7 +85,7 @@ async function handle(
         name: "Allternativ",
         description: "Allternativ store",
         url: process.env.NEXT_PUBLIC_APP_URL ?? "",
-        namespaces: ["wc/v3"],
+        namespaces: ["wc/v3", "wc-shipment-tracking/v3", "wc-ast/v3"],
       },
     };
   }
@@ -139,8 +139,24 @@ async function handle(
     } as Handled & { total: number; totalPages: number };
   }
 
-  const orderMatch = /^wc\/v3\/orders\/([^/]+)$/.exec(path);
-  if (orderMatch) {
+  // ⚠️ Three shapes, because nobody knows yet which one Dianxiaomi writes the
+  // tracking number through, and the first real dispatch is the wrong moment
+  // to find out. A write we do not answer means the buyer is never told their
+  // parcel left.
+  //
+  //   wc/v3/orders/{id}                              the core API
+  //   wc/v3/orders/{id}/shipment-trackings           the Shipment Tracking plugin
+  //   wc-shipment-tracking/v3/orders/{id}/shipment-trackings   (its own namespace)
+  //   wc-ast/v3/orders/{id}/shipment-trackings       Advanced Shipment Tracking
+  //
+  // All four carry the same keys (`tracking_number`, `tracking_provider`),
+  // which `extractTracking` already reads, so they converge on one write.
+  const orderMatch =
+    /^(?:wc\/v3|wc-shipment-tracking\/v3|wc-ast\/v3)\/orders\/([^/]+)(\/shipment-trackings)?$/.exec(
+      path,
+    );
+  const isTrackingRoute = Boolean(orderMatch?.[2]);
+  if (orderMatch && (isTrackingRoute || path.startsWith("wc/v3/"))) {
     const reference = decodeURIComponent(orderMatch[1]);
     // Clients normally use the integer WooCommerce id, but our own order number
     // is accepted too so a human can check a specific order by hand.
@@ -158,10 +174,22 @@ async function handle(
     }
 
     if (request.method === "GET") {
+      if (isTrackingRoute) {
+        return {
+          status: 200,
+          body: order.trackingNumber ? [trackingItem(order)] : [],
+        };
+      }
       return { status: 200, body: toWooOrder(order) };
     }
 
-    if (request.method === "PUT" || request.method === "POST") {
+    // PATCH as well: WordPress's REST API treats PUT, POST and PATCH alike as
+    // an edit, and a client is free to pick any of them.
+    if (
+      request.method === "PUT" ||
+      request.method === "POST" ||
+      request.method === "PATCH"
+    ) {
       const body = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
       const { trackingNumber, carrier } = extractTracking(body);
       const nextStatus =
@@ -182,11 +210,33 @@ async function handle(
         include: ORDER_INCLUDE,
       });
 
+      // The plugins answer with the tracking item they created, and a client
+      // that checks the response shape should find one there.
+      if (isTrackingRoute) {
+        return { status: 201, body: trackingItem(updated) };
+      }
       return { status: 200, body: toWooOrder(updated) };
     }
   }
 
   return null; // not implemented — logged, so we can see what was wanted
+}
+
+/** The shape the Shipment Tracking plugins return for one tracking entry. */
+function trackingItem(order: {
+  id: string;
+  trackingNumber: string | null;
+  carrier: string | null;
+  shippedAt: Date | null;
+}) {
+  return {
+    tracking_id: order.id,
+    tracking_provider: order.carrier ?? "",
+    tracking_number: order.trackingNumber ?? "",
+    date_shipped: order.shippedAt
+      ? Math.floor(order.shippedAt.getTime() / 1000).toString()
+      : "",
+  };
 }
 
 async function respond(request: NextRequest, segments: string[]) {

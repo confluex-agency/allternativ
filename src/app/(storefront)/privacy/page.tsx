@@ -5,6 +5,10 @@ import {
 } from "@/components/storefront/policy-page";
 import { COMPANY } from "@/lib/legal";
 import { RETURNS } from "@/lib/legal";
+import { CONTACT_RETENTION_DAYS } from "@/lib/contact-topics";
+
+// Derived, so the policy cannot promise a period the cleanup does not keep.
+const CONTACT_RETENTION_MONTHS = Math.round(CONTACT_RETENTION_DAYS / 30.4);
 
 export const metadata = {
   title: "Privacy",
@@ -54,6 +58,13 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong className="font-medium text-brand-ink">
+            When you write to us.
+          </strong>{" "}
+          The name, email address and message you type into the contact form.
+          We use them to answer you and for nothing else.
+        </p>
+        <p>
+          <strong className="font-medium text-brand-ink">
             Your card details, never.
           </strong>{" "}
           Payment happens on a page hosted by Stripe. Card numbers do not pass
@@ -93,6 +104,11 @@ export default function PrivacyPage() {
           Orders are kept for as long as tax and accounting rules require, which
           is several years and is not our choice. Analytics is kept in a form
           that stops identifying anyone long before that.
+        </p>
+        <p>
+          A message sent through the contact form is deleted from the site
+          after {CONTACT_RETENTION_MONTHS} months. The conversation itself
+          stays in our mailbox for as long as it is useful to answer you.
         </p>
       </PolicySection>
 

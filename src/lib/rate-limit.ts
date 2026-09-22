@@ -88,6 +88,39 @@ export const promoCodeLimiter = redis
   : // Cost-shaped, and the checkout already fails open around it by design.
     noopLimiter("promoCodeLimiter", false);
 
+/**
+ * The contact form, per visitor: three messages in ten minutes.
+ *
+ * ⚠️ Critical, unlike the other cost guards, and the reason is what it shares a
+ * quota with. Every message is an email through Resend, and so is every order
+ * confirmation. A bot hammering an unthrottled form would not just fill the
+ * support inbox, it would spend the daily sending allowance and leave buyers
+ * who just paid without their confirmation.
+ */
+export const contactLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "10 m"),
+      prefix: "rl:contact",
+    })
+  : noopLimiter("contactLimiter", true);
+
+/**
+ * The contact form, for everybody together: fifty messages a day.
+ *
+ * The per-visitor limit does nothing against a bot that rotates addresses, and
+ * this is the ceiling that still holds then. Fifty is far above what a shop
+ * this size receives, and far below the provider's daily allowance. A real
+ * customer who arrives after it is spent is shown the address to write to.
+ */
+export const contactDailyLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.fixedWindow(50, "1 d"),
+      prefix: "rl:contact-day",
+    })
+  : noopLimiter("contactDailyLimiter", true);
+
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
   return forwarded?.split(",")[0]?.trim() || "unknown";

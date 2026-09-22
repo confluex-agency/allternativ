@@ -490,6 +490,42 @@ model WooRequestLog {
   @@map("woo_request_logs")
 }
 
+// ─── Contact form ───────────────────────────────────────────────────────────
+// What somebody writes on /contact, kept until it has reached the support
+// mailbox. The row is written BEFORE anything is sent, so a provider that is
+// down at that moment delays the message instead of losing it; the sweep
+// retries it like the other queued mails.
+//
+// ⚠️ It is personal data held for one purpose, answering the person, so it is
+// deleted after `CONTACT_RETENTION_DAYS` by the weekly cleanup. The copy that
+// matters lives in the mailbox by then.
+
+enum ContactTopic {
+  GENERAL
+  CUSTOM
+  PRESS
+  STOCKIST
+}
+
+model ContactMessage {
+  id             String            @id @default(cuid())
+  name           String            @db.VarChar(120)
+  email          String            @db.VarChar(254)
+  topic          ContactTopic
+  message        String            @db.Text
+  // PENDING from birth, unlike every other queue here: there is no history to
+  // protect, and a message nobody sends is exactly the failure this prevents.
+  emailStatus    QueuedEmailStatus @default(PENDING) @map("email_status")
+  emailSentAt    DateTime?         @map("email_sent_at")
+  emailAttempts  Int               @default(0) @map("email_attempts")
+  emailLastError String?           @map("email_last_error") @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  @@index([emailStatus])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
 // ─── Newsletter / lead capture ──────────────────────────────────────────────
 // Section 16 ("STAY IN THE FREQUENCY") plus the welcome-discount popup: the
 // visitor hands over an email in exchange for a code. Kept apart from Customer

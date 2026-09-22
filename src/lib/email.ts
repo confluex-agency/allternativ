@@ -32,6 +32,7 @@
 import { formatCurrency } from "@/lib/utils";
 import { DELIVERY_ESTIMATE_BUSINESS_DAYS } from "@/lib/shipping";
 import { COMPANY } from "@/lib/legal";
+import { CONTACT_TOPICS, type ContactTopicKey } from "@/lib/contact-topics";
 
 /** Give up after this many tries and stop retrying for ever. */
 export const EMAIL_MAX_ATTEMPTS = 5;
@@ -128,6 +129,12 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  /**
+   * Overrides `EMAIL_REPLY_TO` for this one message. Only the contact form
+   * sets it, so that answering a customer is pressing Reply rather than
+   * copying an address out of the body.
+   */
+  replyTo?: string;
 }
 
 /**
@@ -145,9 +152,9 @@ export interface EmailMessage {
  * dispatch mail is never sent without a tracking number.
  *
  * ⚠️ The support address is `COMPANY.contactEmail`, the one the contact page
- * and every policy quote. Their drafts have named a Gmail address, "support@"
- * and "info@", and which is real is still their call. Read from one place, that
- * answer is a one-line change and the mail cannot disagree with the site.
+ * and every policy quote. Their drafts named four (a Gmail, hola@, support@ and
+ * info@) until info@ was chosen on 2026-09-22. Read from one place, that was a
+ * one-line change and the mail cannot disagree with the site.
  */
 export function buildOrderConfirmation(
   to: string,
@@ -536,6 +543,73 @@ export function buildAdminPasswordReset(
   return { to, subject: "Reset your Allternativ admin password", text };
 }
 
+export interface ContactNotification {
+  name: string;
+  email: string;
+  topic: ContactTopicKey;
+  message: string;
+  receivedAt: Date;
+}
+
+/**
+ * A message from the contact form, delivered to the support mailbox.
+ *
+ * ⚠️ Three properties of this function are the form's security, not its style:
+ *
+ * - **The recipient is fixed.** It goes to `COMPANY.contactEmail` and nowhere
+ *   else, whatever the visitor typed. There is deliberately no "we received
+ *   your message" copy to the visitor's address: a form that mails whatever
+ *   address it is given is a relay anybody can aim at a stranger, in our name,
+ *   from the domain our order confirmations depend on.
+ * - **The subject is built from the topic LABEL**, a fixed list, plus the name,
+ *   which is flattened to one line here even though the route already did it.
+ *   Nothing a visitor types can start a new header line.
+ * - **It is plain text.** A `<script>` in the message arrives as characters on
+ *   a page, not as something a mail client runs.
+ *
+ * The visitor's address goes in `replyTo`, so answering is pressing Reply.
+ */
+export function buildContactNotification(
+  msg: ContactNotification,
+): EmailMessage {
+  const topic = CONTACT_TOPICS[msg.topic];
+  const name = oneLine(msg.name);
+  const sent = msg.receivedAt.toISOString().slice(0, 16).replace("T", " ");
+
+  const text = [
+    `New message from the contact form on the site.`,
+    ``,
+    `From:     ${name} <${msg.email}>`,
+    `Subject:  ${topic}`,
+    `Received: ${sent} UTC`,
+    ``,
+    `Reply to this email and the answer goes straight to ${msg.email}.`,
+    ``,
+    `----------------------------------------------------------------`,
+    msg.message,
+    `----------------------------------------------------------------`,
+    ``,
+    `This was typed by a visitor and nobody has checked it. Be wary of links,`,
+    `payment requests, or anything asking you to sign in somewhere.`,
+  ].join("\n");
+
+  return {
+    to: COMPANY.contactEmail,
+    subject: `[Contact · ${topic}] ${name}`,
+    text,
+    replyTo: msg.email,
+  };
+}
+
+/**
+ * Control characters, line breaks included, become single spaces. `Cc` is every
+ * control character, and `Zl`/`Zp` are the two Unicode separators some mail
+ * clients also treat as a new line.
+ */
+export function oneLine(value: string): string {
+  return value.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ").trim();
+}
+
 // ── How it leaves ───────────────────────────────────────────────────────────
 
 /**
@@ -582,7 +656,7 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   // So the reply goes back to the real mailbox on the root domain, which
   // Hostinger already hosts. Optional, and absent it simply is not sent — a
   // sending address on a domain that does receive human mail needs no override.
-  const replyTo = process.env.EMAIL_REPLY_TO;
+  const replyTo = message.replyTo ?? process.env.EMAIL_REPLY_TO;
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -590,6 +664,10 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
       authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
+    // The contact form waits on this call while a person watches a button, so
+    // a provider that hangs must not hang the page. An abort is an ordinary
+    // retryable failure, and the sweep picks the message up.
+    signal: AbortSignal.timeout(15_000),
     body: JSON.stringify({
       from,
       to: message.to,

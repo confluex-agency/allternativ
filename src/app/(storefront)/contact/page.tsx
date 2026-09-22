@@ -1,5 +1,6 @@
 import { Mail } from "lucide-react";
 import { COMPANY } from "@/lib/legal";
+import { ContactForm } from "@/components/storefront/contact-form";
 
 const CONTACT_EMAIL = COMPANY.contactEmail;
 
@@ -23,10 +24,8 @@ export const metadata = {
 // account exists, and an icon that does nothing when clicked reads as a brand
 // that abandoned its accounts. Send the real handles and it comes back.
 //
-// The address below is the one already published on this page. It is not
-// confirmed either — it is question D2 of the build plan — but it is what the
-// site has always said, and inventing a SECOND unconfirmed address would be
-// worse than keeping one.
+// The address below is `COMPANY.contactEmail`, confirmed as info@ on
+// 2026-09-22 (question D2 of the build plan). hola@ and support@ forward to it.
 const CHANNELS = [
   {
     icon: Mail,
@@ -76,90 +75,8 @@ export default function ContactPage() {
           </ul>
         </div>
 
-        <form className="glass md:col-span-7 rounded-[1.5rem] p-6 md:rounded-[2rem] md:p-12">
-          <p className="eyebrow text-brand-muted mb-2">form</p>
-          <h2 className="display mb-8 text-2xl text-brand-ink md:mb-10 md:text-3xl">
-            Tell us what&apos;s on your mind.
-          </h2>
-
-          <div className="grid gap-5 md:grid-cols-2 md:gap-6">
-            <Field label="Name" name="name" required />
-            <Field label="Email" name="email" type="email" required />
-          </div>
-          <div className="mt-5 md:mt-6">
-            <label
-              className="eyebrow mb-2 block text-brand-muted"
-              htmlFor="topic"
-            >
-              Subject
-            </label>
-            <select
-              id="topic"
-              name="topic"
-              className="min-h-11 w-full rounded-xl border border-brand-ink/15 bg-white/70 px-4 py-3 text-base text-brand-ink focus:border-brand-ink focus:outline-none fluid-transition"
-              defaultValue="general"
-            >
-              <option value="general">General enquiry</option>
-              <option value="custom">Special order</option>
-              <option value="press">Press / collaboration</option>
-              <option value="stockist">Distribution / stockist</option>
-            </select>
-          </div>
-          <div className="mt-5 md:mt-6">
-            <label
-              className="eyebrow mb-2 block text-brand-muted"
-              htmlFor="message"
-            >
-              Message
-            </label>
-            <textarea
-              id="message"
-              name="message"
-              rows={5}
-              required
-              placeholder="Write freely."
-              className="w-full rounded-xl border border-brand-ink/15 bg-white/70 px-4 py-3 text-base text-brand-ink placeholder:text-brand-muted focus:border-brand-ink focus:outline-none fluid-transition resize-none"
-            />
-          </div>
-          <button
-            type="submit"
-            className="mt-8 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-ink px-7 py-3 eyebrow text-brand-beige fluid-transition hover:bg-brand-ink/90 md:mt-10 md:w-auto"
-          >
-            Send
-          </button>
-          <p className="mt-4 text-xs text-brand-muted">
-            Mock preview — wired to Formspree once the endpoint is confirmed.
-          </p>
-        </form>
+        <ContactForm contactEmail={CONTACT_EMAIL} />
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  type = "text",
-  required,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label className="eyebrow mb-2 block text-brand-muted" htmlFor={name}>
-        {label}
-        {required && <span className="ml-1 text-brand-rose">*</span>}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        className="min-h-11 w-full rounded-xl border border-brand-ink/15 bg-white/70 px-4 py-3 text-base text-brand-ink placeholder:text-brand-muted focus:border-brand-ink focus:outline-none fluid-transition"
-      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Housekeeping for the payment path. Safe to run as often as you like.
  *
- * Eight jobs:
+ * Nine jobs:
  *
  * 1. Hand expired stock reservations back. Abandoned checkouts release
  *    themselves on the next purchase attempt anyway, but a shop with no traffic
@@ -38,6 +38,10 @@
  *    HAS a password. Without it, an admin who forgot theirs had no way back at
  *    all.
  *
+ * 9. Drain the contact-form queue. The route already tried once, so what is
+ *    here is a message whose first attempt failed. It lives in
+ *    `src/lib/contact.ts`, which the route shares.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -59,6 +63,7 @@ import {
   outcomeForFailure,
   EMAIL_MAX_ATTEMPTS,
 } from "@/lib/email";
+import { drainContactMessages } from "@/lib/contact";
 import type { JobResult } from "@/lib/jobs/types";
 
 /** Older than this and a failed event is not worth retrying automatically. */
@@ -635,17 +640,21 @@ export async function sweepOrders(): Promise<JobResult> {
   const reset = await drainPasswordResetEmails();
   const invites = await drainAdminInviteEmails();
   const adminResets = await drainAdminResetEmails();
+  // Last on purpose: every other queue here is somebody waiting on the shop,
+  // and this one is the shop waiting on itself to read something.
+  const contact = await drainContactMessages();
 
-  // Said once even when all six queues are stuck, because they stall for the
-  // same single reason — no provider — and saying it six times would read as
-  // six faults.
+  // Said once even when all seven queues are stuck, because they stall for the
+  // same single reason — no provider — and saying it seven times would read as
+  // seven faults.
   const blocked =
     mail.blocked ??
     dispatch.blocked ??
     verify.blocked ??
     reset.blocked ??
     invites.blocked ??
-    adminResets.blocked;
+    adminResets.blocked ??
+    contact.blocked;
   if (blocked) {
     warnings.push(`Email queue is not draining: ${blocked}`);
   }
@@ -683,6 +692,25 @@ export async function sweepOrders(): Promise<JobResult> {
       `${invites.gaveUp} admin invitation(s) could not be emailed. Those ` +
         `people have a staff account they cannot reach, and somebody is ` +
         `waiting on them.`,
+    );
+  }
+
+  if (contact.gaveUp > 0) {
+    warnings.push(
+      `${contact.gaveUp} contact form message(s) could not be delivered to the ` +
+        `support inbox. The visitor was told it was received, so read them in ` +
+        `contact_messages and answer by hand.`,
+    );
+  }
+
+  // Counted every run, not only when an attempt fails: a message sitting here
+  // is a customer who asked something and has not been read yet.
+  const unread = await prisma.contactMessage.count({
+    where: { emailStatus: "PENDING" },
+  });
+  if (unread > 0) {
+    warnings.push(
+      `${unread} contact form message(s) still waiting to reach the support inbox.`,
     );
   }
 
@@ -813,6 +841,9 @@ export async function sweepOrders(): Promise<JobResult> {
       adminResetsSent: adminResets.sent,
       adminResetsRetrying: adminResets.retrying,
       adminResetsGivenUp: adminResets.gaveUp,
+      contactMessagesSent: contact.sent,
+      contactMessagesRetrying: contact.retrying,
+      contactMessagesGivenUp: contact.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

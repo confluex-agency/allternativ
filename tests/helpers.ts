@@ -174,6 +174,9 @@ export async function cleanUp() {
     await prisma.order.deleteMany({ where: { id: { in: ids } } });
   }
   await prisma.customer.deleteMany({ where: { email: { contains: RUN } } });
+  await prisma.contactMessage.deleteMany({
+    where: { email: { contains: RUN } },
+  });
   await prisma.stockReservation.deleteMany({
     where: { variant: { sku: { contains: RUN } } },
   });

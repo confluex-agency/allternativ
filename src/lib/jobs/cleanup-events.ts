@@ -6,6 +6,7 @@
  * raw material it was built from, which on a shared plan grows without limit.
  */
 import { prisma } from "@/lib/prisma";
+import { purgeOldContactMessages } from "@/lib/contact";
 import type { JobResult } from "@/lib/jobs/types";
 
 const RETENTION_DAYS = 90;
@@ -27,11 +28,16 @@ export async function cleanupOldEvents(): Promise<JobResult> {
     },
   });
 
+  // A different clock and a different reason: contact messages are personal
+  // data kept to answer somebody, and the privacy page says for how long.
+  const contactMessagesDeleted = await purgeOldContactMessages();
+
   return {
     summary: {
       olderThan: cutoff.toISOString(),
       eventsDeleted: deleted.count,
       orphanSessionsDeleted: deletedSessions.count,
+      contactMessagesDeleted,
     },
     warnings: [],
   };

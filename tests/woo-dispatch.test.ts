@@ -135,6 +135,51 @@ describe("a tracking number coming back from the supplier", () => {
     },
   );
 
+  // Verbatim from `woo_request_logs`, 2026-09-23: the supplier's first real
+  // tracking write. Capital NOTES and all. Every retry of it got a 404.
+  const DIANXIAOMI_NOTE = {
+    added_by_user: false,
+    customer_note: true,
+    note: '<span>Your order has been shipped by yunexpress. The tracking number is </span><span style="color:#005b9a;font-weight:bold;text-decoration:underline">YT2626000706597606</span><span>. Get more information by clicking the button.</span><a style="text-decoration:none;" href="https://t.17track.net/#nums=YT2626000706597606" target="_blank"><span style="cursor:pointer; margin-left: 20px;background: #005b9a;color: #fff;padding: 4px 6px;border-radius: 3px;font-size: 14px;text-align: center;">Track My Order</span></a>',
+  };
+
+  it("takes Dianxiaomi's order note as the dispatch, exactly as it sends it", async () => {
+    const order = await makePaidOrder("dxm-note");
+    const res = await call(
+      POST,
+      "POST",
+      `wc/v3/orders/${order.wooId}/NOTES`,
+      DIANXIAOMI_NOTE,
+    );
+    expect(res.status).toBe(201);
+    const note = await res.json();
+    expect(note.id).toBe(order.wooId);
+    expect(note.customer_note).toBe(true);
+
+    const after = await prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+    expect(after.status).toBe("SHIPPED");
+    expect(after.trackingNumber).toBe("YT2626000706597606");
+    expect(after.carrier).toBe("yunexpress");
+    expect(after.shippedAt).not.toBeNull();
+    expect(await isDueForDispatchEmail(order.id)).toBe(true);
+  });
+
+  it("acknowledges a note with no tracking in it and changes nothing", async () => {
+    const order = await makePaidOrder("plain-note");
+    const res = await call(POST, "POST", `wc/v3/orders/${order.wooId}/notes`, {
+      note: "Packed, waiting for pickup",
+      customer_note: false,
+    });
+    expect(res.status).toBe(201);
+    const after = await prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+    expect(after.status).toBe("PAID");
+    expect(after.trackingNumber).toBeNull();
+  });
+
   it('reads "completed" as dispatched, never as delivered', async () => {
     const order = await makePaidOrder("completed-only");
     await call(PUT, "PUT", `wc/v3/orders/${order.wooId}`, {

@@ -21,6 +21,7 @@ import {
 import {
   toWooOrder,
   extractTracking,
+  trackingFromNote,
   wooStatus,
   WOO_TO_STATUS,
 } from "@/lib/woo/order-mapper";
@@ -149,15 +150,29 @@ async function handle(
   //   wc-shipment-tracking/v3/orders/{id}/shipment-trackings   (its own namespace)
   //   wc-ast/v3/orders/{id}/shipment-trackings       Advanced Shipment Tracking
   //
-  // All four carry the same keys (`tracking_number`, `tracking_provider`),
+  //   wc/v3/orders/{id}/notes                        ⬅ what Dianxiaomi ACTUALLY uses
+  //
+  // The first four carry the same keys (`tracking_number`, `tracking_provider`),
   // which `extractTracking` already reads, so they converge on one write.
+  //
+  // ⚠️ The fifth is the one that turned out to matter. On 2026-09-23 the
+  // supplier's first tracking write arrived as `POST .../orders/1/NOTES` — in
+  // capitals — with the number buried in an HTML note to the buyer, and got a
+  // 404 on every retry. So the sub-route is matched case-insensitively, and a
+  // note is read by `trackingFromNote`.
   const orderMatch =
-    /^(?:wc\/v3|wc-shipment-tracking\/v3|wc-ast\/v3)\/orders\/([^/]+)(\/shipment-trackings)?$/.exec(
+    /^(wc\/v3|wc-shipment-tracking\/v3|wc-ast\/v3)\/orders\/([^/]+)(?:\/(shipment-trackings|notes))?$/i.exec(
       path,
     );
-  const isTrackingRoute = Boolean(orderMatch?.[2]);
-  if (orderMatch && (isTrackingRoute || path.startsWith("wc/v3/"))) {
-    const reference = decodeURIComponent(orderMatch[1]);
+  const namespace = orderMatch?.[1].toLowerCase();
+  const subRoute = orderMatch?.[3]?.toLowerCase();
+  const isTrackingRoute = subRoute === "shipment-trackings";
+  const isNotesRoute = subRoute === "notes" && namespace === "wc/v3";
+  if (
+    orderMatch &&
+    (isTrackingRoute || (namespace === "wc/v3" && (isNotesRoute || !subRoute)))
+  ) {
+    const reference = decodeURIComponent(orderMatch[2]);
     // Clients normally use the integer WooCommerce id, but our own order number
     // is accepted too so a human can check a specific order by hand.
     const numeric = /^\d+$/.test(reference) ? Number(reference) : null;
@@ -171,6 +186,37 @@ async function handle(
         status: 404,
         body: { code: "woocommerce_rest_shop_order_invalid_id", message: "Invalid ID." },
       };
+    }
+
+    if (isNotesRoute) {
+      if (request.method === "GET") {
+        return {
+          status: 200,
+          body: order.trackingNumber ? [noteItem(order, dispatchNote(order))] : [],
+        };
+      }
+      if (request.method !== "POST") return null;
+
+      const body = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
+      const { trackingNumber, carrier } = trackingFromNote(body.note);
+
+      // A note that is not a dispatch is acknowledged and not stored: we keep
+      // no notes table, and `Order.notes` is the admin's private field, never
+      // something a supplier writes into. The whole body is in the log anyway.
+      if (!trackingNumber) {
+        return { status: 201, body: noteItem(order, String(body.note ?? "")) };
+      }
+
+      const updated = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          trackingNumber,
+          ...(carrier ? { carrier } : {}),
+          // Same rule as every other door: a tracking number means it left.
+          ...(!order.shippedAt ? { shippedAt: new Date(), status: "SHIPPED" } : {}),
+        },
+      });
+      return { status: 201, body: noteItem(updated, String(body.note)) };
     }
 
     if (request.method === "GET") {
@@ -220,6 +266,29 @@ async function handle(
   }
 
   return null; // not implemented — logged, so we can see what was wanted
+}
+
+/** The shape WooCommerce returns for one order note. */
+function noteItem(
+  order: { id: string; wooId: number; shippedAt: Date | null; updatedAt: Date },
+  note: string,
+) {
+  const when = (order.shippedAt ?? order.updatedAt).toISOString();
+  return {
+    // Integer, like every WooCommerce id. One note per order is all we keep.
+    id: order.wooId,
+    author: "system",
+    date_created: when.slice(0, 19),
+    date_created_gmt: when.slice(0, 19),
+    note,
+    customer_note: true,
+    added_by_user: false,
+  };
+}
+
+function dispatchNote(order: { trackingNumber: string | null; carrier: string | null }) {
+  const by = order.carrier ? ` by ${order.carrier}` : "";
+  return `Your order has been shipped${by}. The tracking number is ${order.trackingNumber}.`;
 }
 
 /** The shape the Shipment Tracking plugins return for one tracking entry. */

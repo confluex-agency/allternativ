@@ -226,6 +226,42 @@ function readMeta(meta: unknown, wanted: string[]): string | null {
   return null;
 }
 
+/**
+ * Dianxiaomi does not send the tracking number as a field. It posts an ORDER
+ * NOTE (seen in `woo_request_logs` on 2026-09-23), HTML, addressed to the buyer:
+ *
+ *   <span>Your order has been shipped by yunexpress. The tracking number is
+ *   </span><span style="...">YT2626000706597606</span>... <a href=
+ *   "https://t.17track.net/#nums=YT2626000706597606">Track My Order</a>
+ *
+ * The 17track link is read first because it is a URL parameter, not prose, so
+ * it survives a change of wording or language. The sentence is the fallback.
+ * A note with neither is a note, not a dispatch, and yields nulls.
+ */
+export function trackingFromNote(note: unknown): {
+  trackingNumber: string | null;
+  carrier: string | null;
+} {
+  if (typeof note !== "string") return { trackingNumber: null, carrier: null };
+  const text = note
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const fromLink = /[#?&]nums=([A-Za-z0-9-]{6,40})/.exec(note)?.[1];
+  const fromText = /tracking (?:number|no\.?) is:? ?([A-Za-z0-9-]{6,40})/i.exec(
+    text,
+  )?.[1];
+  const carrier = /shipped (?:by|via|with) ([A-Za-z0-9][\w .&-]{0,40}?)\s*[.,]/i.exec(
+    text,
+  )?.[1];
+
+  return {
+    trackingNumber: fromLink ?? fromText ?? null,
+    carrier: carrier?.trim() || null,
+  };
+}
+
 export function extractTracking(body: Record<string, unknown>): {
   trackingNumber: string | null;
   carrier: string | null;

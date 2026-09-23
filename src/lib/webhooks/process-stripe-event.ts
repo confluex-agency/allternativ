@@ -12,6 +12,7 @@ import { netCents } from "@/lib/margin";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
 import { decodeItemsMetadata } from "@/lib/checkout-metadata";
+import { recordCheckoutConsent } from "@/lib/newsletter";
 import {
   consumeReservationGroup,
   releaseReservationGroup,
@@ -300,6 +301,13 @@ async function handleCompletedSession(
         marketingConsent: false,
       },
     });
+
+    // D4: ticked in the cart, recorded in the same transaction as the order,
+    // so the consent exists exactly when the purchase it was given with does.
+    // Only the literal "yes" our checkout writes counts.
+    if (session.metadata?.newsletter === "yes") {
+      await recordCheckoutConsent(tx, customerEmail);
+    }
 
     await tx.order.create({
       data: {

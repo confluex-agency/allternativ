@@ -42,6 +42,9 @@
  *    here is a message whose first attempt failed. It lives in
  *    `src/lib/contact.ts`, which the route shares.
  *
+ * 10. Drain the newsletter confirmation queue (D4). Same shape as the contact
+ *    form: the route tried once, this retries. `src/lib/newsletter.ts`.
+ *
  * Events marked FAILED by an UnprocessableEventError are NOT retried here: they
  * are broken in a way that time does not fix. They stay in the table with their
  * reason, which is the point of keeping the table.
@@ -64,6 +67,7 @@ import {
   EMAIL_MAX_ATTEMPTS,
 } from "@/lib/email";
 import { drainContactMessages } from "@/lib/contact";
+import { drainNewsletterConfirmations } from "@/lib/newsletter";
 import type { JobResult } from "@/lib/jobs/types";
 
 /** Older than this and a failed event is not worth retrying automatically. */
@@ -643,10 +647,12 @@ export async function sweepOrders(): Promise<JobResult> {
   // Last on purpose: every other queue here is somebody waiting on the shop,
   // and this one is the shop waiting on itself to read something.
   const contact = await drainContactMessages();
+  // After everything else: nobody is waiting on a purchase or an account here.
+  const newsletter = await drainNewsletterConfirmations();
 
-  // Said once even when all seven queues are stuck, because they stall for the
-  // same single reason — no provider — and saying it seven times would read as
-  // seven faults.
+  // Said once even when all eight queues are stuck, because they stall for the
+  // same single reason (no provider) and saying it eight times would read as
+  // eight faults.
   const blocked =
     mail.blocked ??
     dispatch.blocked ??
@@ -654,7 +660,8 @@ export async function sweepOrders(): Promise<JobResult> {
     reset.blocked ??
     invites.blocked ??
     adminResets.blocked ??
-    contact.blocked;
+    contact.blocked ??
+    newsletter.blocked;
   if (blocked) {
     warnings.push(`Email queue is not draining: ${blocked}`);
   }
@@ -866,6 +873,9 @@ export async function sweepOrders(): Promise<JobResult> {
       contactMessagesSent: contact.sent,
       contactMessagesRetrying: contact.retrying,
       contactMessagesGivenUp: contact.gaveUp,
+      newsletterConfirmationsSent: newsletter.sent,
+      newsletterConfirmationsRetrying: newsletter.retrying,
+      newsletterConfirmationsGivenUp: newsletter.gaveUp,
       cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,

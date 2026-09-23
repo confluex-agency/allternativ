@@ -806,6 +806,38 @@ message was lost. The logic is `src/lib/contact.ts`, the table is
 - Deleted after `CONTACT_RETENTION_DAYS` by the weekly cleanup; the privacy page
   and the line under the form read the same constant.
 
+### An eighth, the newsletter confirmation (D4), and consent is the product
+
+"STAY ON THE FREQUENCY" is in the footer and as a box in the cart, both with the
+client's copy (D4, 2026-09-21). All the logic is `src/lib/newsletter.ts`, the
+table is `newsletter_subscribers`. **Nothing sends a campaign yet**; this records
+consent, and the proof of it, from launch.
+
+- ⚠️ **The footer is double opt-in.** The row is PENDING until the mailed link is
+  clicked, and `consentAt` is the CLICK, not the typing. Without it anybody can
+  subscribe anybody, and the first campaign goes to people we cannot show asked.
+- **The cart box is single opt-in**, recorded by the webhook inside the order's
+  transaction (`metadata.newsletter === "yes"`). The address is the one the
+  receipt goes to and the tick came with a payment.
+- ⚠️ **The box is unticked and must stay unticked.** A pre-ticked box is not
+  consent (Planet49, CJEU 2019).
+- ⚠️ **The signup answers identically** for a new, pending or subscribed address.
+  Over the per-address limit it also answers "ok". Anything else lets a stranger
+  check whether somebody is on the list.
+- **This mail goes to an address a stranger typed**, the relay the contact form
+  refuses to be. So it carries nothing the visitor wrote, and it has three
+  limiters (per IP, per address, per day), all `critical` like the contact form's.
+- An UNSUBSCRIBED address typed back in by somebody else **stays unsubscribed**
+  until its owner clicks. The weekly cleanup deletes never-confirmed rows after
+  `NEWSLETTER_PENDING_RETENTION_DAYS` and **keeps** the ones that said no.
+- Confirm and unsubscribe are spent by a **POST from a button**, never by the
+  page load (mail scanners), like account verification.
+- ⚠️ **`Customer.marketingConsent` (the account page's switch) is NOT this list.**
+  Whoever builds the first campaign sender must decide how the two combine, and
+  must add a `List-Unsubscribe` header pointing at `/newsletter/unsubscribe`.
+- The route tests mock the limiters: `.env` points at the real Upstash, and a
+  few runs in a row would otherwise exhaust "3 per 10 minutes".
+
 ⚠️ **The fourth is the only one where being LATE is itself the failure.** The
 other three carry a message that is still correct a day after it was due; a
 reset link is worth a few hours from the moment it is minted, so a sweep that

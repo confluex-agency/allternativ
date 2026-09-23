@@ -7,6 +7,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { purgeOldContactMessages } from "@/lib/contact";
+import { purgeUnconfirmedSubscribers } from "@/lib/newsletter";
 import type { JobResult } from "@/lib/jobs/types";
 
 const RETENTION_DAYS = 90;
@@ -32,12 +33,17 @@ export async function cleanupOldEvents(): Promise<JobResult> {
   // data kept to answer somebody, and the privacy page says for how long.
   const contactMessagesDeleted = await purgeOldContactMessages();
 
+  // Addresses typed into the footer and never confirmed. Nobody proved they
+  // own them, so there is no reason to keep them. See `newsletter.ts`.
+  const unconfirmedSubscribersDeleted = await purgeUnconfirmedSubscribers();
+
   return {
     summary: {
       olderThan: cutoff.toISOString(),
       eventsDeleted: deleted.count,
       orphanSessionsDeleted: deletedSessions.count,
       contactMessagesDeleted,
+      unconfirmedSubscribersDeleted,
     },
     warnings: [],
   };

@@ -1,9 +1,10 @@
-// The six emails this shop sends: what they say, and how they leave.
+// The eight emails this shop sends: what they say, and how they leave.
 //
 // Two are about an order (confirmation, dispatch), two are about a customer
-// account (verify an address, reset a password), and two are for staff (an
-// admin invitation and an admin password reset). All six are queued on a row
-// and drained by the sweep, for the reason below.
+// account (verify an address, reset a password), two are for staff (an admin
+// invitation and an admin password reset), one carries the contact form to the
+// support mailbox, and one confirms a newsletter signup. All eight are queued
+// on a row and drained by the sweep, for the reason below.
 //
 // ⚠️ This header said "the two emails" until 2026-09-12, having been written
 // when there were two and never corrected as the others arrived — the ordinary
@@ -599,6 +600,58 @@ export function buildContactNotification(
     text,
     replyTo: msg.email,
   };
+}
+
+/**
+ * The eighth queued email: "did you really ask to join?" (D4, 2026-09-23).
+ *
+ * ⚠️ This is the one mail the shop sends to an address a STRANGER typed, which
+ * is the relay the contact form refuses to be. It is tolerable here for three
+ * reasons, and each is a rule for whoever edits it:
+ *
+ * - **Nothing the visitor typed is in it.** No name, no message. The only
+ *   variable is our own link, so it cannot carry somebody else's words to a
+ *   third party in our name.
+ * - **It says a request was made, not that the reader made it**, and that
+ *   ignoring it costs nothing: no click, no subscription. Same wording rule as
+ *   the account verification.
+ * - It is rate-limited per visitor, per address and per day, in the route.
+ *
+ * The first two lines are the client's (D4, 21/09), word for word.
+ */
+export function buildNewsletterConfirmation(
+  to: string,
+  opts: { token: string; expiresAt: Date },
+): EmailMessage {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+  const url = `${base}/newsletter/confirm?token=${encodeURIComponent(opts.token)}`;
+  const days = Math.max(
+    1,
+    Math.round((opts.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
+  );
+
+  const text = [
+    `STAY ON THE FREQUENCY`,
+    ``,
+    `New drops, restocks, sounds and transmissions from ALLTERNATIV.`,
+    ``,
+    `Somebody asked to add this email address to the ALLTERNATIV list.`,
+    `If that was you, confirm it here:`,
+    ``,
+    `  ${url}`,
+    ``,
+    `The link expires in ${days} days.`,
+    ``,
+    `We don't send emails to fill your inbox. We transmit when there's something worth tuning into.`,
+    ``,
+    `If this was not you, do nothing. Without a click this address is never`,
+    `added, and you will not hear from us again.`,
+    ``,
+    `ALLTERNATIV`,
+    `Escape the ordinary.`,
+  ].join("\n");
+
+  return { to, subject: "Confirm: stay on the ALLTERNATIV frequency", text };
 }
 
 /**

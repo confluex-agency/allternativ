@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { catalogueProducts } from "@/lib/catalogue-source";
+import { NewsletterSignup } from "@/components/storefront/newsletter-signup";
 
 const COLUMNS = [
   {
@@ -49,8 +50,9 @@ const COLUMNS = [
   // The "Follow" column held Instagram, TikTok, Spotify and Newsletter, all
   // pointing at "#". We do not have the accounts. A social icon that does
   // nothing reads as a brand that abandoned its accounts, which is worse than a
-  // brand that has not opened them. Send the handles and the column returns;
-  // the newsletter is question D4 of the build plan.
+  // brand that has not opened them. Send the handles and the column returns.
+  // The newsletter is not a link any more: it is the signup above the columns
+  // (D4, 2026-09-23).
 ];
 
 export function StorefrontFooter() {
@@ -75,6 +77,10 @@ export function StorefrontFooter() {
       </div>
 
       <div className="relative mx-auto max-w-[1440px] px-5 py-14 md:px-6 md:py-20 lg:px-12">
+        <div className="mb-14 border-b border-white/10 pb-14 md:mb-20 md:pb-20">
+          <NewsletterSignup />
+        </div>
+
         <div className="grid grid-cols-2 gap-10 md:gap-12 md:grid-cols-[1.5fr_repeat(4,1fr)]">
           <div className="col-span-2 max-w-sm md:col-span-1">
             <p className="eyebrow text-brand-beige/70 mb-4">Allternativ</p>

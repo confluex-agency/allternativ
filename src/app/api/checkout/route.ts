@@ -57,6 +57,11 @@ const CheckoutSchema = z.object({
   // it had to move: a discount applied on the hosted page cannot be refused,
   // only regretted.
   promotionCode: z.string().trim().max(64).optional(),
+  // D4: the "Stay on the frequency" box in the cart, unticked by default.
+  // Only `true` counts. It travels to the webhook as metadata and is
+  // recorded there against the address the buyer actually paid with, which is
+  // not known here: Stripe's page is where it is typed.
+  newsletter: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -68,7 +73,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { items, currency, destinationCountry, promotionCode } = parsed.data;
+    const { items, currency, destinationCountry, promotionCode, newsletter } =
+      parsed.data;
 
     const pairs = items.reduce((n, i) => n + i.quantity, 0);
 
@@ -344,6 +350,9 @@ export async function POST(request: NextRequest) {
           // the shopper simply could not pay.
           ...encodeItemsMetadata(items),
           reservationGroup,
+          // Absent unless ticked, so an old session or a forged payload
+          // defaults to no consent. See `recordCheckoutConsent`.
+          ...(newsletter === true ? { newsletter: "yes" } : {}),
         },
       });
     } catch (error) {

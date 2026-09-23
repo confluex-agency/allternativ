@@ -121,6 +121,42 @@ export const contactDailyLimiter = redis
     })
   : noopLimiter("contactDailyLimiter", true);
 
+/**
+ * The newsletter signup (D4), three keys, all critical for the contact form's
+ * reason: each accepted signup is a mail through the same Resend allowance the
+ * order confirmations use.
+ *
+ * - Per visitor, so one machine cannot walk a list of addresses.
+ * - Per ADDRESS, and this is the one the contact form does not need: its mail
+ *   always goes to us, while this one goes to whatever address was typed. Without
+ *   it, a rotating-IP bot could bury one stranger's inbox in "confirm?" mails
+ *   from our domain.
+ * - For everybody together, the ceiling that still holds against both.
+ */
+export const newsletterLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "10 m"),
+      prefix: "rl:newsletter",
+    })
+  : noopLimiter("newsletterLimiter", true);
+
+export const newsletterAddressLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.fixedWindow(3, "1 d"),
+      prefix: "rl:newsletter-addr",
+    })
+  : noopLimiter("newsletterAddressLimiter", true);
+
+export const newsletterDailyLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.fixedWindow(100, "1 d"),
+      prefix: "rl:newsletter-day",
+    })
+  : noopLimiter("newsletterDailyLimiter", true);
+
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
   return forwarded?.split(",")[0]?.trim() || "unknown";

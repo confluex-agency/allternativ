@@ -124,6 +124,8 @@ export function completedSession(opts: {
   country: string;
   discountCents?: number;
   shippingCents?: number;
+  /** The cart's newsletter box was ticked. Written exactly as the checkout writes it. */
+  newsletter?: boolean;
 }): Stripe.Event {
   return {
     id: `evt_${opts.sessionId}`,
@@ -157,6 +159,7 @@ export function completedSession(opts: {
           // single-key shape is covered by tests/checkout-metadata.test.ts.
           ...encodeItemsMetadata(opts.items),
           reservationGroup: opts.reservationGroup,
+          ...(opts.newsletter ? { newsletter: "yes" } : {}),
         },
       },
     },
@@ -175,6 +178,9 @@ export async function cleanUp() {
   }
   await prisma.customer.deleteMany({ where: { email: { contains: RUN } } });
   await prisma.contactMessage.deleteMany({
+    where: { email: { contains: RUN } },
+  });
+  await prisma.newsletterSubscriber.deleteMany({
     where: { email: { contains: RUN } },
   });
   await prisma.stockReservation.deleteMany({

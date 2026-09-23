@@ -553,10 +553,24 @@ model NewsletterSubscriber {
   unsubscribeToken String           @unique @default(cuid()) @map("unsubscribe_token")
   // Which welcome code this person was handed, so it is not given twice.
   discountCode     String?          @map("discount_code")
+
+  // ─ Double opt-in (D4, 2026-09-23). An address typed into the footer is
+  // PENDING until the link mailed to it is clicked: without that, anybody can
+  // subscribe anybody, and the first campaign would go to people with no
+  // record of having asked. Same queue shape as the other mails, and its own
+  // token, never the unsubscribe one: the two links do opposite things.
+  confirmToken             String?           @unique @map("confirm_token") @db.VarChar(64)
+  confirmExpiresAt         DateTime?         @map("confirm_expires_at")
+  confirmEmailStatus       QueuedEmailStatus @default(SKIPPED) @map("confirm_email_status")
+  confirmEmailSentAt       DateTime?         @map("confirm_email_sent_at")
+  confirmEmailAttempts     Int               @default(0) @map("confirm_email_attempts")
+  confirmEmailLastError    String?           @map("confirm_email_last_error") @db.Text
+
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   @@index([status])
+  @@index([confirmEmailStatus])
   @@map("newsletter_subscribers")
 }
 

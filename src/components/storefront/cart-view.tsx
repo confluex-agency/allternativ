@@ -64,6 +64,11 @@ export function CartView() {
   // applied over there lands on a session that already exists, so it could only
   // ever be watched, not refused, and a deep enough code sells below cost. The
   // field is ours now; the codes are still Stripe's. See src/lib/promotions.ts.
+  // D4: unticked by default, and it must stay that way. A pre-ticked box is
+  // not consent under the GDPR (Planet49, CJEU 2019), so the day somebody
+  // "improves conversion" by defaulting it to true, the list it builds is one
+  // nobody can prove agreed to anything.
+  const [newsletter, setNewsletter] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -199,6 +204,7 @@ export function CartView() {
           currency,
           destinationCountry: shipTo,
           ...(promoCode.trim() ? { promotionCode: promoCode.trim() } : {}),
+          newsletter,
         }),
       });
 
@@ -440,6 +446,19 @@ export function CartView() {
         <p className="mt-2 text-xs text-neutral-500">
           Tracked delivery, 8–15 business days.
         </p>
+        {/* The client's copy, word for word (D4, 2026-09-21). */}
+        <label className="mt-5 flex cursor-pointer items-start gap-3 text-sm leading-snug text-neutral-700">
+          <input
+            type="checkbox"
+            checked={newsletter}
+            onChange={(e) => setNewsletter(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-black"
+          />
+          <span>
+            Stay on the frequency — receive new drops, restocks, sounds and
+            transmissions from ALLTERNATIV.
+          </span>
+        </label>
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-600">
             {error}

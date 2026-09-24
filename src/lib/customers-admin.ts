@@ -65,6 +65,9 @@ const ADMIN_CUSTOMER_SELECT = {
   country: true,
   city: true,
   orderCount: true,
+  // ⚠️ Summed across currencies by the webhook, so it has no unit once a
+  // customer buys in two markets. Kept for the API; the admin screen shows
+  // spend grouped by currency from the orders instead (`spendByCurrency`).
   totalSpentCents: true,
   // Dates and enum states: what support needs to answer "why can this person
   // not see their own orders". No token, no hash, no provider message.
@@ -81,16 +84,76 @@ const ADMIN_CUSTOMER_SELECT = {
 export async function listCustomersForAdmin(input: {
   page: number;
   pageSize: number;
+  /** Part of an email or a name. MySQL compares case-insensitively already. */
+  query?: string;
 }) {
+  const q = input.query?.trim();
+  const where = q
+    ? { OR: [{ email: { contains: q } }, { name: { contains: q } }] }
+    : {};
   const [customers, total] = await Promise.all([
     prisma.customer.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: input.pageSize,
       skip: (input.page - 1) * input.pageSize,
       select: ADMIN_CUSTOMER_SELECT,
     }),
-    prisma.customer.count(),
+    prisma.customer.count({ where }),
   ]);
 
-  return { customers, total };
+  // Whether the person registered, as a yes/no computed HERE. The hash itself
+  // stays in the database; the screen only needs to know one exists.
+  const withAccount = new Set(
+    (
+      await prisma.customer.findMany({
+        where: {
+          id: { in: customers.map((c) => c.id) },
+          passwordHash: { not: null },
+        },
+        select: { id: true },
+      })
+    ).map((c) => c.id),
+  );
+
+  return {
+    customers: customers.map((c) => ({ ...c, hasAccount: withAccount.has(c.id) })),
+    total,
+  };
+}
+
+/**
+ * What each of these customers has paid, per currency, net of refunds.
+ * Paid orders only; one line per currency, never added together.
+ */
+export async function spendByCurrency(customerIds: string[]) {
+  if (customerIds.length === 0) return new Map<string, { currency: string; cents: number }[]>();
+  const rows = await prisma.order.groupBy({
+    by: ["customerId", "currency"],
+    where: {
+      customerId: { in: customerIds },
+      status: { in: ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] },
+    },
+    _sum: { totalCents: true, refundedCents: true },
+  });
+  const map = new Map<string, { currency: string; cents: number }[]>();
+  for (const r of rows) {
+    const list = map.get(r.customerId) ?? [];
+    list.push({
+      currency: r.currency,
+      cents: (r._sum.totalCents ?? 0) - (r._sum.refundedCents ?? 0),
+    });
+    map.set(r.customerId, list);
+  }
+  return map;
+}
+
+/** Newsletter state per address, for the same page of customers. */
+export async function newsletterStatusFor(emails: string[]) {
+  if (emails.length === 0) return new Map<string, string>();
+  const rows = await prisma.newsletterSubscriber.findMany({
+    where: { email: { in: emails } },
+    select: { email: true, status: true },
+  });
+  return new Map(rows.map((r) => [r.email, r.status]));
 }

@@ -15,10 +15,8 @@ import { COMMERCIAL_ROLES, OWNER_ONLY, hasRole } from "@/lib/roles";
 // they will do on launch day is log in and click "Orders".
 //
 // A link that goes nowhere is worse than a missing link: it says the feature is
-// there and broken, rather than not there yet. The section below says what is
-// true instead, and each entry moves up as its page ships. See "Admin roles" and
-// the API routes in CLAUDE.md — `/api/orders` and `/api/customers` already exist
-// and are role-checked; what is missing is the screen, not the data.
+// there and broken, rather than not there yet. Since 2026-09-24 every screen
+// the sidebar once promised exists, and the "Not built yet" list is gone.
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: "◻", roles: null },
   // Orders carry the buyer's name, address and phone, so the page itself is
@@ -26,6 +24,8 @@ const navItems = [
   // second copy of it: a link that bounces you back to the dashboard is a worse
   // way to learn you lack the role than not being offered it.
   { href: "/admin/orders", label: "Orders", icon: "◻", roles: COMMERCIAL_ROLES },
+  // Personal data, under the same rule as orders.
+  { href: "/admin/customers", label: "Customers", icon: "◻", roles: COMMERCIAL_ROLES },
   // No customer data and no cost figures on this one, so any signed-in admin
   // may read it — including ANALYTICS_VIEWER, which is the default role.
   { href: "/admin/products", label: "Products", icon: "◻", roles: null },
@@ -44,9 +44,6 @@ const navItems = [
   // account as OWNER, and the role system would be decoration.
   { href: "/admin/users", label: "People", icon: "◻", roles: OWNER_ONLY },
 ];
-
-/** Screens the sidebar promised before they existed. Shown, not linked. */
-const comingSoon = ["Customers"];
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -90,18 +87,6 @@ export function AdminSidebar() {
           </Link>
         ))}
 
-        <p className="px-3 pt-6 pb-2 text-[10px] uppercase tracking-[0.12em] text-neutral-400">
-          Not built yet
-        </p>
-        {comingSoon.map((label) => (
-          <span
-            key={label}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-neutral-300"
-          >
-            <span className="text-xs">◻</span>
-            {label}
-          </span>
-        ))}
       </nav>
 
       <div className="border-t px-4 py-4">

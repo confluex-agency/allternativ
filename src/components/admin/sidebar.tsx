@@ -33,6 +33,8 @@ const navItems = [
   { href: "/admin/analytics", label: "Analytics", icon: "◻", roles: null },
   // Stock, prices and order changes, so the commercial roles; staff changes
   // inside it are OWNER-only (see audit-view.ts).
+  // What the shop pays and keeps: the commercial roles, never the viewers.
+  { href: "/admin/finance", label: "Costs & margins", icon: "◻", roles: COMMERCIAL_ROLES },
   { href: "/admin/activity", label: "Activity", icon: "◻", roles: COMMERCIAL_ROLES },
   // ⚠️ OWNER only, and this is the one link where the narrower list is the
   // whole point: this screen decides who may use every other screen. An

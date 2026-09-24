@@ -51,6 +51,9 @@ export async function aggregateAnalytics(): Promise<JobResult> {
   });
 
   const totalOrders = orders.length;
+  // ⚠️ Summed ACROSS currencies, so it has no unit once a second market sells.
+  // Kept because the column exists; nothing on screen reads it, and the
+  // Analytics page groups by currency from the orders instead.
   const totalRevenueCents = orders.reduce((sum, o) => sum + o.totalCents, 0);
   const conversionRate = totalSessions > 0 ? totalOrders / totalSessions : 0;
 

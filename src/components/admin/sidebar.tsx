@@ -29,6 +29,8 @@ const navItems = [
   // No customer data and no cost figures on this one, so any signed-in admin
   // may read it — including ANALYTICS_VIEWER, which is the default role.
   { href: "/admin/products", label: "Products", icon: "◻", roles: null },
+  // Section 29. Every role, and therefore nothing customer-identifying on it.
+  { href: "/admin/analytics", label: "Analytics", icon: "◻", roles: null },
   // Stock, prices and order changes, so the commercial roles; staff changes
   // inside it are OWNER-only (see audit-view.ts).
   { href: "/admin/activity", label: "Activity", icon: "◻", roles: COMMERCIAL_ROLES },
@@ -40,7 +42,7 @@ const navItems = [
 ];
 
 /** Screens the sidebar promised before they existed. Shown, not linked. */
-const comingSoon = ["Customers", "Analytics"];
+const comingSoon = ["Customers"];
 
 export function AdminSidebar() {
   const pathname = usePathname();

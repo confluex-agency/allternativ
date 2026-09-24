@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CatalogProduct } from "@/lib/catalog";
 import { CASE_SWATCH, caseLabel, cartLineId } from "@/lib/product-options";
 import Link from "next/link";
@@ -13,7 +13,11 @@ import {
 import { priceIn, useMarket } from "@/components/storefront/price";
 import { useCart } from "@/hooks/useCart";
 import { useCartDrawer } from "@/hooks/useCartDrawer";
-import { trackAddToCart, trackSoldOutView } from "@/lib/tracking";
+import {
+  trackAddToCart,
+  trackProductView,
+  trackSoldOutView,
+} from "@/lib/tracking";
 import { ProductGallery } from "@/components/storefront/product-gallery";
 import { Button } from "@/components/ui/button";
 
@@ -35,6 +39,14 @@ type Props = {
 export function ProductPurchase({ product, galleries }: Props) {
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? "");
   const [justAdded, setJustAdded] = useState(false);
+
+  // The top of the funnel on the Analytics screen. `trackProductView` existed
+  // from the start and nothing called it, so "views → added → checkout" began
+  // at a zero nobody could explain. Keyed on the model, not the colourway:
+  // switching colour on the same page is not a second visit.
+  useEffect(() => {
+    trackProductView(product.slug, product.name);
+  }, [product.slug, product.name]);
   const addItem = useCart((s) => s.addItem);
   const openCart = useCartDrawer((s) => s.openCart);
 

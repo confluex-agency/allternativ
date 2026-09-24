@@ -1429,7 +1429,7 @@ would lose work. It does **not** touch `stockQuantity` — that is written on
 create only, precisely so re-seeding a shop that has sold something cannot put
 the sold units back — and `market_prices` already upserts with `update: {}` for
 the same reason. So stock was never blocked; the copy and `priceCents` still
-are.
+are. The **market prices** became editable on 2026-09-24 (C5), see below.
 
 ### ⚠️ Why this is not a "set stock to N" form
 
@@ -1459,27 +1459,38 @@ The question asked three weeks later is never "what is the stock", it is "why is
 this eleven when the invoice says twelve" — and an audit row reading `11 → 12`
 with no sentence answers nothing.
 
-### The promotions screen is the one circuit still half-built
+### Prices and promotions (2026-09-24), and the one rule they share
 
-⚠️ **The engine is finished and the management is not**, which is an unusual way
-round and easy to misread as "promotions are not built".
+**Neither may make an order lose money**, and both are checked with the same
+arithmetic the checkout uses (`margin.ts`), through `basketsAt()` in
+`src/lib/prices-admin.ts`: every shippable country of a market × every order
+size the shop accepts.
 
-What exists: a code field with an Apply button in `/cart`, the total moving for
-real, and — the part no off-the-shelf brief asks for — `evaluateDiscountForBasket`
-refusing a code that would sell below cost, **before the Stripe session exists**.
-
-What does not: the codes themselves are **Stripe coupons**, created in Stripe's
-own dashboard, and there is no screen here to create or switch one off.
-
-⚠️ **A second brief (2026-09-14) asked for "an internal database collection for
-active discounts", and that part should be declined.** Moving the codes into our
-own table means taking on what Stripe already does for free — expiry, maximum
-redemptions, per-customer limits, per-currency minimums — and, worse, **computing
-the charged amount ourselves** and counting redemptions against a race that is
-the same shape as overselling. The thing actually missing is a screen, and it can
-be built on Stripe's API: create a code, switch it off, and show the margin floor
-at the moment of creating it. *"What did that promo cost?"* is already answerable
-without any of it, because `Order.discountCents` is frozen on every order.
+- **Market prices (C5)** are edited on `/admin/products/[slug]`. The edit goes
+  to the **whole line** by default, because the client prices one figure per
+  market ("no hay ningún colourway premium ni diferencia de precio entre
+  modelos"), and it is refused unless every model currently shows the figure
+  the person was looking at. The same stale-write rule as stock, and a reason
+  on every change. A price whose worst order nets below `MINIMUM_NET_CENTS` is
+  refused. The shop pages are revalidated on save.
+- ⚠️ **`Product.priceCents` is still not editable**: the seed replays it. It is
+  only the fallback for a market with no row, and every product has all six.
+- **Promotions** are on `/admin/promotions`, a screen **over Stripe's API**, not
+  a table of ours. A second brief (2026-09-14) asked for "an internal database
+  collection for active discounts", and that part was **declined**: it would
+  take on what Stripe does for free (expiry, redemption limits, first order
+  only) and, worse, computing the charged amount ourselves and counting
+  redemptions against a race shaped like overselling.
+  - Before a code exists the screen says **which baskets it would be refused
+    on**, per market. The checkout still refuses them one by one
+    (`evaluateDiscountForBasket`); this asks the same question in advance, so a
+    code is not published on Instagram and then called "not valid" in Malta.
+  - **Only percentage codes are created here.** A fixed amount is one currency
+    and the shop sells in six. Existing ones are listed and can be switched off.
+  - One coupon per code, `duration: once`. The promotion code is created with
+    `promotion: { type: "coupon", coupon }` — the shape of API version
+    `2026-02-25.clover`, which is not the one most examples online show.
+- Both write to `audit_logs`, and both are COMMERCIAL_ROLES.
 
 ### What the video brief asked for, and what was refused
 
@@ -1510,9 +1521,37 @@ like a pure UX tweak and it is a disclosure decision.
 venden más"*. **That is a reporting question, not a stock-display one** — and it
 is not answered by a number on a product page, which shows what is LEFT rather
 than what MOVED. Twenty units left says nothing without knowing whether it
-started at twenty-five or a hundred. The honest answer is the Analytics screens,
-which do not exist yet: the four `/api/analytics/*` routes are built and
-role-checked, and nothing renders them.
+started at twenty-five or a hundred. The honest answer is `/admin/analytics`
+(2026-09-24): pairs sold beside what is left, sell-through, and the sold-out
+views that say what to reorder.
+
+## The admin screens (2026-09-24)
+
+Every screen the sidebar ever promised exists now. Who reaches each one:
+
+| Screen | Roles | Why that line |
+|---|---|---|
+| Dashboard, Products, **Analytics** | every admin | counts and sums, nothing customer-identifying |
+| Orders, **Customers** | COMMERCIAL | personal data |
+| **Promotions**, **Costs & margins** | COMMERCIAL | a price cut; what the shop pays and keeps |
+| **Activity** (`audit_logs`) | COMMERCIAL, staff rows OWNER-only | stock, prices, orders; who was granted what is the OWNER's business |
+| People | OWNER | it decides every other row of this table |
+
+- ⚠️ **Analytics mixes two populations and says so.** Orders are every buyer;
+  visits and events are only visitors who accepted analytics cookies. They are
+  never divided into a single "conversion rate". `analytics-report.ts` is held
+  by a test that asserts the buyer's name, email and phone appear nowhere in it.
+- ⚠️ `trackProductView` existed from the start and **nothing called it**, so
+  the funnel began at a zero. It fires from `ProductPurchase` now.
+- ⚠️ **Two columns sum across currencies and must not be displayed**:
+  `daily_analytics.total_revenue_cents` and `Customer.totalSpentCents`. The
+  screens group by currency from the orders instead.
+- **Costs & margins reads the FROZEN costs** on each order, never today's
+  catalogue. A null cost is "unknown" and the order is left out of the totals,
+  never counted as free. It also shows the six prices in USD (have they drifted
+  apart?) and the frozen FX against today's (frankfurter.dev, cached a day).
+- **Customers** says whether a person registered as a yes/no computed in
+  `customers-admin.ts`; the hash never leaves the database.
 
 ## Commands
 

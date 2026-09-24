@@ -66,6 +66,8 @@ export async function PATCH(
       action: "update",
       entityType: "order",
       entityId: id,
+      // The number, not only the id: the activity page is read by a person.
+      entityLabel: result.orderNumber,
       oldValue: { status: result.from },
       newValue: { status: result.to },
     });

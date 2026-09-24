@@ -40,7 +40,7 @@ export { MANUAL_STATUSES, type ManualStatus } from "@/lib/order-status";
 const DISPATCHABLE = ["PAID", "PROCESSING"] as const;
 
 export type OrderChangeResult =
-  | { ok: true; from: OrderStatus; to: OrderStatus }
+  | { ok: true; from: OrderStatus; to: OrderStatus; orderNumber: string }
   | { ok: false; reason: "not-found" | "not-dispatchable" | "already-shipped" };
 
 /**
@@ -70,7 +70,7 @@ export async function setManualStatus(
   }
 
   await prisma.order.update({ where: { id: order.id }, data: { status } });
-  return { ok: true, from: order.status, to: status };
+  return { ok: true, from: order.status, to: status, orderNumber: order.orderNumber };
 }
 
 export type DispatchResult =

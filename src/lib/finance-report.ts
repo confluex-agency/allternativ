@@ -57,7 +57,8 @@ export type CurrencyTotals = {
   absorbedShippingCents: number;
 };
 
-export async function orderMargins(since: Date): Promise<OrderMargin[]> {
+export async function orderMargins(days: number): Promise<OrderMargin[]> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const orders = await prisma.order.findMany({
     where: { status: { in: [...REAL_ORDERS] }, createdAt: { gte: since } },
     orderBy: { createdAt: "desc" },

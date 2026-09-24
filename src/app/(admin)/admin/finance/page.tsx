@@ -41,10 +41,8 @@ export default async function AdminFinancePage({
   const { days: daysParam } = await searchParams;
   const asked = Number(daysParam);
   const days = (WINDOWS as readonly number[]).includes(asked) ? asked : 90;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
   const [orders, alignment, fx] = await Promise.all([
-    orderMargins(since),
+    orderMargins(days),
     priceAlignment(),
     fxHealth(),
   ]);

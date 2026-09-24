@@ -33,6 +33,8 @@ const navItems = [
   { href: "/admin/analytics", label: "Analytics", icon: "◻", roles: null },
   // Stock, prices and order changes, so the commercial roles; staff changes
   // inside it are OWNER-only (see audit-view.ts).
+  // A code is a price cut, so the commercial roles.
+  { href: "/admin/promotions", label: "Promotions", icon: "◻", roles: COMMERCIAL_ROLES },
   // What the shop pays and keeps: the commercial roles, never the viewers.
   { href: "/admin/finance", label: "Costs & margins", icon: "◻", roles: COMMERCIAL_ROLES },
   { href: "/admin/activity", label: "Activity", icon: "◻", roles: COMMERCIAL_ROLES },

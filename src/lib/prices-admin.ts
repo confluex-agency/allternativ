@@ -46,38 +46,59 @@ export type WorstCase = {
 };
 
 /**
- * The least any single order can leave at this price, in this market.
+ * Every order the shop can take in this market at this price — each shippable
+ * country, each order size — with what it would leave.
  *
- * Every shippable country of the market, every order size the shop accepts.
+ * `percentOff` is a discount code on the pairs (Stripe never discounts
+ * delivery), so the promotions screen can ask the same question of a code
+ * before it exists that the checkout asks of it on every basket.
+ *
  * Null when the model's cost is unknown, which is "cannot tell", not "fine".
  */
-export function worstCaseNet(
+export function basketsAt(
   supplierCostUsd: number | null,
   market: MarketKey,
   priceCents: number,
-): WorstCase | null {
+  percentOff = 0,
+): WorstCase[] | null {
   if (supplierCostUsd === null) return null;
   const currency = MARKETS[market].currency;
   const goodsPerPair = usdCentsTo(supplierCostUsd, currency);
   if (goodsPerPair === null) return null;
 
-  let worst: WorstCase | null = null;
+  const baskets: WorstCase[] = [];
   for (const country of MARKETS[market].countries) {
     for (let pairs = 1; pairs <= MAX_PAIRS_PER_ORDER; pairs++) {
       const quote = quoteShipping(country, pairs, currency);
       if (!quote) continue; // not a country the supplier ships to
-      const revenueCents = priceCents * pairs + quote.amountCents;
-      const net = netCents({
-        revenueCents,
-        goodsCostCents: goodsPerPair * pairs,
-        shippingCostCents:
-          usdCentsTo(supplierCostUsdCents(country, pairs), currency) ?? 0,
-        paymentFeeCents: estimatePaymentFeeCents(revenueCents, currency),
+      const subtotal = priceCents * pairs;
+      const discount = Math.round((subtotal * percentOff) / 100);
+      const revenueCents = subtotal - discount + quote.amountCents;
+      baskets.push({
+        netCents: netCents({
+          revenueCents,
+          goodsCostCents: goodsPerPair * pairs,
+          shippingCostCents:
+            usdCentsTo(supplierCostUsdCents(country, pairs), currency) ?? 0,
+          paymentFeeCents: estimatePaymentFeeCents(revenueCents, currency),
+        }),
+        country,
+        pairs,
       });
-      if (!worst || net < worst.netCents) worst = { netCents: net, country, pairs };
     }
   }
-  return worst;
+  return baskets;
+}
+
+/** The least any single order can leave at this price, in this market. */
+export function worstCaseNet(
+  supplierCostUsd: number | null,
+  market: MarketKey,
+  priceCents: number,
+): WorstCase | null {
+  const baskets = basketsAt(supplierCostUsd, market, priceCents);
+  if (!baskets || baskets.length === 0) return null;
+  return baskets.reduce((w, b) => (b.netCents < w.netCents ? b : w));
 }
 
 class StaleWrite extends Error {}

@@ -159,3 +159,13 @@ describe("changing a market price", () => {
     expect(after).toEqual(before);
   });
 });
+
+describe("a discount on the worst basket", () => {
+  it("costs more margin the deeper it goes, and a deep one sinks some baskets", async () => {
+    const { basketsAt } = await import("@/lib/prices-admin");
+    const at = (pct: number) =>
+      Math.min(...(basketsAt(540, "EU", 3900, pct) ?? []).map((b) => b.netCents));
+    expect(at(10)).toBeLessThan(at(0));
+    expect(at(80)).toBeLessThan(0);
+  });
+});

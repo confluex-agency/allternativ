@@ -35,7 +35,14 @@ describe("the activity sentences", () => {
     ).toBe("Dispatched by hand, yunexpress YT1");
   });
 
+  it("says what happened to a code", () => {
+    expect(sentence("promotion", "create", null, { percentOff: 15, firstOrderOnly: true })).toBe(
+      "Created, 15% off, first order only",
+    );
+    expect(sentence("promotion", "update", { active: true }, { active: false })).toBe("Switched off");
+  });
+
   it("never hides a kind it does not know", () => {
-    expect(sentence("promotion", "create", null, { code: "LAUNCH" })).toContain("LAUNCH");
+    expect(sentence("newsletter", "create", null, { code: "LAUNCH" })).toContain("LAUNCH");
   });
 });

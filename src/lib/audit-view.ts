@@ -23,6 +23,7 @@ export const AUDIT_KINDS = {
   product_variant: "Stock",
   market_price: "Prices",
   order: "Orders",
+  promotion: "Promotions",
   admin_user: "People",
 } as const;
 
@@ -94,6 +95,12 @@ export function describe(
       if (after && "trackingNumber" in after) {
         return `Dispatched by hand, ${after.carrier ?? "carrier not given"} ${after.trackingNumber}`;
       }
+      break;
+    case "promotion":
+      if (action === "create") {
+        return `Created, ${after?.percentOff ?? "?"}% off${after?.firstOrderOnly ? ", first order only" : ""}`;
+      }
+      if (after && "active" in after) return after.active ? "Switched on" : "Switched off";
       break;
     case "admin_user":
       if (action === "create") return `Invited as ${after?.role ?? "?"}`;

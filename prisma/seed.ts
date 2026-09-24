@@ -3,7 +3,6 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { hash } from "bcryptjs";
 import {
-  CASE_OPENING_STOCK,
   catalogueProducts,
   packedCostUsdCents,
   RETIRED_SLUGS,
@@ -37,37 +36,10 @@ async function main() {
     );
   }
 
-  // The two cases every pair ships in, bought up front like the frames.
-  // 150 of each, confirmed by the client from the supplier's invoice: 300
-  // leather cases, 150 white and 150 black. The rows seeded before those
-  // numbers arrived hold 100, an openly fake placeholder.
-  //
-  // Opening stock is written whenever NOTHING has consumed that colour yet.
-  // A blanket write would put sold cases back on the shelf on every re-seed; a
-  // create-only write leaves the placeholder standing forever, which is what it
-  // did until this check existed. The order items are the evidence.
-  for (const c of [
-    { key: "BLACK" as const, name: "Black" },
-    { key: "WHITE" as const, name: "White" },
-  ]) {
-    const consumed = await prisma.orderItem.count({
-      where: { caseColor: c.key },
-    });
-    await prisma.caseStock.upsert({
-      where: { key: c.key },
-      update: consumed
-        ? { name: c.name }
-        : { name: c.name, stockQuantity: CASE_OPENING_STOCK[c.key] },
-      create: { ...c, stockQuantity: CASE_OPENING_STOCK[c.key] },
-    });
-  }
-  // Read back rather than echoing the constant: the previous version printed the
-  // figure it wanted, while the table still held 100.
-  for (const row of await prisma.caseStock.findMany({
-    orderBy: { key: "asc" },
-  })) {
-    console.log(`Case stock ${row.key}: ${row.stockQuantity}`);
-  }
+  // No case pool any more. Until 2026-09-24 the seed topped up a shared stock
+  // of black and white cases that any pair could draw from; Daniel then showed
+  // that each colourway arrives packed in one case with none spare, so the case
+  // is counted with its pair. The `case_stock` rows are left as they stand.
 
   // Retire the placeholder models we invented while the client had not named
   // theirs. DISCONTINUED and not deleted: an order may already point at one, and
@@ -252,6 +224,9 @@ async function main() {
             colorName: cw.name,
             swatch: cw.swatch,
             supplierSku: cw.supplierSku,
+            // Refreshed on every run, like the specs: it is a fact about the
+            // physical stock, and the source file is where it is recorded.
+            caseColor: cw.caseColor,
             isActive: true,
             position: cwIndex,
           },
@@ -265,6 +240,7 @@ async function main() {
             colorName: cw.name,
             swatch: cw.swatch,
             supplierSku: cw.supplierSku,
+            caseColor: cw.caseColor,
             stockQuantity: cw.stock,
             isActive: true,
             position: cwIndex,

@@ -28,7 +28,9 @@ const PreviewSchema = z.object({
       z.object({
         variantId: z.string().min(1).max(64),
         quantity: z.number().int().min(1).max(100),
-        caseColor: z.enum(CASE_COLORS),
+        // Irrelevant to the price, and optional since the case stopped being
+        // a choice (2026-09-24). Old baskets still send it.
+        caseColor: z.enum(CASE_COLORS).optional(),
       }),
     )
     .min(1)

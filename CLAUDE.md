@@ -142,8 +142,6 @@ each one costs when it is missed, is in the `deploy-allternativ` skill under
 
 **Still unexercised in the selling path**, and neither needs the client:
 
-- The **dispatch email** has never been sent. It needs an order marked SHIPPED
-  *with* a tracking number, which can be simulated on staging.
 - **DELIVERED is written by nobody.** It is in the enum, the dashboard counts it,
   the WooCommerce façade maps it, and no code path sets it — so an order stays
   SHIPPED for ever. Whether the carrier reports delivery through Dianxiaomi is a
@@ -525,11 +523,28 @@ the Demi units are the black lens (see its SKU note).
 
 - The buyable unit is **`ProductVariant`**, not `Product`. It owns the SKU, the
   stock and, optionally, its own price.
-- **Case colour (black/white) is not a variant.** It is an option of the
-  purchase, carried on `OrderItem.caseColor` and forwarded to the supplier. It
-  does not create a second SKU.
-- A cart line is keyed by `lineId` = variant + case colour. The same model with
-  two different cases is two lines.
+- ⚠️ **The case colour is a fact of the colourway, not a choice.** Until
+  2026-09-24 the shopper picked black or white. Daniel's inventory
+  (`skus-allternativ_Manuel.xlsx`, 2026-09-22, confirmed by the client as
+  official) holds every colourway in **one** case colour with **no spare
+  cases**: white for Corinthian, Neon Shift and Prism, black for Orbital, SYNC
+  and Amplify. So the shop had been selling a white-cased Orbital the warehouse
+  did not have — the test order `ALT-20260910-1253` was one. Buying spare cases
+  to keep the choice was declined for cash flow.
+  - It lives on `ProductVariant.caseColor`, written by the seed from
+    `catalogue-source.ts`. The page **shows** it; nothing picks it.
+  - The checkout and the webhook read it from the **variant**, never from the
+    basket: an old basket or an in-flight session may still name the other one.
+    A variant with no recorded case is refused, not sold with a guessed box.
+  - `OrderItem.caseColor` still freezes it per line, because Daniel's SKU ends in
+    it (`ORBITAL_C09-SAND-BLACK_BLACK`) and an order must keep saying what went
+    in the box.
+  - **`case_stock` is retired.** A case is counted with its pair; the pool is
+    neither read nor written, and the table stays only for its history.
+    `tests/catalogue-specs.test.ts` carries Daniel's chart (case and quantity)
+    so the source file cannot drift from the warehouse.
+- A cart line is keyed by `lineId` = variant + case colour, which is now one
+  line per colourway; the format stays so saved baskets still load.
 - The checkout **always reads prices from the database**. The cart lives in the
   visitor's browser and can be edited.
 - Orders exist only after Stripe confirms payment, and every line stores a
@@ -916,7 +931,7 @@ something to attempt. **The evidence is in `orders.email_status`**, not in the
 cron's output, and that is the column to look at when somebody asks whether
 mail works.
 
-**Three of the four have now left.** On 2026-09-12 an account was registered on
+**All four have now left.** On 2026-09-12 an account was registered on
 staging and then a reset was asked for, and the sweep answered
 `verificationEmailsSent: 1` and, later, `resetEmailsSent: 1`.
 
@@ -925,7 +940,7 @@ staging and then a reset was asked for, and the sweep answered
 | Confirmation | 2026-09-10 | order `ALT-20260910-1253`, `email_status = SENT` |
 | Verification | 2026-09-12 | `verificationEmailsSent: 1` |
 | Password reset | 2026-09-12 | `resetEmailsSent: 1`, the day it shipped |
-| Dispatch | ⬜ **never** | needs an order marked SHIPPED **with** a tracking number |
+| Dispatch | 2026-09-24 | `ALT-20260910-1253`, tracking written by Dianxiaomi as an order note, and the mail arrived |
 
 ⚠️ **Those counters are evidence, and the distinction matters.** Each one is
 incremented only *after* `sendEmail` resolved **and** the row was written `SENT`
@@ -934,8 +949,7 @@ quiet-sweep trap described above, which is about an **empty** queue reporting
 success whether the provider works or not. A queue with one item in it that
 comes back `sent: 1` has actually been through Resend.
 
-The dispatch mail is the last one, and it does **not** depend on the supplier:
-marking a staging order SHIPPED with a tracking number by hand exercises it.
+All four customer mails have now left at least once.
 
 ⚠️ And the question a `SENT` cannot answer is still open for all of them:
 whether any of this lands in an inbox or in a spam folder. DMARC is at `p=none`,
@@ -973,13 +987,14 @@ and it is the first place to look when something about the supplier is unclear.
 without failure for nineteen days; the two 401s are the initial connection
 before the credentials were right. And a real order crossed end to end on
 2026-09-10 — three pairs, correct SKUs, and the **case colours intact**, which
-is the most fragile thing in the chain because a case is an option of the
-purchase with no SKU of its own.
+is the most fragile thing in the chain. (One of those cases, a white one on an
+Orbital, did not exist — see "Buying something".)
 
-⚠️ **The return half has never run.** Zero PUT, zero POST, no order has ever
-carried a tracking number. Probably not broken — that order was never actually
-dispatched, so there was nothing to track — but it is **unexercised**, and it is
-the last thing between here and a closed loop.
+**The return half ran on 2026-09-23.** Dianxiaomi wrote the tracking as an
+order NOTE (`POST /wp-json/wc/v3/orders/{id}/NOTES`, upper case, the number
+inside an HTML note with a 17track link), which none of the shapes we had
+guessed covered; the façade reads it now. The order went SHIPPED and the
+dispatch mail reached the buyer. The loop is closed.
 
 ### ⚠️ A test order must say that it is one
 

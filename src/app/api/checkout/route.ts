@@ -4,7 +4,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { stripe, SUPPORTED_CURRENCIES } from "@/lib/stripe";
 import { env } from "@/lib/env";
-import { CASE_COLORS, caseLabel, isCaseColor } from "@/lib/product-options";
+import {
+  CASE_COLORS,
+  caseLabel,
+  isCaseColor,
+  type CaseColor,
+} from "@/lib/product-options";
 import {
   quoteShipping,
   DELIVERY_ESTIMATE_BUSINESS_DAYS,
@@ -20,7 +25,6 @@ import {
   releaseReservationGroup,
   attachSessionToReservations,
   OutOfStockError,
-  OutOfCasesError,
   CHECKOUT_WINDOW_MINUTES,
 } from "@/lib/inventory";
 
@@ -37,7 +41,10 @@ const CheckoutSchema = z.object({
       z.object({
         variantId: z.string().min(1).max(64),
         quantity: z.number().int().min(1).max(100),
-        caseColor: z.enum(CASE_COLORS),
+        // Still accepted, and ignored: a basket saved before 2026-09-24 carries
+        // the case the shopper picked. What ships is the colourway's own case,
+        // read from the database below like the price is.
+        caseColor: z.enum(CASE_COLORS).optional(),
       }),
     )
     .min(1)
@@ -73,10 +80,15 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { items, currency, destinationCountry, promotionCode, newsletter } =
-      parsed.data;
+    const {
+      items: requested,
+      currency,
+      destinationCountry,
+      promotionCode,
+      newsletter,
+    } = parsed.data;
 
-    const pairs = items.reduce((n, i) => n + i.quantity, 0);
+    const pairs = requested.reduce((n, i) => n + i.quantity, 0);
 
     // C3, 2026-09-19: three pairs per order. The basket already stops there,
     // but it lives in localStorage and a basket saved before the cap still
@@ -100,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const variantIds = [...new Set(items.map((i) => i.variantId))];
+    const variantIds = [...new Set(requested.map((i) => i.variantId))];
     const variants = await prisma.productVariant.findMany({
       where: {
         id: { in: variantIds },
@@ -119,6 +131,30 @@ export async function POST(request: NextRequest) {
 
     const byId = new Map(variants.map((v) => [v.id, v]));
 
+    // The case each colourway is packed in, never the one the basket names.
+    // A colourway nobody has recorded a case for is not sold: guessing the box
+    // is the mistake the fixed case replaced.
+    const caseById = new Map<string, CaseColor>();
+    for (const v of variants) {
+      if (!isCaseColor(v.caseColor)) {
+        return NextResponse.json(
+          { error: "Some items are no longer available" },
+          { status: 400 },
+        );
+      }
+      caseById.set(v.id, v.caseColor);
+    }
+    // Two lines of one colourway (an old basket with both cases) become one.
+    const quantities = new Map<string, number>();
+    for (const i of requested) {
+      quantities.set(i.variantId, (quantities.get(i.variantId) ?? 0) + i.quantity);
+    }
+    const items = [...quantities].map(([variantId, quantity]) => ({
+      variantId,
+      quantity,
+      caseColor: caseById.get(variantId)!,
+    }));
+
     // Take the stock now, before sending anyone to pay. Checking here and
     // decrementing after payment leaves minutes in which everyone is told the
     // last unit is theirs. See src/lib/inventory.ts.
@@ -128,24 +164,11 @@ export async function POST(request: NextRequest) {
         items.map((i) => ({
           variantId: i.variantId,
           quantity: i.quantity,
-          // One case per pair, out of its own pool.
-          caseKey: i.caseColor,
+          // No `caseKey`: the case is packed with the pair and counted with it.
         })),
         reservationGroup,
       );
     } catch (error) {
-      if (error instanceof OutOfCasesError) {
-        // Worth its own message: the eyewear is there, the case is not, and the
-        // shopper only has to change one choice to carry on.
-        return NextResponse.json(
-          {
-            error: isCaseColor(error.caseKey)
-              ? `We have run out of ${caseLabel(error.caseKey)} cases. Please choose the other colour.`
-              : "That case colour has just run out. Please choose another.",
-          },
-          { status: 409 },
-        );
-      }
       if (error instanceof OutOfStockError) {
         const variant = byId.get(error.variantId);
         return NextResponse.json(
@@ -341,8 +364,9 @@ export async function POST(request: NextRequest) {
         success_url: `${env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${env.NEXT_PUBLIC_APP_URL}/cart`,
         metadata: {
-          // What the webhook needs to write the order lines, including the case
-          // colour, which is not a variant and cannot be recovered from the SKU.
+          // What the webhook needs to write the order lines. The case colour
+          // still travels, frozen from the variant, though the webhook now
+          // prefers the variant's own.
           //
           // Split across numbered keys by `encodeItemsMetadata`. Stripe caps a
           // metadata value at 500 characters, and this used to be one value: a

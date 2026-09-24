@@ -159,3 +159,41 @@ describe("the photography", () => {
     }
   });
 });
+
+describe("the case each colourway is packed in", () => {
+  // Daniel's inventory sheet of 2026-09-22 (`skus-allternativ_Manuel.xlsx`),
+  // confirmed by the client as official: every colourway sits in ONE case
+  // colour, with no spare cases to swap. The shop used to let the shopper pick,
+  // and sold a white-cased Orbital the warehouse did not have. The chart is
+  // written out here so the source file cannot drift from the warehouse.
+  const DANIEL: Record<string, { caseColor: string; stock: number }> = {
+    "THE-CORINTHIAN_OLIVE-GREEN": { caseColor: "WHITE", stock: 16 },
+    "THE-CORINTHIAN_BLACK-BLACK": { caseColor: "WHITE", stock: 16 },
+    "THE-CORINTHIAN_BLACK-DOUBLE-GREY": { caseColor: "WHITE", stock: 15 },
+    "ORBITAL_C03-MERCURY-BLACK": { caseColor: "BLACK", stock: 16 },
+    "ORBITAL_C09-SAND-BLACK": { caseColor: "BLACK", stock: 16 },
+    "ORBITAL_C07-BLACK-BLACK": { caseColor: "BLACK", stock: 15 },
+    "NEON-SHIFT_RED-BLACK": { caseColor: "WHITE", stock: 16 },
+    "NEON-SHIFT_BLACK-BLACK": { caseColor: "WHITE", stock: 16 },
+    "NEON-SHIFT_BLACK-BLUE": { caseColor: "WHITE", stock: 15 },
+    "SYNC_GOLD-BLACK": { caseColor: "BLACK", stock: 15 },
+    "SYNC_SILVER-BLACK": { caseColor: "BLACK", stock: 16 },
+    "SYNC_BLACK-BLACK": { caseColor: "BLACK", stock: 16 },
+    "AMPLIFY_C01-BLACK-BLACK": { caseColor: "BLACK", stock: 24 },
+    "AMPLIFY_C05-HAWKSBILL-BROWN": { caseColor: "BLACK", stock: 24 },
+    "PRISM_C1-BLACK-BLACK": { caseColor: "WHITE", stock: 24 },
+    "PRISM_C4-DEMI-BLACK": { caseColor: "WHITE", stock: 24 },
+  };
+
+  const colorways = catalogueProducts.flatMap((p) => p.colorways);
+
+  it("covers exactly the sixteen colourways on the sheet", () => {
+    expect(colorways.map((c) => c.sku).sort()).toEqual(Object.keys(DANIEL).sort());
+  });
+
+  it("matches the sheet's case and quantity on every colourway", () => {
+    for (const c of colorways) {
+      expect({ caseColor: c.caseColor, stock: c.stock }, c.sku).toEqual(DANIEL[c.sku]);
+    }
+  });
+});

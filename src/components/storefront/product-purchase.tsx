@@ -1,14 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { CatalogProduct, CaseOption } from "@/lib/catalog";
-import {
-  CASE_SWATCH,
-  DEFAULT_CASE_COLOR,
-  caseLabel,
-  cartLineId,
-  type CaseColor,
-} from "@/lib/product-options";
+import type { CatalogProduct } from "@/lib/catalog";
+import { CASE_SWATCH, caseLabel, cartLineId } from "@/lib/product-options";
 import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
 import {
@@ -24,28 +18,22 @@ import { ProductGallery } from "@/components/storefront/product-gallery";
 import { Button } from "@/components/ui/button";
 
 // The purchase area of a product page (section 07 of the brief). Gallery,
-// colourway selector, case selector and add-to-cart live together because they
-// share one piece of state: what the visitor is actually about to buy.
+// colourway selector and add-to-cart live together because they share one piece
+// of state: what the visitor is actually about to buy.
+//
+// The case is shown, not chosen. Until 2026-09-24 there was a black/white
+// selector (section 10); Daniel's inventory then showed every colourway packed
+// in one case colour with no spares, so a shopper picking the other one was
+// buying a box the warehouse did not have. The case follows the colourway.
 
 type Props = {
   product: CatalogProduct;
   /** Images per variant, already in the order the brief asks for. */
   galleries: Record<string, CatalogProduct["variants"][number]["images"]>;
-  /** Case colours and whether each is still in stock. */
-  caseOptions: CaseOption[];
 };
 
-export function ProductPurchase({ product, galleries, caseOptions }: Props) {
+export function ProductPurchase({ product, galleries }: Props) {
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? "");
-  // Start on a case that can actually be shipped, so the default is never a
-  // colour that has run out.
-  const [caseColor, setCaseColor] = useState<CaseColor>(
-    () =>
-      caseOptions.find((c) => c.key === DEFAULT_CASE_COLOR && c.available)
-        ?.key ??
-      caseOptions.find((c) => c.available)?.key ??
-      DEFAULT_CASE_COLOR,
-  );
   const [justAdded, setJustAdded] = useState(false);
   const addItem = useCart((s) => s.addItem);
   const openCart = useCartDrawer((s) => s.openCart);
@@ -74,8 +62,13 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
     );
   }
 
+  const caseColor = variant.caseColor;
+  // A colourway with no recorded case is not sold: the checkout would refuse
+  // it anyway, and guessing a box is exactly the mistake this replaced.
+  const buyable = variant.inStock && caseColor !== null;
+
   function handleAdd() {
-    if (!variant) return;
+    if (!variant || !caseColor) return;
     const image = images[0]?.url ?? "";
     const added = addItem({
       lineId: cartLineId(variant.id, caseColor),
@@ -232,61 +225,24 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
             </div>
           )}
 
-          {/* Case (section 10: "Your frequency, your way") */}
-          <div className="mt-8">
-            <p className="eyebrow text-brand-muted mb-3">
-              Case — {caseLabel(caseColor)}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {caseOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setCaseColor(option.key)}
-                  disabled={!option.available}
-                  aria-pressed={option.key === caseColor}
-                  className="flex items-center gap-2 disabled:cursor-not-allowed"
-                >
-                  <span
-                    className={`grid size-9 place-items-center rounded-full fluid-transition ${
-                      option.key === caseColor
-                        ? "ring-2 ring-brand-ink ring-offset-2 ring-offset-brand-beige"
-                        : "ring-1 ring-brand-ink/15 hover:ring-brand-ink/40"
-                    } ${option.available ? "" : "opacity-40"}`}
-                  >
-                    <span
-                      className="size-7 rounded-full ring-1 ring-inset ring-brand-ink/10"
-                      style={{ backgroundColor: CASE_SWATCH[option.key] }}
-                    />
-                  </span>
-                  <span
-                    className={`text-sm fluid-transition ${
-                      !option.available
-                        ? "text-brand-muted"
-                        : option.key === caseColor
-                          ? "text-brand-ink"
-                          : "text-brand-muted"
-                    }`}
-                  >
-                    {caseLabel(option.key)}
-                    {/* Spelled out rather than struck through. Their answer
-                        drew this exact line: "White — SOLD OUT". A strike is
-                        a convention some readers know; the words are not. */}
-                    {!option.available && (
-                      <span className="ml-1 text-[0.6875rem] uppercase tracking-wide">
-                        Sold out
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
+          {/* Case (section 10). Which one is decided by the colourway. */}
+          {caseColor && (
+            <div className="mt-8">
+              <p className="eyebrow text-brand-muted mb-3">Case</p>
+              <p className="flex items-center gap-3 text-sm text-brand-ink">
+                <span
+                  className="size-7 rounded-full ring-1 ring-inset ring-brand-ink/15"
+                  style={{ backgroundColor: CASE_SWATCH[caseColor] }}
+                />
+                Comes in a {caseLabel(caseColor).toLowerCase()} case
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Desktop CTA — on mobile the fixed bottom bar takes over. */}
           <div className="mt-8 hidden max-w-md md:mt-10 md:block">
             <AddButton
-              inStock={variant.inStock}
+              inStock={buyable}
               justAdded={justAdded}
               onAdd={handleAdd}
             />
@@ -311,7 +267,10 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
 
           <dl className="mt-10 space-y-3 text-sm md:mt-12">
             <Spec label="Colour" value={variant.colorName} />
-            <Spec label="Case" value={caseLabel(caseColor)} />
+            <Spec
+              label="Case"
+              value={caseColor ? caseLabel(caseColor) : null}
+            />
             <Spec label="Frame" value={product.specs.frame} />
             <Spec label="Lens" value={product.specs.lens} />
             <Spec label="Lens material" value={product.specs.lensMaterial} />
@@ -353,7 +312,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-brand-muted">
-              {product.name} · {variant.colorName} · {caseLabel(caseColor)}
+              {product.name} · {variant.colorName}
             </p>
             <p className="text-base text-brand-ink">
               {formatPrice(unitPriceCents, unitCurrency)}
@@ -361,7 +320,7 @@ export function ProductPurchase({ product, galleries, caseOptions }: Props) {
           </div>
           <div className="w-40 shrink-0">
             <AddButton
-              inStock={variant.inStock}
+              inStock={buyable}
               justAdded={justAdded}
               onAdd={handleAdd}
             />

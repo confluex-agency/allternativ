@@ -261,7 +261,7 @@ export function CartView() {
                 {item.name}
               </Link>
               {/* Section 13: the cart must show model, eyewear colour and the
-                  chosen case, and that choice stays visible through checkout. */}
+                  case, and it stays visible through checkout. */}
               <p className="mt-1 text-xs text-neutral-500">
                 {item.variantName} · Case: {caseLabel(item.caseColor)}
               </p>

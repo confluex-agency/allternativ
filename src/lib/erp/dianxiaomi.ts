@@ -70,8 +70,8 @@ export const ERP_COLUMNS: { key: keyof ErpRow; header: string }[] = [
   { key: "supplierSku", header: "Supplier SKU" },
   { key: "productName", header: "Product Name" },
   { key: "variantName", header: "Variant" },
-  // The case is chosen at checkout and is not part of the SKU, so without this
-  // column the supplier has no way of knowing which one to pack.
+  // The case the colourway is packed in, frozen on the order line. Also the
+  // last segment of the SKU, but a column is harder to misread than a suffix.
   { key: "caseColor", header: "Case Colour" },
   { key: "quantity", header: "Quantity" },
   { key: "unitPrice", header: "Unit Price" },

@@ -164,10 +164,9 @@ export function CartDrawer() {
                       >
                         {item.name}
                       </Link>
-                      {/* Section 13: the colourway AND the chosen case stay
-                          visible from here through to the confirmation. The
-                          case is an option of the purchase, not a variant, so
-                          it never appears in the name. */}
+                      {/* Section 13: the colourway AND its case stay visible
+                          from here through to the confirmation. The case
+                          never appears in the name. */}
                       <p className="mt-0.5 text-xs text-brand-muted">
                         {item.variantName} · Case: {caseLabel(item.caseColor)}
                       </p>

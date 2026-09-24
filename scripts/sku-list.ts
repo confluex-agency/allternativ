@@ -8,21 +8,17 @@
 // thing his warehouse has to load before the first order arrives. A SKU that
 // reaches Dianxiaomi without being on it has nothing to map to.
 //
-// There are thirty-two rows and not sixteen because the customer picks the case
-// colour, and a black case and a white case are two different things to pick
-// off a shelf.
+// Sixteen rows, one per colourway. There used to be thirty-two, one per case
+// colour, because the shopper picked the case. Daniel's inventory of 2026-09-22
+// showed each colourway packed in a single case with none spare, so only the
+// half of his sheet that holds stock is real, and that half is this list.
 //
 // Generated rather than typed so it cannot drift from the catalogue. It reads
 // `catalogue-source.ts`, not the database, on purpose: this is what we intend
 // to sell, and a half-seeded database would quietly produce a short list.
 
-import {
-  catalogueProducts,
-  CASE_OPENING_STOCK,
-} from "../src/lib/catalogue-source";
+import { catalogueProducts } from "../src/lib/catalogue-source";
 import { fulfilmentSku } from "../src/lib/sku";
-
-const caseColors = Object.keys(CASE_OPENING_STOCK);
 
 const rows = [
   ["SKU", "Model", "Model code", "Sunglass colour", "Case colour", "Status"],
@@ -30,16 +26,14 @@ const rows = [
 
 for (const product of catalogueProducts) {
   for (const colorway of product.colorways) {
-    for (const caseColor of caseColors) {
-      rows.push([
-        fulfilmentSku(colorway.sku, caseColor),
-        product.name,
-        product.code ?? "",
-        colorway.name,
-        caseColor,
-        product.status,
-      ]);
-    }
+    rows.push([
+      fulfilmentSku(colorway.sku, colorway.caseColor),
+      product.name,
+      product.code ?? "",
+      colorway.name,
+      colorway.caseColor,
+      product.status,
+    ]);
   }
 }
 

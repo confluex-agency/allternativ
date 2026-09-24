@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { processStripeEvent } from "@/lib/webhooks/process-stripe-event";
 import { reserveStock } from "@/lib/inventory";
@@ -7,10 +7,7 @@ import {
   prisma,
   RUN,
   makeProduct,
-  setCaseStock,
-  captureCaseStock,
-  restoreCaseStock,
-  caseStockOf,
+  caseStockSnapshot,
   completedSession,
   cleanUp,
   must,
@@ -26,28 +23,16 @@ import {
 //
 // It uses the real database rather than a mocked Prisma, because almost
 // everything worth asserting here IS database behaviour: stock comes down, a
-// case leaves its own pool, a reservation is consumed, costs are frozen, and
+// reservation is consumed, costs are frozen, and
 // the same event arriving twice must still produce one order.
 
 describe("a completed checkout becomes an order", () => {
-  // The case pools belong to the development shop, not to this suite. Borrowed
-  // below and handed back in afterAll -- see captureCaseStock in helpers.ts for
-  // what happens when they are not.
-  let caseStockBefore: Awaited<ReturnType<typeof captureCaseStock>> = [];
-
-  beforeAll(async () => {
-    caseStockBefore = await captureCaseStock();
-  });
-
   beforeEach(async () => {
     await cleanUp();
-    await setCaseStock("BLACK", 100);
-    await setCaseStock("WHITE", 100);
   });
 
   afterAll(async () => {
     await cleanUp();
-    await restoreCaseStock(caseStockBefore);
     await prisma.$disconnect();
   });
 
@@ -55,11 +40,11 @@ describe("a completed checkout becomes an order", () => {
     const { product, variant } = await makeProduct({ stock: 10 });
     const group = randomUUID();
     await reserveStock(
-      [{ variantId: variant.id, quantity: 2, caseKey: "BLACK" }],
+      [{ variantId: variant.id, quantity: 2 }],
       group,
     );
 
-    const casesAfterReserving = await caseStockOf("BLACK");
+    const casesBefore = await caseStockSnapshot();
     const sessionId = `cs_${RUN}_1`;
 
     await processStripeEvent(
@@ -100,14 +85,14 @@ describe("a completed checkout becomes an order", () => {
     expect(line.quantity).toBe(2);
     expect(line.productName).toBe(product.name);
 
-    // Stock, on both pools. The eyewear came down when the checkout opened and
-    // stays down; the cases did too, and neither may move a second time here.
+    // The eyewear came down when the checkout opened and stays down. The case
+    // came in the same box, so the retired case pool must not move at all.
     const after = must(
       await prisma.productVariant.findUnique({ where: { id: variant.id } }),
       "the variant",
     );
     expect(after.stockQuantity).toBe(8);
-    expect(await caseStockOf("BLACK")).toBe(casesAfterReserving);
+    expect(await caseStockSnapshot()).toEqual(casesBefore);
 
     // The reservation was CONSUMED rather than left to expire still holding
     // stock. It is marked, not deleted: the row is the evidence that this
@@ -118,6 +103,37 @@ describe("a completed checkout becomes an order", () => {
     expect(outstanding).toBe(0);
   });
 
+  it("ships the case the colourway is packed in, not the one the session names", async () => {
+    // Daniel, 2026-09-24: every colourway is packed in one case and there are
+    // no spares. A session opened before the selector was removed can still
+    // carry the other colour, and the warehouse cannot send it.
+    const { variant } = await makeProduct({ stock: 5, caseColor: "WHITE" });
+    const group = randomUUID();
+    await reserveStock([{ variantId: variant.id, quantity: 1 }], group);
+    const sessionId = `cs_${RUN}_case`;
+
+    await processStripeEvent(
+      completedSession({
+        sessionId,
+        email: `buyer+${RUN}@example.com`,
+        items: [{ variantId: variant.id, quantity: 1, caseColor: "BLACK" }],
+        reservationGroup: group,
+        amountTotal: 3900,
+        currency: "eur",
+        country: "DE",
+      }),
+    );
+
+    const order = must(
+      await prisma.order.findUnique({
+        where: { stripeSessionId: sessionId },
+        include: { items: true },
+      }),
+      "the order",
+    );
+    expect(order.items[0].caseColor).toBe("WHITE");
+  });
+
   it("freezes what the pair cost and what the parcel cost", async () => {
     const { variant } = await makeProduct({
       stock: 5,
@@ -125,7 +141,7 @@ describe("a completed checkout becomes an order", () => {
     });
     const group = randomUUID();
     await reserveStock(
-      [{ variantId: variant.id, quantity: 1, caseKey: "BLACK" }],
+      [{ variantId: variant.id, quantity: 1 }],
       group,
     );
 
@@ -183,7 +199,7 @@ describe("a completed checkout becomes an order", () => {
     });
     const group = randomUUID();
     await reserveStock(
-      [{ variantId: variant.id, quantity: 1, caseKey: "BLACK" }],
+      [{ variantId: variant.id, quantity: 1 }],
       group,
     );
 
@@ -221,7 +237,7 @@ describe("a completed checkout becomes an order", () => {
     const { variant } = await makeProduct({ stock: 5 });
     const group = randomUUID();
     await reserveStock(
-      [{ variantId: variant.id, quantity: 1, caseKey: "BLACK" }],
+      [{ variantId: variant.id, quantity: 1 }],
       group,
     );
 
@@ -264,7 +280,7 @@ describe("a completed checkout becomes an order", () => {
     const { variant } = await makeProduct({ stock: 3 });
     const group = randomUUID();
     await reserveStock(
-      [{ variantId: variant.id, quantity: 2, caseKey: "WHITE" }],
+      [{ variantId: variant.id, quantity: 2 }],
       group,
     );
 

@@ -127,7 +127,10 @@ async function handleCompletedSession(
       sku: variant.sku,
       productName: variant.product.name,
       variantName: variant.colorName,
-      caseColor: item.caseColor,
+      // The colourway's own case. The metadata's is the fallback only: a
+      // session opened before 2026-09-24 carries the case the shopper picked,
+      // and the warehouse can only send the one the pair is packed in.
+      caseColor: variant.caseColor ?? item.caseColor,
       // The cost side of the same snapshot, in the order's currency.
       //
       // Frozen for exactly the reason the price above is: the catalogue moves
@@ -356,11 +359,6 @@ async function handleCompletedSession(
     for (const item of items) {
       await prisma.productVariant.update({
         where: { id: item.variantId },
-        data: { stockQuantity: { decrement: item.quantity } },
-      });
-      // The case left with it, so it comes off its pool too.
-      await prisma.caseStock.updateMany({
-        where: { key: item.caseColor },
         data: { stockQuantity: { decrement: item.quantity } },
       });
     }

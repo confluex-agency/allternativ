@@ -837,16 +837,6 @@ export async function sweepOrders(): Promise<JobResult> {
     );
   }
 
-  const cases = await prisma.caseStock.findMany({ orderBy: { key: "asc" } });
-  const emptyCases = cases.filter((c) => c.stockQuantity <= 0 && c.isActive);
-  if (emptyCases.length > 0) {
-    warnings.push(
-      `Cases out of stock, the shop has stopped offering them: ${emptyCases
-        .map((c) => `${c.key} (${c.stockQuantity})`)
-        .join(", ")}`,
-    );
-  }
-
   return {
     summary: {
       reservationsReleased: released,
@@ -876,7 +866,6 @@ export async function sweepOrders(): Promise<JobResult> {
       newsletterConfirmationsSent: newsletter.sent,
       newsletterConfirmationsRetrying: newsletter.retrying,
       newsletterConfirmationsGivenUp: newsletter.gaveUp,
-      cases: cases.map((c) => `${c.key}=${c.stockQuantity}`).join("  "),
     },
     warnings,
   };

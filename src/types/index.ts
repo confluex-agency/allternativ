@@ -18,8 +18,7 @@ import type { CaseColor } from "@/lib/product-options";
 
 /**
  * One line in the basket. Identified by `lineId` (variant + case colour), not by
- * product: the same model in two colours, or with two different cases, must sit
- * on separate lines. `variantId` is a real database id, which is what the
+ * product: the same model in two colours must sit on separate lines. `variantId` is a real database id, which is what the
  * checkout prices against.
  */
 export type CartItem = {

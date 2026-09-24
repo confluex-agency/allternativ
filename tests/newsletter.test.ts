@@ -8,9 +8,6 @@ import {
   must,
   makeProduct,
   completedSession,
-  captureCaseStock,
-  restoreCaseStock,
-  setCaseStock,
 } from "./helpers";
 import {
   requestSubscription,
@@ -299,23 +296,15 @@ describe("the routes", () => {
 });
 
 describe("the checkout box", () => {
-  let caseStockBefore: Awaited<ReturnType<typeof captureCaseStock>> = [];
-
   beforeEach(async () => {
     // `makeProduct` makes one product per run, so each purchase starts clean.
     await cleanUp();
-    caseStockBefore = await captureCaseStock();
-    await setCaseStock("BLACK", 100);
-  });
-
-  afterEach(async () => {
-    await restoreCaseStock(caseStockBefore);
   });
 
   async function buy(buyer: string, newsletter: boolean) {
     const { variant } = await makeProduct({ stock: 5 });
     const group = randomUUID();
-    await reserveStock([{ variantId: variant.id, quantity: 1, caseKey: "BLACK" }], group);
+    await reserveStock([{ variantId: variant.id, quantity: 1 }], group);
     await processStripeEvent(
       completedSession({
         sessionId: `cs_${RUN}_nl_${randomUUID()}`,

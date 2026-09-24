@@ -55,8 +55,8 @@ export type SourceColorway = {
    *
    * Format `MODEL_COLOUR`, which Daniel asked for on 2026-08-21: "SKUs should
    * be created on your side... 'Model Name_Sunglass Colour_Case Colour'". The
-   * case colour is missing here on purpose - the customer picks it at checkout,
-   * so the third segment is only appended per line item, by `fulfilmentSku`.
+   * case colour is missing here on purpose - it is `caseColor` below, and the
+   * third segment is appended per line item, by `fulfilmentSku`.
    *
    * ⚠️ Written out literally rather than derived from `name`, so that the
    * editorial pass the client still owes on names like "Black Black" cannot
@@ -81,7 +81,18 @@ export type SourceColorway = {
   supplierSku: string | null;
   /** CSS colour for the selector dot. A UI affordance, not a product claim. */
   swatch: string;
-  /** Opening stock from the supplier invoice. Sums to 50 per model. */
+  /**
+   * The case this colourway is packed in at the factory. Not a choice the
+   * shopper makes: Daniel's inventory of 2026-09-22 holds every colourway in
+   * exactly one case colour, with no spare cases to swap.
+   */
+  caseColor: "BLACK" | "WHITE";
+  /**
+   * Opening stock, from Daniel's inventory sheet of 2026-09-22
+   * (`skus-allternativ_Manuel.xlsx`), which the client confirmed as official.
+   * It is one or two under the invoice on each colourway because samples went
+   * to the founders. Written on create only; see the seed.
+   */
   stock: number;
 };
 
@@ -301,7 +312,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "THE-CORINTHIAN_OLIVE-GREEN",
         supplierSku: null,
         swatch: "#7d7a45",
-        stock: 17,
+        caseColor: "WHITE",
+        stock: 16,
       },
       {
         key: "black-black",
@@ -309,7 +321,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "THE-CORINTHIAN_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
-        stock: 17,
+        caseColor: "WHITE",
+        stock: 16,
       },
       {
         key: "black-double-grey",
@@ -317,7 +330,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "THE-CORINTHIAN_BLACK-DOUBLE-GREY",
         supplierSku: null,
         swatch: "#3f4247",
-        stock: 16,
+        caseColor: "WHITE",
+        stock: 15,
       },
     ],
   },
@@ -363,7 +377,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "ORBITAL_C03-MERCURY-BLACK",
         supplierSku: null,
         swatch: "#b9bdc2",
-        stock: 17,
+        caseColor: "BLACK",
+        stock: 16,
       },
       {
         key: "sand-black",
@@ -371,7 +386,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "ORBITAL_C09-SAND-BLACK",
         supplierSku: null,
         swatch: "#b9a68a",
-        stock: 17,
+        caseColor: "BLACK",
+        stock: 16,
       },
       {
         key: "black-black",
@@ -379,7 +395,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "ORBITAL_C07-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
-        stock: 16,
+        caseColor: "BLACK",
+        stock: 15,
       },
     ],
   },
@@ -424,7 +441,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "NEON-SHIFT_RED-BLACK",
         supplierSku: null,
         swatch: "#b4322b",
-        stock: 17,
+        caseColor: "WHITE",
+        stock: 16,
       },
       {
         key: "black-black",
@@ -432,7 +450,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "NEON-SHIFT_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
-        stock: 17,
+        caseColor: "WHITE",
+        stock: 16,
       },
       {
         key: "black-blue",
@@ -440,7 +459,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "NEON-SHIFT_BLACK-BLUE",
         supplierSku: null,
         swatch: "#2a3f6b",
-        stock: 16,
+        caseColor: "WHITE",
+        stock: 15,
       },
     ],
   },
@@ -484,7 +504,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "SYNC_GOLD-BLACK",
         supplierSku: null,
         swatch: "#c6a765",
-        stock: 17,
+        caseColor: "BLACK",
+        stock: 15,
       },
       {
         key: "silver-black",
@@ -492,7 +513,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "SYNC_SILVER-BLACK",
         supplierSku: null,
         swatch: "#c7cace",
-        stock: 17,
+        caseColor: "BLACK",
+        stock: 16,
       },
       {
         key: "black-black",
@@ -500,6 +522,7 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "SYNC_BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
+        caseColor: "BLACK",
         stock: 16,
       },
     ],
@@ -545,7 +568,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "AMPLIFY_C01-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
-        stock: 25,
+        caseColor: "BLACK",
+        stock: 24,
       },
       {
         key: "hawksbill-brown",
@@ -553,7 +577,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "AMPLIFY_C05-HAWKSBILL-BROWN",
         supplierSku: null,
         swatch: "#7b4a26",
-        stock: 25,
+        caseColor: "BLACK",
+        stock: 24,
       },
     ],
   },
@@ -599,7 +624,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "PRISM_C1-BLACK-BLACK",
         supplierSku: null,
         swatch: "#16171a",
-        stock: 25,
+        caseColor: "WHITE",
+        stock: 24,
       },
       {
         key: "demi-black",
@@ -621,7 +647,8 @@ export const catalogueProducts: SourceProduct[] = [
         sku: "PRISM_C4-DEMI-BLACK",
         supplierSku: null,
         swatch: "#6b4423",
-        stock: 25,
+        caseColor: "WHITE",
+        stock: 24,
       },
     ],
   },
@@ -651,9 +678,3 @@ export const RETIRED_SLUGS = [
   "nocturne",
   "prisma",
 ] as const;
-
-/** Opening case stock, from the same supplier invoice. 150 of each. */
-export const CASE_OPENING_STOCK: Record<"BLACK" | "WHITE", number> = {
-  BLACK: 150,
-  WHITE: 150,
-};

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   getProductBySlug,
-  getCaseOptions,
   galleryFor,
   type CatalogImage,
 } from "@/lib/catalog";
@@ -57,10 +56,6 @@ export default async function ProductPage({ params }: Props) {
     product.variants.map((v) => [v.id, galleryFor(product, v)]),
   );
 
-  // Cases are a shared pool across every model, so their availability is read
-  // once here rather than per product.
-  const caseOptions = await getCaseOptions();
-
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-12 pb-28 md:px-6 md:py-20 md:pb-20 lg:px-12 lg:py-28">
       <nav className="mb-8 eyebrow text-brand-muted md:mb-14">
@@ -72,11 +67,7 @@ export default async function ProductPage({ params }: Props) {
         </Link>
       </nav>
 
-      <ProductPurchase
-        product={product}
-        galleries={galleries}
-        caseOptions={caseOptions}
-      />
+      <ProductPurchase product={product} galleries={galleries} />
     </div>
   );
 }

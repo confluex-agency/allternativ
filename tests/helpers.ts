@@ -22,6 +22,8 @@ export const RUN = `test-${process.pid}`;
 
 export async function makeProduct(opts: {
   stock: number;
+  /** The case the test colourway is packed in. */
+  caseColor?: string | null;
   priceCents?: number;
   supplierCostUsdCents?: number;
   marketPrices?: { market: string; currency: string; priceCents: number }[];
@@ -45,6 +47,7 @@ export async function makeProduct(opts: {
           colorKey: "black",
           colorName: "Test Black",
           stockQuantity: opts.stock,
+          caseColor: opts.caseColor === undefined ? "BLACK" : opts.caseColor,
           isActive: true,
         },
       },
@@ -54,55 +57,16 @@ export async function makeProduct(opts: {
   return { product, variant: product.variants[0] };
 }
 
-/** Case stock, kept apart from the eyewear because it is a separate pool. */
-export async function setCaseStock(key: string, stockQuantity: number) {
-  await prisma.caseStock.upsert({
-    where: { key },
-    update: { stockQuantity },
-    create: { key, name: key, stockQuantity },
-  });
-}
-
 /**
- * Borrow the case-stock table, and give it back.
+ * The retired case pools, read and never written.
  *
- * ⚠️ `case_stock` is a singleton keyed by colour. Unlike products, the suite
- * cannot make itself a private row: the purchase path reserves against BLACK
- * and WHITE, which are the same two rows the development shop sells from. So
- * `setCaseStock` rewrites real local inventory, and it does it silently.
- *
- * That already cost time once. After a five-line test purchase had correctly
- * taken three black cases and two white ones, a run of this suite put both
- * pools back to 100, and the next person to look saw stock that had apparently
- * un-sold itself — a convincing inventory bug that was nothing of the sort.
- *
- * Nothing here is a production concern: the shop never runs its own tests. It
- * is a development concern, and the same one the project already has about
- * pointing DATABASE_URL at Hostinger.
+ * Until 2026-09-24 the purchase path drew cases from `case_stock`, a singleton
+ * keyed by colour that the suite had to borrow and hand back. The case is now
+ * packed with its pair, so the suite only reads the table, to prove that a
+ * sale no longer moves it.
  */
-export async function captureCaseStock() {
+export async function caseStockSnapshot() {
   return prisma.caseStock.findMany({ orderBy: { key: "asc" } });
-}
-
-export async function restoreCaseStock(
-  snapshot: Awaited<ReturnType<typeof captureCaseStock>>,
-): Promise<void> {
-  // Any row the suite invented and the shop never had.
-  await prisma.caseStock.deleteMany({
-    where: { key: { notIn: snapshot.map((c) => c.key) } },
-  });
-  for (const row of snapshot) {
-    await prisma.caseStock.upsert({
-      where: { key: row.key },
-      update: { stockQuantity: row.stockQuantity, isActive: row.isActive },
-      create: row,
-    });
-  }
-}
-
-export async function caseStockOf(key: string): Promise<number> {
-  const row = await prisma.caseStock.findUnique({ where: { key } });
-  return row?.stockQuantity ?? 0;
 }
 
 /**

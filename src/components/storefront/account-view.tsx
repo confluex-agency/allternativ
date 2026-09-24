@@ -171,8 +171,7 @@ export function AccountView({
                         className="text-sm text-brand-ink-soft"
                       >
                         {item.quantity} × {item.label}
-                        {/* The case is an option of the purchase, not a
-                            variant, so it never appears in the name and has to
+                        {/* The case never appears in the name, so it has to
                             be said out loud. */}
                         {item.caseColor && (
                           <span className="text-brand-muted">

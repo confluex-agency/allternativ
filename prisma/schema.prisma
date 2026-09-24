@@ -299,6 +299,12 @@ model ProductVariant {
   isActive      Boolean  @default(true) @map("is_active")
   position      Int      @default(0)
   supplierSku   String?  @map("supplier_sku") // supplier / ERP product code
+  // The case this colourway is PACKED in at the factory: "BLACK" | "WHITE".
+  // A fact of the physical stock, not a choice. Daniel, 2026-09-24: every
+  // colourway ships in one case colour and there are no spare cases, so a
+  // shopper who picked the other one was buying something that did not exist.
+  // Null means nobody has said, and the checkout refuses to sell it.
+  caseColor     String?  @map("case_color") @db.VarChar(16)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -320,6 +326,12 @@ model ProductVariant {
 // Deliberately NOT a queue: overselling is a race on one row, and the database
 // settles it with a conditional update. A message broker orders work, which is
 // a different problem.
+// ⚠️ RETIRED 2026-09-24, kept only so the table and its history survive.
+// It modelled cases as a shared pool any pair could draw from. They are not:
+// each colourway arrives packed in its own case (`ProductVariant.caseColor`),
+// so a case is counted by the pair it came with and nothing reads or writes
+// this pool any more.
+//
 // The cases the eyewear ships in. Bought up front in a fixed quantity, exactly
 // like the frames, and consumed one per pair sold.
 //
@@ -799,9 +811,9 @@ model OrderItem {
   // wrong without turning into an error. It cannot be backfilled either: nobody
   // writes down what a thing used to cost.
   unitCostCents  Int?    @map("unit_cost_cents")
-  // Case colour is an option of the purchase, not a variant of the product:
-  // choosing white does not create a different SKU. It has to survive to the
-  // supplier, who ships it (sections 07, 10 and 13).
+  // Frozen from `ProductVariant.caseColor` at the sale. Until 2026-09-24 the
+  // shopper chose it; now it is the case that colourway is packed in, and it
+  // is still frozen here because Daniel's SKU ends in it.
   caseColor      String? @map("case_color")
 
   order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)

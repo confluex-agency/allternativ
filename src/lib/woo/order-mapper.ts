@@ -162,9 +162,8 @@ export function toWooOrder(order: ExportableOrder) {
       sku: fulfilmentSku(item.sku ?? "", item.caseColor),
       price: money(item.unitPriceCents),
       total: money(item.unitPriceCents * item.quantity),
-      // The case colour is an option of the purchase, not a variant, so it has
-      // nowhere else to go. WooCommerce shows meta_data on the packing slip,
-      // which is exactly where the packer needs to see it.
+      // The case colour, frozen on the order line. WooCommerce shows
+      // meta_data on the packing slip, which is where the packer looks.
       meta_data: [
         // Still sent as its own line even though it is now inside the SKU.
         // Daniel confirmed order and customer notes are displayed on his side,

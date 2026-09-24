@@ -169,8 +169,7 @@ export function buildOrderConfirmation(
 
   const lines = order.items.map((i) => {
     const name = [i.productName, i.variantName].filter(Boolean).join(" — ");
-    // The case is an option of the purchase rather than a variant, so it does
-    // not appear in the name and has to be said explicitly.
+    // The case does not appear in the name, so it has to be said explicitly.
     const to_case = i.caseColor ? ` (case: ${i.caseColor.toLowerCase()})` : "";
     return `  ${i.quantity} x ${name}${to_case}  ${money(i.unitPriceCents * i.quantity)}`;
   });

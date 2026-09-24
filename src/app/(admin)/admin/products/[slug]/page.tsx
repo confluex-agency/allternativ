@@ -231,8 +231,8 @@ export default async function AdminProductPage({
         </table>
       </div>
       <p className="mt-2 text-xs text-neutral-500">
-        The SKU the warehouse picks by has the case colour appended per order
-        line — the customer chooses it at checkout, so it is not a colourway.
+        The SKU the warehouse picks by has the colourway&apos;s case colour
+        appended (Daniel&apos;s format, Model_Colour_Case).
       </p>
 
       <div className="mt-8 grid gap-6 md:grid-cols-2">

@@ -52,22 +52,12 @@ export const RESERVATION_MINUTES =
 export type ReservationRequest = {
   variantId: string;
   quantity: number;
-  /** One case is consumed per pair, so it is reserved with the same quantity. */
-  caseKey?: string;
 };
 
 export class OutOfStockError extends Error {
   constructor(public readonly variantId: string) {
     super("Not enough stock");
     this.name = "OutOfStockError";
-  }
-}
-
-/** The eyewear is there but the chosen case is not. */
-export class OutOfCasesError extends Error {
-  constructor(public readonly caseKey: string) {
-    super("Not enough cases");
-    this.name = "OutOfCasesError";
   }
 }
 
@@ -116,6 +106,9 @@ async function giveBack(
     data: { stockQuantity: { increment: reservation.quantity } },
   });
 
+  // Only reservations opened before 2026-09-24 carry a case: from then on the
+  // case is packed with the pair and counted with it. Kept so one still open
+  // across the deploy hands its case back to the pool it came from.
   if (reservation.caseKey) {
     await tx.caseStock.update({
       where: { key: reservation.caseKey },
@@ -175,26 +168,10 @@ export async function reserveStock(
         throw new OutOfStockError(item.variantId);
       }
 
-      // The case comes out of its own pool, with the same conditional update
-      // and the same guarantee. A pair with no case to ship it in is not a
-      // sale, so this failing rolls the whole basket back too.
-      if (item.caseKey) {
-        const cases = await tx.caseStock.updateMany({
-          where: {
-            key: item.caseKey,
-            isActive: true,
-            stockQuantity: { gte: item.quantity },
-          },
-          data: { stockQuantity: { decrement: item.quantity } },
-        });
-        if (cases.count === 0) throw new OutOfCasesError(item.caseKey);
-      }
-
       await tx.stockReservation.create({
         data: {
           variantId: item.variantId,
           quantity: item.quantity,
-          caseKey: item.caseKey ?? null,
           groupId,
           expiresAt,
         },

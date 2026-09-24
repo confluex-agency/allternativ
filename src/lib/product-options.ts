@@ -1,16 +1,14 @@
-// Purchase options that are NOT product variants.
+// The case colours, and the cart line key.
 //
-// The case colour is chosen at checkout and travels with the order, but it does
-// not create a separate SKU: Orbital Black is one product whichever case you
-// pick (sections 07, 10 and 13 of the client brief). Kept in its own module with
-// no server imports, so client components can use it without pulling in the
-// database layer.
+// Until 2026-09-24 the shopper chose the case (sections 07, 10 and 13 of the
+// brief). Daniel's inventory then showed each colourway packed in one case with
+// no spares, so the case is now `ProductVariant.caseColor` and nobody picks it.
+// Kept in its own module with no server imports, so client components can use
+// it without pulling in the database layer.
 
 export const CASE_COLORS = ["BLACK", "WHITE"] as const;
 
 export type CaseColor = (typeof CASE_COLORS)[number];
-
-export const DEFAULT_CASE_COLOR: CaseColor = "BLACK";
 
 /** Swatch shown in the selector. */
 export const CASE_SWATCH: Record<CaseColor, string> = {
@@ -29,8 +27,9 @@ export function isCaseColor(value: unknown): value is CaseColor {
 }
 
 /**
- * A cart line is a variant plus a case colour: the same sunglasses with a black
- * case and with a white case are two lines, not one with quantity two.
+ * A cart line is a variant plus its case colour. Since the case follows the
+ * colourway this is one line per colourway; the format is kept so baskets saved
+ * before 2026-09-24, which may hold both cases, still load.
  */
 export function cartLineId(variantId: string, caseColor: CaseColor): string {
   return `${variantId}:${caseColor}`;

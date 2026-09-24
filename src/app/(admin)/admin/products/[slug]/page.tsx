@@ -7,13 +7,16 @@ import { MARKETS, type MarketKey } from "@/lib/markets";
 import { PLACEHOLDER_IMAGE_PREFIX } from "@/lib/catalogue-source";
 import { ProductStatusBadge } from "@/components/admin/badges";
 import { StockControl } from "@/components/admin/stock-control";
+import { PriceControl } from "@/components/admin/price-control";
+import { worstCaseNet, type WorstCase } from "@/lib/prices-admin";
 import { COMMERCIAL_ROLES, hasRole } from "@/lib/roles";
 
 // One model: its colourways, its stock, its SKUs, its prices and what is
 // actually published about it.
 //
-// ⚠️ **Stock is editable here since 2026-09-13; everything else on this page is
-// still read-only, and the line between them is not arbitrary.**
+// ⚠️ **Stock is editable here since 2026-09-13 and the market prices since
+// 2026-09-24 (C5); everything else on this page is still read-only, and the
+// line between them is not arbitrary.**
 //
 // Stock was never blocked. The claim that the whole screen was waiting on
 // `prisma/seed.ts` turned out to be true of the COPY and of `priceCents` — the
@@ -101,6 +104,30 @@ export default async function AdminProductPage({
   });
 
   if (!product) notFound();
+
+  // What the worst order in each market would leave, for the people who may
+  // change the price. The cost is read in its own query and only for them:
+  // the select above is shared by every role and must stay free of it.
+  let worstByMarket: Partial<Record<MarketKey, WorstCase | null>> = {};
+  if (canEditStock) {
+    const cost = await prisma.product.findUnique({
+      where: { slug },
+      select: { supplierCostUsdCents: true },
+    });
+    worstByMarket = Object.fromEntries(
+      (Object.keys(MARKETS) as MarketKey[]).map((market) => {
+        const row = product.marketPrices.find((p) => p.market === market);
+        return [
+          market,
+          worstCaseNet(
+            cost?.supplierCostUsdCents ?? null,
+            market,
+            row?.priceCents ?? product.priceCents,
+          ),
+        ];
+      }),
+    );
+  }
 
   const priceFor = (market: MarketKey) =>
     product.marketPrices.find((p) => p.market === market);
@@ -243,32 +270,53 @@ export default async function AdminProductPage({
           <dl className="mt-3 text-sm">
             {(Object.keys(MARKETS) as MarketKey[]).map((market) => {
               const row = priceFor(market);
+              const worst = worstByMarket[market];
               return (
-                <div
-                  key={market}
-                  className="flex items-baseline justify-between py-1.5"
-                >
-                  <dt className="text-neutral-500">{MARKETS[market].label}</dt>
-                  <dd>
-                    {row ? (
-                      formatCurrency(row.priceCents, row.currency)
-                    ) : (
-                      // Falls back to the base price rather than failing, but
-                      // that is a gap worth seeing: it means this market was
-                      // never given a chosen figure.
-                      <span className="text-amber-600">
-                        not set — falls back to{" "}
-                        {formatCurrency(product.priceCents, "eur")}
-                      </span>
-                    )}
-                  </dd>
+                <div key={market} className="py-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-neutral-500">{MARKETS[market].label}</dt>
+                    <dd>
+                      {row ? (
+                        formatCurrency(row.priceCents, row.currency)
+                      ) : (
+                        // Falls back to the base price rather than failing, but
+                        // that is a gap worth seeing: it means this market was
+                        // never given a chosen figure.
+                        <span className="text-amber-600">
+                          not set — falls back to{" "}
+                          {formatCurrency(product.priceCents, "eur")}
+                        </span>
+                      )}
+                      {canEditStock && (
+                        <PriceControl
+                          slug={slug}
+                          market={market}
+                          marketLabel={MARKETS[market].label}
+                          currency={MARKETS[market].currency}
+                          priceCents={row?.priceCents ?? null}
+                        />
+                      )}
+                    </dd>
+                  </div>
+                  {worst && (
+                    <p
+                      className={`text-right text-xs ${
+                        worst.netCents < 0 ? "text-red-600" : "text-neutral-400"
+                      }`}
+                    >
+                      worst order leaves{" "}
+                      {formatCurrency(worst.netCents, MARKETS[market].currency)}{" "}
+                      ({worst.pairs} to {worst.country})
+                    </p>
+                  )}
                 </div>
               );
             })}
           </dl>
           <p className="mt-3 text-xs text-neutral-500">
             Fixed figures chosen per market, never a daily conversion of the
-            euro price.
+            euro price. A change reaches the shop within seconds, and a price
+            that would make any order lose money is refused.
           </p>
         </section>
 

@@ -152,7 +152,7 @@ supplier with the case colours intact. None of the list below is code.
 | ⚠️ Set `NEXT_PUBLIC_APP_URL` **and rebuild** | It is inlined at build time. Changing the variable and restarting serves the old value — the bug that once sent a paying customer to `localhost:3000`. |
 | Re-point the three cron jobs | They call `staging.allternativ.com`. Left alone, the production shop never sends a single email. |
 | Upstash on production | Or nobody can sign in to the admin: the login limiter fails closed on purpose. |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | The defaults are committed and therefore in git history. |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | The defaults are committed and therefore in git history. ⚠️ Check the email has **no trailing space**: staging's OWNER was created as `'admin@allternativ.com '` (2026-09-25). Harmless under MariaDB's PAD SPACE comparison, but the seed never rewrites an existing admin, so whatever is typed here on the first run is what the account keeps. And the address must RECEIVE mail: `admin@` did not exist until it was made an alias of `info@`, so the OWNER's reset link went nowhere. |
 | Fill in `legal.ts` | Legal name, registered address, company number, VAT, IOSS. The "not final" notice on the five legal pages disappears on its own once they are set. |
 | Set up `allternativ.com` as a Node app | Only `staging.` is one today; the apex is `website_type: "other"`. That is a deploy step, not a code change. |
 | Apply migrations, then push | See the ordering rule above. |

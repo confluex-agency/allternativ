@@ -31,17 +31,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Typecheck covers the app AND scripts/ + prisma/seed.ts, which the build
+      # does not look at (see "Commands" in CLAUDE.md).
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
         env:
-          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          # Placeholders. The build never connects: storefront pages are not
+          # pre-rendered (CLAUDE.md, "Storefront pages are never pre-rendered").
+          DATABASE_URL: "mysql://placeholder:placeholder@localhost:3306/placeholder"
           JWT_SECRET: "ci-test-secret-not-real-at-least-32-characters"
           STRIPE_SECRET_KEY: "sk_test_placeholder"
           STRIPE_WEBHOOK_SECRET: "whsec_placeholder"
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder"
-          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-          SUPABASE_SERVICE_ROLE_KEY: "placeholder"
+          # ⚠️ https and not localhost: env.ts refuses a loopback or plain-http
+          # address in a production build, on purpose (it is where Stripe sends
+          # a shopper after charging them). `.invalid` is reserved and never
+          # resolves, so nothing can ever be sent there.
+          NEXT_PUBLIC_APP_URL: "https://ci.allternativ.invalid"
 
       # Defense in depth: also run a quick secret grep on the diff so PRs
       # cannot land an .env or hardcoded key even if gitleaks job is skipped

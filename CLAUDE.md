@@ -167,22 +167,30 @@ in the `deploy-allternativ` skill.
 
 **Judge a residual by reachability, not by severity**: can attacker-controlled
 input get to this code path in the deployed app? If not, it is accepted, and the
-reason is written down. Production sits at **9** under `--omit=dev`.
+reason is written down. Production sits at **8** under `--omit=dev` (3 of them
+high, all accepted).
+
+⚠️ **The accepted highs are listed by advisory id in `.github/audit-accepted.json`**,
+and the Security workflow runs `scripts/audit-gate.mjs`, which fails only on a
+high or critical that is NOT on that list. Until 2026-09-25 it ran
+`npm audit --audit-level=high`, which failed on the accepted ones on every push
+to main, for weeks — a red mark that meant nothing, and would have hidden a
+real new one. Accepting a residual now means adding it there, with its reason.
 
 ⚠️ GitHub's own count is much higher (65 at the last push) because Dependabot
 counts the whole tree, dev dependencies included. The number that describes the
 running server is `npm audit --omit=dev`. Neither is wrong; they answer
 different questions.
 
-**The Prisma command line — four, unchanged since 2026-08-17:**
+**The Prisma command line — three since 2026-09-25:**
 
 | Package | Why it stays |
 |---|---|
 | `deepmerge-ts` (high) | Stack exhaustion merging recursive objects. Arrives through `@prisma/config`, which pins it at **exactly 7.1.5** while the fix needs 8.x. Forcing a major into Prisma's own config loader risks breaking `prisma.config.ts`, which the migration workflow above depends on. It runs when the CLI merges a config file *we* author and commit — no attacker input goes near it. |
 | `@prisma/config`, `prisma` (high) | Flagged only because they depend on `deepmerge-ts`. Same reasoning. |
-| `fast-uri` (high) | Host confusion in URI parsing. Arrives via `prisma → @prisma/dev → @prisma/streams-local → ajv`. CLI only. |
+| ~~`fast-uri`~~ | **Fixed 2026-09-25** with `"fast-uri": "~3.1.8"` in `overrides` (3.1.3 → 3.1.8, inside the `^3` that `ajv` asks for). It had grown to six advisories, two of them SSRF. |
 
-All four are the Prisma **command line**, not the running server. They show up
+All three are the Prisma **command line**, not the running server. They show up
 under `--omit=dev` only because `@prisma/client` declares `prisma` as a peer
 dependency, so npm treats it as production-reachable. Nothing in `src/` imports
 the CLI.

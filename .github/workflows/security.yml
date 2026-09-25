@@ -29,8 +29,15 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci
-      - name: Audit production dependencies (fail on high+)
-        run: npm audit --omit=dev --audit-level=high
+      # Fails on a NEW high/critical only. The accepted residuals, each with its
+      # reason, are in .github/audit-accepted.json; the plain
+      # `--audit-level=high` failed on them on every push until the red mark
+      # stopped meaning anything.
+      - name: Audit production dependencies (fail on new high+)
+        # `|| true`: npm audit exits non-zero whenever it finds anything, and
+        # Actions runs bash with pipefail. The gate decides; if the audit
+        # itself failed, its empty output fails the gate's JSON.parse anyway.
+        run: (npm audit --omit=dev --json || true) | node scripts/audit-gate.mjs
 
   gitleaks:
     name: Gitleaks (secret scanning)

@@ -1,0 +1,20 @@
+{
+  "_comment": "High/critical advisories in PRODUCTION dependencies that were judged unreachable and accepted. The reasoning is in CLAUDE.md, 'Accepted residuals'. Every entry needs a reason and a date. The Security workflow fails on anything not listed here, so a NEW high advisory still breaks the build.",
+  "accepted": {
+    "GHSA-ggr8-5vv4-36mx": {
+      "package": "deepmerge-ts",
+      "since": "2026-08-17",
+      "reason": "Prisma CLI config loader only (pinned by @prisma/config). Merges a config file we author; nothing in src/ imports the CLI."
+    },
+    "GHSA-cqhc-2h57-wpxf": {
+      "package": "mariadb",
+      "since": "2026-09-10",
+      "reason": "Credential leak to a man in the middle. The app reaches the database on localhost. Re-examine if DATABASE_URL in production ever stops being localhost. No fix published."
+    },
+    "GHSA-3f6p-5ww8-9rcr": {
+      "package": "mysql2",
+      "since": "2026-09-10",
+      "reason": "Auth-plugin downgrade; needs a hostile or intercepted database server. Same reachability argument as mariadb."
+    }
+  }
+}

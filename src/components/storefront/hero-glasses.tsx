@@ -33,7 +33,12 @@ function Glasses({ reduced }: { reduced: boolean }) {
     return clone;
   }, [original]);
   const group = useRef<THREE.Group>(null);
-  const { camera, size } = useThree();
+  // The camera is read inside the effect through `get()`, R3F's imperative
+  // accessor, rather than taken from the hook's return value: the React
+  // Compiler's lint rule forbids mutating a hook's result, and moving the
+  // camera is exactly what this effect is for.
+  const size = useThree((s) => s.size);
+  const get = useThree((s) => s.get);
 
   // Bounding-sphere radius (rotation-invariant) for framing. Centering itself is
   // handled by drei's <Center> below, which is more reliable than a manual offset.
@@ -45,7 +50,7 @@ function Glasses({ reduced }: { reduced: boolean }) {
   // Distance the camera needs so the whole bounding sphere fits the container,
   // using whichever field of view (vertical or horizontal) is tighter.
   useLayoutEffect(() => {
-    const cam = camera as THREE.PerspectiveCamera;
+    const cam = get().camera as THREE.PerspectiveCamera;
     const aspect = size.width / Math.max(size.height, 1);
     const vFov = (cam.fov * Math.PI) / 180;
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
@@ -60,7 +65,7 @@ function Glasses({ reduced }: { reduced: boolean }) {
     cam.far = dist + radius * 2;
     cam.lookAt(0, 0, 0);
     cam.updateProjectionMatrix();
-  }, [camera, size, radius]);
+  }, [get, size, radius]);
 
   useFrame((state, delta) => {
     const g = group.current;
